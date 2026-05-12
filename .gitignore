@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.py[cod]
+.DS_Store
+.codex_deps/
+tmp/
+research/
+*.pt
+

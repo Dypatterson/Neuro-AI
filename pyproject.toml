@@ -1,0 +1,18 @@
+[project]
+name = "neuro-ai-energy-memory"
+version = "0.1.0"
+description = "MVP 0 energy memory kernel for temporal associative recall experiments."
+requires-python = ">=3.9"
+dependencies = []
+
+[project.optional-dependencies]
+torch = [
+    "numpy",
+    "torch",
+]
+phase2 = [
+    "datasets>=2.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
