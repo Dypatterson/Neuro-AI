@@ -1,0 +1,40 @@
+{
+  "config": {
+    "dim": 4096,
+    "device": null,
+    "max_vocab": 2048,
+    "corpus_source": "wikitext",
+    "wikitext_name": "wikitext-2-raw-v1",
+    "seed": 17,
+    "scales": "2,3,4",
+    "epochs": 5,
+    "landscape_size": 256,
+    "probe_size": 2000,
+    "consolidation_k": 100,
+    "quality_threshold": 0.15,
+    "lr_pull": 0.1,
+    "lr_push": 0.05,
+    "train_beta": 10.0,
+    "output_dir": "reports/phase4_per_scale"
+  },
+  "scales": {
+    "2": {
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase4_per_scale/codebook_w2.pt",
+      "consolidations": 60,
+      "final_failure_rate": 0.5273422918999626,
+      "final_mean_quality": 0.051293091642825556
+    },
+    "3": {
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase4_per_scale/codebook_w3.pt",
+      "consolidations": 77,
+      "final_failure_rate": 0.6241560390097525,
+      "final_mean_quality": 0.05401891088371889
+    },
+    "4": {
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase4_per_scale/codebook_w4.pt",
+      "consolidations": 85,
+      "final_failure_rate": 0.7104539202200826,
+      "final_mean_quality": 0.036149118428251574
+    }
+  }
+}
