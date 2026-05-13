@@ -1,0 +1,440 @@
+{
+  "config": {
+    "repo_root": "/Users/dypatterson/Desktop/Neuro-AI",
+    "dim": 4096,
+    "device": "mps",
+    "window_size": 8,
+    "landscape_size": 64,
+    "beta": 3.0,
+    "test_samples": 64,
+    "mask_position": "end",
+    "seeds": [
+      17,
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "wikitext_name": "wikitext-2-raw-v1",
+    "out_csv": "reports/phase3_comparison.csv"
+  },
+  "rows": [
+    {
+      "label": "random_baseline_matrix",
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase2_full_matrix/phase2_codebook.pt",
+      "seed": 17,
+      "n_eval": 44,
+      "n_correct": 9,
+      "accuracy": 0.20454545454545456,
+      "lower_ci": 0.11153127823467596,
+      "upper_ci": 0.34500863681833227
+    },
+    {
+      "label": "random_baseline_matrix",
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase2_full_matrix/phase2_codebook.pt",
+      "seed": 1,
+      "n_eval": 53,
+      "n_correct": 3,
+      "accuracy": 0.05660377358490566,
+      "lower_ci": 0.01943630892731418,
+      "upper_ci": 0.15370448936126319
+    },
+    {
+      "label": "random_baseline_matrix",
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase2_full_matrix/phase2_codebook.pt",
+      "seed": 2,
+      "n_eval": 48,
+      "n_correct": 6,
+      "accuracy": 0.125,
+      "lower_ci": 0.058569717504008446,
+      "upper_ci": 0.2470072708605482
+    },
+    {
+      "label": "random_baseline_matrix",
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase2_full_matrix/phase2_codebook.pt",
+      "seed": 3,
+      "n_eval": 46,
+      "n_correct": 1,
+      "accuracy": 0.021739130434782608,
+      "lower_ci": 0.003847755111242632,
+      "upper_ci": 0.11335554494333024
+    },
+    {
+      "label": "random_baseline_matrix",
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase2_full_matrix/phase2_codebook.pt",
+      "seed": 4,
+      "n_eval": 48,
+      "n_correct": 3,
+      "accuracy": 0.0625,
+      "lower_ci": 0.021482843131227235,
+      "upper_ci": 0.1683569766274222
+    },
+    {
+      "label": "random_baseline_matrix",
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase2_full_matrix/phase2_codebook.pt",
+      "seed": 5,
+      "n_eval": 48,
+      "n_correct": 3,
+      "accuracy": 0.0625,
+      "lower_ci": 0.021482843131227235,
+      "upper_ci": 0.1683569766274222
+    },
+    {
+      "label": "random_phase3c",
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase3c_reconstruction/phase3c_codebook_random.pt",
+      "seed": 17,
+      "n_eval": 44,
+      "n_correct": 9,
+      "accuracy": 0.20454545454545456,
+      "lower_ci": 0.11153127823467596,
+      "upper_ci": 0.34500863681833227
+    },
+    {
+      "label": "random_phase3c",
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase3c_reconstruction/phase3c_codebook_random.pt",
+      "seed": 1,
+      "n_eval": 53,
+      "n_correct": 3,
+      "accuracy": 0.05660377358490566,
+      "lower_ci": 0.01943630892731418,
+      "upper_ci": 0.15370448936126319
+    },
+    {
+      "label": "random_phase3c",
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase3c_reconstruction/phase3c_codebook_random.pt",
+      "seed": 2,
+      "n_eval": 48,
+      "n_correct": 6,
+      "accuracy": 0.125,
+      "lower_ci": 0.058569717504008446,
+      "upper_ci": 0.2470072708605482
+    },
+    {
+      "label": "random_phase3c",
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase3c_reconstruction/phase3c_codebook_random.pt",
+      "seed": 3,
+      "n_eval": 46,
+      "n_correct": 1,
+      "accuracy": 0.021739130434782608,
+      "lower_ci": 0.003847755111242632,
+      "upper_ci": 0.11335554494333024
+    },
+    {
+      "label": "random_phase3c",
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase3c_reconstruction/phase3c_codebook_random.pt",
+      "seed": 4,
+      "n_eval": 48,
+      "n_correct": 3,
+      "accuracy": 0.0625,
+      "lower_ci": 0.021482843131227235,
+      "upper_ci": 0.1683569766274222
+    },
+    {
+      "label": "random_phase3c",
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase3c_reconstruction/phase3c_codebook_random.pt",
+      "seed": 5,
+      "n_eval": 48,
+      "n_correct": 3,
+      "accuracy": 0.0625,
+      "lower_ci": 0.021482843131227235,
+      "upper_ci": 0.1683569766274222
+    },
+    {
+      "label": "hebbian_phase3c",
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase3c_reconstruction/phase3c_codebook_hebbian.pt",
+      "seed": 17,
+      "n_eval": 44,
+      "n_correct": 9,
+      "accuracy": 0.20454545454545456,
+      "lower_ci": 0.11153127823467596,
+      "upper_ci": 0.34500863681833227
+    },
+    {
+      "label": "hebbian_phase3c",
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase3c_reconstruction/phase3c_codebook_hebbian.pt",
+      "seed": 1,
+      "n_eval": 53,
+      "n_correct": 1,
+      "accuracy": 0.018867924528301886,
+      "lower_ci": 0.0033383673867494,
+      "upper_ci": 0.09943143501149411
+    },
+    {
+      "label": "hebbian_phase3c",
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase3c_reconstruction/phase3c_codebook_hebbian.pt",
+      "seed": 2,
+      "n_eval": 48,
+      "n_correct": 6,
+      "accuracy": 0.125,
+      "lower_ci": 0.058569717504008446,
+      "upper_ci": 0.2470072708605482
+    },
+    {
+      "label": "hebbian_phase3c",
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase3c_reconstruction/phase3c_codebook_hebbian.pt",
+      "seed": 3,
+      "n_eval": 46,
+      "n_correct": 7,
+      "accuracy": 0.15217391304347827,
+      "lower_ci": 0.07572186234017478,
+      "upper_ci": 0.2822441740631509
+    },
+    {
+      "label": "hebbian_phase3c",
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase3c_reconstruction/phase3c_codebook_hebbian.pt",
+      "seed": 4,
+      "n_eval": 48,
+      "n_correct": 3,
+      "accuracy": 0.0625,
+      "lower_ci": 0.021482843131227235,
+      "upper_ci": 0.1683569766274222
+    },
+    {
+      "label": "hebbian_phase3c",
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase3c_reconstruction/phase3c_codebook_hebbian.pt",
+      "seed": 5,
+      "n_eval": 48,
+      "n_correct": 3,
+      "accuracy": 0.0625,
+      "lower_ci": 0.021482843131227235,
+      "upper_ci": 0.1683569766274222
+    },
+    {
+      "label": "reconstruction",
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase3c_reconstruction/phase3c_codebook_reconstruction.pt",
+      "seed": 17,
+      "n_eval": 44,
+      "n_correct": 9,
+      "accuracy": 0.20454545454545456,
+      "lower_ci": 0.11153127823467596,
+      "upper_ci": 0.34500863681833227
+    },
+    {
+      "label": "reconstruction",
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase3c_reconstruction/phase3c_codebook_reconstruction.pt",
+      "seed": 1,
+      "n_eval": 53,
+      "n_correct": 3,
+      "accuracy": 0.05660377358490566,
+      "lower_ci": 0.01943630892731418,
+      "upper_ci": 0.15370448936126319
+    },
+    {
+      "label": "reconstruction",
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase3c_reconstruction/phase3c_codebook_reconstruction.pt",
+      "seed": 2,
+      "n_eval": 48,
+      "n_correct": 0,
+      "accuracy": 0.0,
+      "lower_ci": 0.0,
+      "upper_ci": 0.0741026511527422
+    },
+    {
+      "label": "reconstruction",
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase3c_reconstruction/phase3c_codebook_reconstruction.pt",
+      "seed": 3,
+      "n_eval": 46,
+      "n_correct": 2,
+      "accuracy": 0.043478260869565216,
+      "lower_ci": 0.012005193588830823,
+      "upper_ci": 0.14532522919053417
+    },
+    {
+      "label": "reconstruction",
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase3c_reconstruction/phase3c_codebook_reconstruction.pt",
+      "seed": 4,
+      "n_eval": 48,
+      "n_correct": 1,
+      "accuracy": 0.020833333333333332,
+      "lower_ci": 0.0036870159793996895,
+      "upper_ci": 0.10899469137531158
+    },
+    {
+      "label": "reconstruction",
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase3c_reconstruction/phase3c_codebook_reconstruction.pt",
+      "seed": 5,
+      "n_eval": 48,
+      "n_correct": 0,
+      "accuracy": 0.0,
+      "lower_ci": 0.0,
+      "upper_ci": 0.0741026511527422
+    },
+    {
+      "label": "hebbian_phase3b",
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase3b_error_driven/phase3b_codebook_hebbian.pt",
+      "seed": 17,
+      "n_eval": 44,
+      "n_correct": 9,
+      "accuracy": 0.20454545454545456,
+      "lower_ci": 0.11153127823467596,
+      "upper_ci": 0.34500863681833227
+    },
+    {
+      "label": "hebbian_phase3b",
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase3b_error_driven/phase3b_codebook_hebbian.pt",
+      "seed": 1,
+      "n_eval": 53,
+      "n_correct": 1,
+      "accuracy": 0.018867924528301886,
+      "lower_ci": 0.0033383673867494,
+      "upper_ci": 0.09943143501149411
+    },
+    {
+      "label": "hebbian_phase3b",
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase3b_error_driven/phase3b_codebook_hebbian.pt",
+      "seed": 2,
+      "n_eval": 48,
+      "n_correct": 6,
+      "accuracy": 0.125,
+      "lower_ci": 0.058569717504008446,
+      "upper_ci": 0.2470072708605482
+    },
+    {
+      "label": "hebbian_phase3b",
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase3b_error_driven/phase3b_codebook_hebbian.pt",
+      "seed": 3,
+      "n_eval": 46,
+      "n_correct": 7,
+      "accuracy": 0.15217391304347827,
+      "lower_ci": 0.07572186234017478,
+      "upper_ci": 0.2822441740631509
+    },
+    {
+      "label": "hebbian_phase3b",
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase3b_error_driven/phase3b_codebook_hebbian.pt",
+      "seed": 4,
+      "n_eval": 48,
+      "n_correct": 3,
+      "accuracy": 0.0625,
+      "lower_ci": 0.021482843131227235,
+      "upper_ci": 0.1683569766274222
+    },
+    {
+      "label": "hebbian_phase3b",
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase3b_error_driven/phase3b_codebook_hebbian.pt",
+      "seed": 5,
+      "n_eval": 48,
+      "n_correct": 3,
+      "accuracy": 0.0625,
+      "lower_ci": 0.021482843131227235,
+      "upper_ci": 0.1683569766274222
+    },
+    {
+      "label": "error_driven",
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase3b_error_driven/phase3b_codebook_error_driven.pt",
+      "seed": 17,
+      "n_eval": 44,
+      "n_correct": 9,
+      "accuracy": 0.20454545454545456,
+      "lower_ci": 0.11153127823467596,
+      "upper_ci": 0.34500863681833227
+    },
+    {
+      "label": "error_driven",
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase3b_error_driven/phase3b_codebook_error_driven.pt",
+      "seed": 1,
+      "n_eval": 53,
+      "n_correct": 1,
+      "accuracy": 0.018867924528301886,
+      "lower_ci": 0.0033383673867494,
+      "upper_ci": 0.09943143501149411
+    },
+    {
+      "label": "error_driven",
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase3b_error_driven/phase3b_codebook_error_driven.pt",
+      "seed": 2,
+      "n_eval": 48,
+      "n_correct": 0,
+      "accuracy": 0.0,
+      "lower_ci": 0.0,
+      "upper_ci": 0.0741026511527422
+    },
+    {
+      "label": "error_driven",
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase3b_error_driven/phase3b_codebook_error_driven.pt",
+      "seed": 3,
+      "n_eval": 46,
+      "n_correct": 4,
+      "accuracy": 0.08695652173913043,
+      "lower_ci": 0.03433531187670749,
+      "upper_ci": 0.20324935635224176
+    },
+    {
+      "label": "error_driven",
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase3b_error_driven/phase3b_codebook_error_driven.pt",
+      "seed": 4,
+      "n_eval": 48,
+      "n_correct": 0,
+      "accuracy": 0.0,
+      "lower_ci": 0.0,
+      "upper_ci": 0.0741026511527422
+    },
+    {
+      "label": "error_driven",
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase3b_error_driven/phase3b_codebook_error_driven.pt",
+      "seed": 5,
+      "n_eval": 48,
+      "n_correct": 1,
+      "accuracy": 0.020833333333333332,
+      "lower_ci": 0.0036870159793996895,
+      "upper_ci": 0.10899469137531158
+    }
+  ],
+  "aggregates": {
+    "random_baseline_matrix": {
+      "mean_acc": 0.0888147264275238,
+      "pooled_acc": 0.08710801393728224,
+      "pooled_lower": 0.05969699029822463,
+      "pooled_upper": 0.12542645834185992,
+      "n_seeds": 6,
+      "total_correct": 25,
+      "total_eval": 287
+    },
+    "random_phase3c": {
+      "mean_acc": 0.0888147264275238,
+      "pooled_acc": 0.08710801393728224,
+      "pooled_lower": 0.05969699029822463,
+      "pooled_upper": 0.12542645834185992,
+      "n_seeds": 6,
+      "total_correct": 25,
+      "total_eval": 287
+    },
+    "hebbian_phase3c": {
+      "mean_acc": 0.10426454868620579,
+      "pooled_acc": 0.10104529616724739,
+      "pooled_lower": 0.07127820951845529,
+      "pooled_upper": 0.14135162060213272,
+      "n_seeds": 6,
+      "total_correct": 29,
+      "total_eval": 287
+    },
+    "reconstruction": {
+      "mean_acc": 0.05424347038887647,
+      "pooled_acc": 0.05226480836236934,
+      "pooled_lower": 0.03192542171683763,
+      "pooled_upper": 0.08443207322198819,
+      "n_seeds": 6,
+      "total_correct": 15,
+      "total_eval": 287
+    },
+    "hebbian_phase3b": {
+      "mean_acc": 0.10426454868620579,
+      "pooled_acc": 0.10104529616724739,
+      "pooled_lower": 0.07127820951845529,
+      "pooled_upper": 0.14135162060213272,
+      "n_seeds": 6,
+      "total_correct": 29,
+      "total_eval": 287
+    },
+    "error_driven": {
+      "mean_acc": 0.055200539024370034,
+      "pooled_acc": 0.05226480836236934,
+      "pooled_lower": 0.03192542171683763,
+      "pooled_upper": 0.08443207322198819,
+      "n_seeds": 6,
+      "total_correct": 15,
+      "total_eval": 287
+    }
+  }
+}

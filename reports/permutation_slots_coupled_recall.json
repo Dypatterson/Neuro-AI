@@ -1,0 +1,235 @@
+{
+  "rows": [
+    {
+      "encoding": "bag",
+      "cue_type": "directed",
+      "seed": 211,
+      "top1_correct": 0.2,
+      "mean_rank": 22.0,
+      "mean_entropy": 0.4999910295009613,
+      "n_probes": 5
+    },
+    {
+      "encoding": "bag",
+      "cue_type": "random",
+      "seed": 211,
+      "top1_correct": 0.2,
+      "mean_rank": 22.0,
+      "mean_entropy": 0.4999910295009613,
+      "n_probes": 5
+    },
+    {
+      "encoding": "permutation",
+      "cue_type": "directed",
+      "seed": 211,
+      "top1_correct": 1.0,
+      "mean_rank": 8.6,
+      "mean_entropy": 0.020854080840945245,
+      "n_probes": 5
+    },
+    {
+      "encoding": "permutation",
+      "cue_type": "random",
+      "seed": 211,
+      "top1_correct": 0.4,
+      "mean_rank": 2.0,
+      "mean_entropy": 0.036381895840168,
+      "n_probes": 5
+    },
+    {
+      "encoding": "bag",
+      "cue_type": "directed",
+      "seed": 223,
+      "top1_correct": 0.2,
+      "mean_rank": 22.0,
+      "mean_entropy": 0.49998530745506287,
+      "n_probes": 5
+    },
+    {
+      "encoding": "bag",
+      "cue_type": "random",
+      "seed": 223,
+      "top1_correct": 0.2,
+      "mean_rank": 22.0,
+      "mean_entropy": 0.4999853253364563,
+      "n_probes": 5
+    },
+    {
+      "encoding": "permutation",
+      "cue_type": "directed",
+      "seed": 223,
+      "top1_correct": 0.4,
+      "mean_rank": 9.6,
+      "mean_entropy": 0.3057346045970917,
+      "n_probes": 5
+    },
+    {
+      "encoding": "permutation",
+      "cue_type": "random",
+      "seed": 223,
+      "top1_correct": 0.2,
+      "mean_rank": 12.0,
+      "mean_entropy": 0.35274577140808105,
+      "n_probes": 5
+    },
+    {
+      "encoding": "bag",
+      "cue_type": "directed",
+      "seed": 241,
+      "top1_correct": 0.2,
+      "mean_rank": 22.0,
+      "mean_entropy": 0.4999909996986389,
+      "n_probes": 5
+    },
+    {
+      "encoding": "bag",
+      "cue_type": "random",
+      "seed": 241,
+      "top1_correct": 0.2,
+      "mean_rank": 22.0,
+      "mean_entropy": 0.4999909996986389,
+      "n_probes": 5
+    },
+    {
+      "encoding": "permutation",
+      "cue_type": "directed",
+      "seed": 241,
+      "top1_correct": 1.0,
+      "mean_rank": 19.0,
+      "mean_entropy": 0.019771398836746813,
+      "n_probes": 5
+    },
+    {
+      "encoding": "permutation",
+      "cue_type": "random",
+      "seed": 241,
+      "top1_correct": 0.2,
+      "mean_rank": 22.0,
+      "mean_entropy": 0.040225645154714586,
+      "n_probes": 5
+    },
+    {
+      "encoding": "bag",
+      "cue_type": "directed",
+      "seed": 253,
+      "top1_correct": 0.2,
+      "mean_rank": 22.0,
+      "mean_entropy": 0.4999862313270569,
+      "n_probes": 5
+    },
+    {
+      "encoding": "bag",
+      "cue_type": "random",
+      "seed": 253,
+      "top1_correct": 0.2,
+      "mean_rank": 22.0,
+      "mean_entropy": 0.4999862313270569,
+      "n_probes": 5
+    },
+    {
+      "encoding": "permutation",
+      "cue_type": "directed",
+      "seed": 253,
+      "top1_correct": 1.0,
+      "mean_rank": 5.6,
+      "mean_entropy": 0.012832919880747796,
+      "n_probes": 5
+    },
+    {
+      "encoding": "permutation",
+      "cue_type": "random",
+      "seed": 253,
+      "top1_correct": 0.2,
+      "mean_rank": 2.0,
+      "mean_entropy": 0.017940916121006012,
+      "n_probes": 5
+    },
+    {
+      "encoding": "bag",
+      "cue_type": "directed",
+      "seed": 267,
+      "top1_correct": 0.2,
+      "mean_rank": 22.0,
+      "mean_entropy": 0.4999859035015106,
+      "n_probes": 5
+    },
+    {
+      "encoding": "bag",
+      "cue_type": "random",
+      "seed": 267,
+      "top1_correct": 0.2,
+      "mean_rank": 22.0,
+      "mean_entropy": 0.4999859035015106,
+      "n_probes": 5
+    },
+    {
+      "encoding": "permutation",
+      "cue_type": "directed",
+      "seed": 267,
+      "top1_correct": 1.0,
+      "mean_rank": 10.4,
+      "mean_entropy": 0.016087011620402335,
+      "n_probes": 5
+    },
+    {
+      "encoding": "permutation",
+      "cue_type": "random",
+      "seed": 267,
+      "top1_correct": 0.4,
+      "mean_rank": 7.6,
+      "mean_entropy": 0.023280218243598938,
+      "n_probes": 5
+    }
+  ],
+  "summary": [
+    {
+      "encoding": "bag",
+      "cue_type": "directed",
+      "top1_mean": 0.2,
+      "rank_mean": 22.0,
+      "entropy_mean": 0.49998789429664614,
+      "n_seeds": 5
+    },
+    {
+      "encoding": "bag",
+      "cue_type": "random",
+      "top1_mean": 0.2,
+      "rank_mean": 22.0,
+      "entropy_mean": 0.49998789787292475,
+      "n_seeds": 5
+    },
+    {
+      "encoding": "permutation",
+      "cue_type": "directed",
+      "top1_mean": 0.8800000000000001,
+      "rank_mean": 10.64,
+      "entropy_mean": 0.07505600315518676,
+      "n_seeds": 5
+    },
+    {
+      "encoding": "permutation",
+      "cue_type": "random",
+      "top1_mean": 0.28,
+      "rank_mean": 9.120000000000001,
+      "entropy_mean": 0.09411488935351373,
+      "n_seeds": 5
+    }
+  ],
+  "config": {
+    "dim": 4096,
+    "family_size": 5,
+    "distractors": 25,
+    "family_noise": 0.1,
+    "window": 2,
+    "content_beta": 80.0,
+    "temporal_beta": 8.0,
+    "seeds": [
+      11,
+      23,
+      41,
+      53,
+      67
+    ],
+    "out": "reports/permutation_slots_coupled_recall.json"
+  }
+}

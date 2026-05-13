@@ -64,55 +64,161 @@ class ReplayConfig:
     max_age: int = 5
     novelty_strength: float = 1.0
     retrieval_gain: float = 0.1
+    # Idea 4a (Joo & Frank 2023): when a new trace's query is close to an
+    # already-stored trace, increment that trace's tag_count rather than
+    # appending a duplicate. Sampling weight becomes gate * tag_count.
+    # Set to None to disable (preserves prior gate * (1 + age) weighting).
+    tag_overlap_threshold: Optional[float] = 0.7
+    # Idea 4c (Biderman SFMA, 2023): inhibition of return. Each time a trace
+    # is sampled for replay, its suppression multiplier is scaled by
+    # suppression_decay; between replay cycles, suppression recovers toward
+    # 1.0 by suppression_recovery per cycle. This prevents the highest-gate
+    # trace from monopolizing replay.
+    #
+    # Defaults are off (decay=1.0, recovery=0.0) per report 013: in the
+    # project's current resolve-and-remove replay flow, sampled traces are
+    # removed immediately on resolution, so suppression has no window to
+    # bias subsequent samples. The mechanism is correct and tested; flip
+    # these knobs on if/when the replay flow moves to keep-and-sweep.
+    suppression_decay: float = 1.0
+    suppression_recovery: float = 0.0
 
 
 class ReplayStore:
-    """Bounded buffer of trajectory traces ranked by gate signal × age."""
+    """Bounded buffer of trajectory traces ranked by gate_signal × tag_count × suppression.
 
-    def __init__(self, capacity: int):
+    Per-trace state:
+      - gate_signal: engagement × (1 - resolution) at last observation
+      - tag_count:   how many times an overlapping query has been seen
+                     (Joo & Frank 2023 — replay priority predicted by tag
+                     count, not age)
+      - suppression: inhibition-of-return multiplier; decays on each replay
+                     attempt, recovers between cycles (Biderman SFMA 2023)
+
+    Backward compatibility: when ``substrate`` is None or
+    ``tag_overlap_threshold`` is None, ``add`` never collapses overlapping
+    queries (tag_count stays 1 for every entry), so the prior behavior of
+    one-trace-per-add is preserved. When ``suppression_decay >= 1.0`` and
+    ``suppression_recovery == 0.0`` the inhibition-of-return mechanism is
+    a no-op.
+    """
+
+    def __init__(
+        self,
+        capacity: int,
+        *,
+        substrate: Optional[TorchFHRR] = None,
+        tag_overlap_threshold: Optional[float] = None,
+        suppression_decay: float = 1.0,
+        suppression_recovery: float = 0.0,
+    ):
         self.capacity = capacity
         self.traces: List[TrajectoryTrace] = []
         self.gate_signals: List[float] = []
+        self.tag_counts: List[int] = []
+        self.suppression: List[float] = []
         self._evicted = 0
+        self._substrate = substrate
+        self._tag_overlap_threshold = tag_overlap_threshold
+        self._suppression_decay = suppression_decay
+        self._suppression_recovery = suppression_recovery
 
     def add(self, trace: TrajectoryTrace, gate_signal: float) -> None:
+        # Idea 4a: overlap collapse. If the incoming trace's query is close
+        # enough to an existing stored trace, bump that trace's tag_count
+        # and refresh its gate signal rather than storing a duplicate.
+        if (
+            self._substrate is not None
+            and self._tag_overlap_threshold is not None
+            and self.traces
+        ):
+            overlap_idx = self._find_overlap(trace)
+            if overlap_idx is not None:
+                self.tag_counts[overlap_idx] += 1
+                # Track the max gate signal across observations of this trace.
+                if gate_signal > self.gate_signals[overlap_idx]:
+                    self.gate_signals[overlap_idx] = gate_signal
+                return
+
         if len(self.traces) >= self.capacity:
             self._evict_lowest()
         self.traces.append(trace)
         self.gate_signals.append(gate_signal)
+        self.tag_counts.append(1)
+        self.suppression.append(1.0)
+
+    def _find_overlap(self, trace: TrajectoryTrace) -> Optional[int]:
+        assert self._substrate is not None
+        assert self._tag_overlap_threshold is not None
+        sims = [
+            float(self._substrate.similarity(trace.query, existing.query))
+            for existing in self.traces
+        ]
+        if not sims:
+            return None
+        best_idx = max(range(len(sims)), key=lambda i: sims[i])
+        if sims[best_idx] >= self._tag_overlap_threshold:
+            return best_idx
+        return None
 
     def _evict_lowest(self) -> None:
         if not self.gate_signals:
             return
-        idx = min(range(len(self.gate_signals)), key=lambda i: self.gate_signals[i])
-        self.traces.pop(idx)
-        self.gate_signals.pop(idx)
+        # Evict by priority (gate × tag × suppression), not raw gate, so a
+        # frequently-tagged trace isn't displaced by a one-off high-gate hit.
+        priorities = self._priorities()
+        idx = min(range(len(priorities)), key=lambda i: priorities[i])
+        self._pop(idx)
         self._evicted += 1
+
+    def _priorities(self) -> List[float]:
+        return [
+            self.gate_signals[i] * self.tag_counts[i] * self.suppression[i]
+            for i in range(len(self.traces))
+        ]
 
     def sample(
         self,
         n: int,
         generator: Optional["torch.Generator"] = None,
     ) -> List[int]:
-        """Sample n indices weighted by gate_signal * (1 + age)."""
+        """Sample n indices weighted by gate × tag_count × suppression.
+
+        After sampling, each sampled index has its suppression multiplier
+        scaled by ``suppression_decay`` (inhibition of return). Non-sampled
+        indices recover toward 1.0 by ``suppression_recovery``.
+        """
         if not self.traces:
             return []
         n_sample = min(n, len(self.traces))
-        weights = torch.tensor([
-            self.gate_signals[i] * (1.0 + self.traces[i].age)
-            for i in range(len(self.traces))
-        ])
+        weights = torch.tensor(self._priorities(), dtype=torch.float32)
         weights = weights.clamp(min=1e-9)
         weights /= weights.sum()
         idx = torch.multinomial(weights, n_sample, replacement=False, generator=generator)
-        return idx.tolist()
+        sampled = idx.tolist()
+
+        if self._suppression_decay < 1.0 or self._suppression_recovery > 0.0:
+            sampled_set = set(sampled)
+            for i in range(len(self.suppression)):
+                if i in sampled_set:
+                    self.suppression[i] *= self._suppression_decay
+                else:
+                    self.suppression[i] = min(
+                        1.0, self.suppression[i] + self._suppression_recovery
+                    )
+        return sampled
 
     def get(self, idx: int) -> TrajectoryTrace:
         return self.traces[idx]
 
     def remove(self, idx: int) -> None:
+        self._pop(idx)
+
+    def _pop(self, idx: int) -> None:
         self.traces.pop(idx)
         self.gate_signals.pop(idx)
+        self.tag_counts.pop(idx)
+        self.suppression.pop(idx)
 
     def update_gate(self, idx: int, gate_signal: float) -> None:
         self.gate_signals[idx] = gate_signal
@@ -125,6 +231,8 @@ class ReplayStore:
             return {
                 "size": 0, "capacity": self.capacity, "evicted": self._evicted,
                 "mean_gate": 0.0, "max_gate": 0.0, "mean_age": 0.0,
+                "mean_tag_count": 0.0, "max_tag_count": 0,
+                "mean_suppression": 0.0,
             }
         return {
             "size": len(self.traces),
@@ -133,6 +241,9 @@ class ReplayStore:
             "mean_gate": sum(self.gate_signals) / len(self.gate_signals),
             "max_gate": max(self.gate_signals),
             "mean_age": sum(t.age for t in self.traces) / len(self.traces),
+            "mean_tag_count": sum(self.tag_counts) / len(self.tag_counts),
+            "max_tag_count": max(self.tag_counts),
+            "mean_suppression": sum(self.suppression) / len(self.suppression),
         }
 
 
@@ -159,7 +270,13 @@ class UnifiedReplayMemory(Generic[T]):
         self.memory = memory
         self.consolidation = consolidation
         self.config = config
-        self.store = ReplayStore(capacity=config.store_capacity)
+        self.store = ReplayStore(
+            capacity=config.store_capacity,
+            substrate=substrate if config.tag_overlap_threshold is not None else None,
+            tag_overlap_threshold=config.tag_overlap_threshold,
+            suppression_decay=config.suppression_decay,
+            suppression_recovery=config.suppression_recovery,
+        )
         self._retrieval_count = 0
         self._candidate_count = 0
         self._candidate_callback = candidate_callback

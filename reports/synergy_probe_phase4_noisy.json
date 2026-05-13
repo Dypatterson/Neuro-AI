@@ -1,0 +1,160 @@
+{
+  "config": {
+    "dim": 4096,
+    "window_size": 3,
+    "codebook_size": 64,
+    "n_windows": 32,
+    "n_retrievals": 120,
+    "beta": 10.0,
+    "cue_noise": 0.6,
+    "replay_every": 20,
+    "replay_batch_size": 6,
+    "resolve_threshold": 0.3,
+    "store_threshold": 0.01,
+    "seeds": [
+      11,
+      23,
+      41,
+      53,
+      67
+    ],
+    "out": "reports/synergy_probe_phase4_noisy.json"
+  },
+  "seeds": [
+    {
+      "seed": 11,
+      "n_candidates": 0,
+      "settled_synergy_ratio": 0.9990854083037879,
+      "candidate_synergy_ratio": null,
+      "raw": {
+        "stage": "raw",
+        "n_artifacts": 32,
+        "n_probes": 96,
+        "recover": 0.5241447643687328,
+        "baseline_from_role": -0.0011793904413934797,
+        "baseline_from_binding": -0.003797528531625479,
+        "synergy": 0.5210603885461751
+      },
+      "settled": {
+        "stage": "settled",
+        "n_artifacts": 120,
+        "n_probes": 360,
+        "recover": 0.5237379766172833,
+        "baseline_from_role": -0.0017305765016418365,
+        "baseline_from_binding": -0.003761094004666019,
+        "synergy": 0.5205838310415857
+      },
+      "candidates": null
+    },
+    {
+      "seed": 23,
+      "n_candidates": 0,
+      "settled_synergy_ratio": 0.9995893153233503,
+      "candidate_synergy_ratio": null,
+      "raw": {
+        "stage": "raw",
+        "n_artifacts": 32,
+        "n_probes": 96,
+        "recover": 0.5243141756703457,
+        "baseline_from_role": -0.0019761751160937515,
+        "baseline_from_binding": -0.0024020107157411985,
+        "synergy": 0.5207781538811105
+      },
+      "settled": {
+        "stage": "settled",
+        "n_artifacts": 120,
+        "n_probes": 360,
+        "recover": 0.5245456238587697,
+        "baseline_from_role": -0.0013327545893844217,
+        "baseline_from_binding": -0.0022981993854045866,
+        "synergy": 0.5205642782733776
+      },
+      "candidates": null
+    },
+    {
+      "seed": 41,
+      "n_candidates": 0,
+      "settled_synergy_ratio": 1.0009702175231914,
+      "candidate_synergy_ratio": null,
+      "raw": {
+        "stage": "raw",
+        "n_artifacts": 32,
+        "n_probes": 96,
+        "recover": 0.5240535419434309,
+        "baseline_from_role": 0.00014262498492219797,
+        "baseline_from_binding": 0.005342936284553919,
+        "synergy": 0.5151968557171737
+      },
+      "settled": {
+        "stage": "settled",
+        "n_artifacts": 120,
+        "n_probes": 360,
+        "recover": 0.5243193431033029,
+        "baseline_from_role": 0.00012067515183136694,
+        "baseline_from_binding": 0.005274545220567638,
+        "synergy": 0.5156967087344836
+      },
+      "candidates": null
+    },
+    {
+      "seed": 53,
+      "n_candidates": 0,
+      "settled_synergy_ratio": 0.9996828907673303,
+      "candidate_synergy_ratio": null,
+      "raw": {
+        "stage": "raw",
+        "n_artifacts": 32,
+        "n_probes": 96,
+        "recover": 0.526014344766736,
+        "baseline_from_role": -0.0005801853440061677,
+        "baseline_from_binding": -0.0005933816276713818,
+        "synergy": 0.52047208337414
+      },
+      "settled": {
+        "stage": "settled",
+        "n_artifacts": 120,
+        "n_probes": 360,
+        "recover": 0.52600576231877,
+        "baseline_from_role": -0.0006372380067154558,
+        "baseline_from_binding": -0.001266430654828178,
+        "synergy": 0.5203070368711552
+      },
+      "candidates": null
+    },
+    {
+      "seed": 67,
+      "n_candidates": 0,
+      "settled_synergy_ratio": 0.999938639307358,
+      "candidate_synergy_ratio": null,
+      "raw": {
+        "stage": "raw",
+        "n_artifacts": 32,
+        "n_probes": 96,
+        "recover": 0.5250415146971742,
+        "baseline_from_role": 0.0004555457211002552,
+        "baseline_from_binding": 0.0007557498756796122,
+        "synergy": 0.5182701350022398
+      },
+      "settled": {
+        "stage": "settled",
+        "n_artifacts": 120,
+        "n_probes": 360,
+        "recover": 0.5253226497107082,
+        "baseline_from_role": 0.0007702048709486715,
+        "baseline_from_binding": 0.0010919108029661907,
+        "synergy": 0.5182383335877805
+      },
+      "candidates": null
+    }
+  ],
+  "aggregate": {
+    "raw_mean_synergy": 0.5191555233041678,
+    "settled_mean_synergy": 0.5190780377016765,
+    "candidate_mean_synergy": NaN,
+    "settled_ratio_mean": 0.9998532942450036,
+    "settled_ratio_stdev": 0.0006234055540373623,
+    "candidate_ratio_mean": null,
+    "n_seeds_with_candidates": 0,
+    "n_seeds": 5
+  }
+}

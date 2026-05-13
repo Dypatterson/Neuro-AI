@@ -62,6 +62,19 @@ class TorchFHRR:
         mag = vector.abs().clamp_min(1e-12)
         return vector / mag
 
+    def permute(self, vector, shift: int):
+        """Cyclic shift of vector components by ``shift`` positions.
+
+        Used as the VSA permutation operator for directed slot encoding
+        (Plate; arXiv:2512.14709 "Attention as Binding"). Preserves
+        unit magnitude, composes additively
+        (``permute(permute(v, a), b) == permute(v, a + b)``) and is
+        exactly invertible via ``permute(v, -shift)``.
+
+        Accepts either a [D] vector or a [..., D] batch.
+        """
+        return torch.roll(vector, shifts=int(shift), dims=-1)
+
     def bundle(self, vectors):
         matrix = torch.stack(list(vectors), dim=0)
         return self.normalize(matrix.sum(dim=0))

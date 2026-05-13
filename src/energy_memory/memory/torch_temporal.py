@@ -39,13 +39,37 @@ class TorchCoupledResult:
 
 
 class TorchTemporalAssociationMemory:
-    def __init__(self, substrate: TorchFHRR, window: int = 2):
+    def __init__(
+        self,
+        substrate: TorchFHRR,
+        window: int = 2,
+        encoding: str = "bag",
+    ):
+        """Coupled content + temporal-context memory.
+
+        ``encoding`` selects how per-token temporal contexts are formed:
+
+        * ``"bag"`` (default, backwards compatible): unordered bundle of
+          window neighbors, ``bundle({v_j for j != i})``.
+        * ``"permutation"``: directed slot encoding (brainstorm Idea 6,
+          2026-05-13), ``bundle({permute(v_j, j-i) for j != i})``. Each
+          neighbor is rotated by its signed temporal offset before being
+          bundled, preserving directional information through the bundle.
+          Eliminates the two named failure modes of bags (temporal
+          inaccuracy, temporal fragmentation).
+
+        The coupled-recall path is encoding-agnostic — it operates on
+        ``self.temporal_contexts`` without inspecting how they were built.
+        """
         if torch is None:  # pragma: no cover
             raise ModuleNotFoundError("TorchTemporalAssociationMemory requires torch") from _IMPORT_ERROR
         if window <= 0:
             raise ValueError("window must be positive")
+        if encoding not in ("bag", "permutation"):
+            raise ValueError(f"unknown encoding {encoding!r}; expected 'bag' or 'permutation'")
         self.substrate = substrate
         self.window = window
+        self.encoding = encoding
         self.labels: List[str] = []
         self.vectors = None
         self.temporal_contexts = None
@@ -57,12 +81,20 @@ class TorchTemporalAssociationMemory:
         self.vectors = torch.stack(list(vectors), dim=0)
         contexts = []
         for i in range(len(labels)):
-            neighbors = [
-                vectors[j]
-                for j in range(max(0, i - self.window), min(len(labels), i + self.window + 1))
-                if j != i
-            ]
-            contexts.append(self.substrate.bundle(neighbors if neighbors else [vectors[i]]))
+            neighbor_terms = []
+            lo = max(0, i - self.window)
+            hi = min(len(labels), i + self.window + 1)
+            for j in range(lo, hi):
+                if j == i:
+                    continue
+                if self.encoding == "bag":
+                    neighbor_terms.append(vectors[j])
+                else:  # "permutation"
+                    neighbor_terms.append(self.substrate.permute(vectors[j], j - i))
+            if neighbor_terms:
+                contexts.append(self.substrate.bundle(neighbor_terms))
+            else:
+                contexts.append(vectors[i])
         self.temporal_contexts = torch.stack(contexts, dim=0)
 
     def coupled_recall(

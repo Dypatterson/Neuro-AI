@@ -43,6 +43,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 import torch
 
+from energy_memory.diagnostics.synergy import synergy_score
 from energy_memory.memory.torch_hopfield import TorchHopfieldMemory
 from energy_memory.phase2.corpus import (
     build_vocabulary,
@@ -82,6 +83,49 @@ def perturb_codebook(
     return perturbed / magnitudes
 
 
+def atom_pair_geometry(
+    codebook: torch.Tensor,
+    decode_ids: Sequence[int],
+    sample_pairs: int = 100_000,
+    seed: int = 11,
+) -> Dict[str, float]:
+    """Sampled pairwise cosine-similarity stats across a codebook.
+
+    Surfaces the atom-collapse pathology from
+    [reports/019_reconstruction_characterization.md](../reports/019_reconstruction_characterization.md):
+    learned codebooks collapse toward mean pairwise similarity 0.4 while
+    random codebooks sit near 0. Cheap, one-shot per codebook, useful
+    as a structural-health diagnostic at every Phase 4 checkpoint.
+    """
+    atoms = codebook[torch.tensor(list(decode_ids), device=codebook.device)]
+    n = atoms.shape[0]
+    if n < 2:
+        return {"n_pairs": 0, "mean": 0.0, "std": 0.0, "p95": 0.0, "p99": 0.0, "max": 0.0}
+    rng = torch.Generator(device="cpu").manual_seed(seed)
+    samples: List[float] = []
+    target = min(sample_pairs, n * (n - 1) // 2)
+    while len(samples) < target:
+        batch = min(target - len(samples), 50_000)
+        i = torch.randint(0, n, (batch,), generator=rng)
+        j = torch.randint(0, n, (batch,), generator=rng)
+        keep = i != j
+        i = i[keep]; j = j[keep]
+        a = atoms[i].cpu()
+        b = atoms[j].cpu()
+        s = (a.conj() * b).real.mean(dim=-1)
+        samples.extend(s.tolist())
+    samples = samples[:target]
+    t = torch.tensor(samples, dtype=torch.float64)
+    return {
+        "n_pairs": len(samples),
+        "mean": float(t.mean().item()),
+        "std": float(t.std(unbiased=False).item()),
+        "p95": float(torch.quantile(t, 0.95).item()),
+        "p99": float(torch.quantile(t, 0.99).item()),
+        "max": float(t.max().item()),
+    }
+
+
 class ScaleSlot:
     """Holds memory + positions + codebook for one scale.
 
@@ -118,6 +162,20 @@ class ScaleSlot:
         self.landscape_size = actual_l
 
 
+RANK_K_VALUES = (1, 5, 10, 20, 50)
+
+
+def _ranks_to_recall_at_k(ranks: Sequence[int], total: int) -> Dict[int, float]:
+    """Convert a list of target ranks (-1 = miss) into Recall@K for each K."""
+    out: Dict[int, float] = {}
+    if total == 0:
+        return {k: 0.0 for k in RANK_K_VALUES}
+    for k in RANK_K_VALUES:
+        hits = sum(1 for r in ranks if 0 <= r < k)
+        out[k] = hits / total
+    return out
+
+
 def evaluate_combined(
     slots: Dict[int, ScaleSlot],
     test_windows: Sequence[tuple[int, ...]],
@@ -128,12 +186,23 @@ def evaluate_combined(
     unk_id: int,
     beta: float,
     decode_k: int,
+    rank_k: int = 50,
+    atom_sample_pairs: int = 100_000,
 ) -> Dict:
     """Evaluate the multi-scale combined accuracy and diagnostics.
 
     Uses standard retrieve() (no trajectory capture during eval) to keep
     the diagnostic fast and to avoid contaminating the trajectory store
     with test queries.
+
+    Reports the historic top1 / topk / cap_t metrics (unchanged) plus
+    three diagnostics surfaced by reports 018–019:
+
+      * per-scale ``recall_at_k`` for K in (1, 5, 10, 20, 50)
+      * per-scale ``mean_settled_synergy_at_mask``
+      * per-scale ``atom_pair_geometry`` (mean/std/p95/p99/max of pairwise
+        atom similarity)
+      * combined ``recall_at_k`` from the score-blended ranking
     """
     correct_top1 = 0
     correct_topk = 0
@@ -142,6 +211,9 @@ def evaluate_combined(
     total = 0
     per_scale_top_scores: Dict[int, List[float]] = {s: [] for s in slots}
     per_scale_entropies: Dict[int, List[float]] = {s: [] for s in slots}
+    per_scale_ranks: Dict[int, List[int]] = {s: [] for s in slots}
+    per_scale_settled_syn: Dict[int, List[float]] = {s: [] for s in slots}
+    combined_ranks: List[int] = []
 
     for window in test_windows:
         target = window[masked_pos]
@@ -171,17 +243,49 @@ def evaluate_combined(
             per_scale_top_scores[scale].append(float(result.top_score))
             per_scale_entropies[scale].append(float(result.entropy))
 
+            # Use rank_k (>= decode_k) so per-scale rank stats are deep enough
+            # for the full RANK_K_VALUES sweep without re-running retrieval.
             decoded = decode_position(
                 slot.substrate, result.state,
                 slot.positions[local_masked], slot.codebook,
-                decode_ids, top_k=decode_k,
+                decode_ids, top_k=max(decode_k, rank_k),
             )
-            for tok_id, score in decoded:
+            # Per-scale rank of the target in this scale's decoded list.
+            scale_rank = -1
+            for r, (tok_id, _) in enumerate(decoded):
+                if tok_id == target:
+                    scale_rank = r
+                    break
+            per_scale_ranks[scale].append(scale_rank)
+
+            # Settled synergy at the masked slot for this scale: how well
+            # does the unbind of the settled state at the masked position
+            # recover the true target's codebook atom (beyond the binding/
+            # role baselines)?
+            settled_syn = synergy_score(
+                slot.substrate,
+                slot.positions[local_masked],
+                slot.codebook[target],
+                binding=result.state,
+            ).synergy
+            per_scale_settled_syn[scale].append(settled_syn)
+
+            # Combine only the first decode_k entries (preserving existing
+            # combined-score semantics for backward compatibility).
+            for tok_id, score in decoded[:decode_k]:
                 combined[tok_id] += score
 
         if not combined:
             continue
         ranked = sorted(combined.items(), key=lambda x: x[1], reverse=True)
+        # Combined target rank: position of target in the score-blended ranking.
+        combined_rank = -1
+        for r, (tok_id, _) in enumerate(ranked):
+            if tok_id == target:
+                combined_rank = r
+                break
+        combined_ranks.append(combined_rank)
+
         if ranked[0][0] == target:
             correct_top1 += 1
         tgt_score = None
@@ -202,14 +306,22 @@ def evaluate_combined(
         return {"n": 0}
 
     per_scale_summary = {}
-    for s in slots:
+    for s, slot in slots.items():
         ts = per_scale_top_scores[s]
         ents = per_scale_entropies[s]
+        ranks = per_scale_ranks[s]
+        syns = per_scale_settled_syn[s]
         per_scale_summary[s] = {
             "mean_top_score": mean(ts) if ts else 0.0,
             "mean_entropy": mean(ents) if ents else 0.0,
             "metastable_rate": (
                 sum(1 for x in ts if x < 0.95) / len(ts) if ts else 0.0
+            ),
+            "recall_at_k": _ranks_to_recall_at_k(ranks, len(ranks)),
+            "mean_settled_synergy_at_mask": mean(syns) if syns else 0.0,
+            "atom_pair_geometry": atom_pair_geometry(
+                slot.codebook, decode_ids,
+                sample_pairs=atom_sample_pairs,
             ),
         }
 
@@ -218,6 +330,7 @@ def evaluate_combined(
         "topk": correct_topk / total,
         "cap_t_03": correct_cap_t03 / total,
         "cap_t_05": correct_cap_t05 / total,
+        "recall_at_k": _ranks_to_recall_at_k(combined_ranks, total),
         "per_scale": per_scale_summary,
         "n": total,
     }
@@ -240,6 +353,8 @@ def stream_and_replay(
     substrate: TorchFHRR,
     phase4_units: Optional[Dict[int, UnifiedReplayMemory]] = None,
     initial_codebook: Optional[torch.Tensor] = None,
+    rank_k: int = 50,
+    atom_sample_pairs: int = 100_000,
 ) -> Tuple[List[Dict], torch.Tensor]:
     """Stream cues through the slots, checkpoint, apply drift.
 
@@ -255,6 +370,7 @@ def stream_and_replay(
         eval_ws_size=eval_ws_size, masked_pos=masked_pos,
         decode_ids=decode_ids, mask_id=mask_id, unk_id=unk_id,
         beta=beta, decode_k=decode_k,
+        rank_k=rank_k, atom_sample_pairs=atom_sample_pairs,
     )
     initial_eval["cues_seen"] = 0
     initial_eval["condition"] = condition
@@ -326,6 +442,7 @@ def stream_and_replay(
                 eval_ws_size=eval_ws_size, masked_pos=masked_pos,
                 decode_ids=decode_ids, mask_id=mask_id, unk_id=unk_id,
                 beta=beta, decode_k=decode_k,
+                rank_k=rank_k, atom_sample_pairs=atom_sample_pairs,
             )
             eval_result["cues_seen"] = cues_seen
             eval_result["condition"] = condition
@@ -372,6 +489,15 @@ def main() -> None:
     parser.add_argument("--mask-position", default="center")
     parser.add_argument("--beta", type=float, default=30.0)
     parser.add_argument("--decode-k", type=int, default=10)
+    parser.add_argument(
+        "--rank-k", type=int, default=50,
+        help="Top-K depth used to record target rank per scale; enables "
+             "Recall@K for K in (1,5,10,20,50). >= decode_k.",
+    )
+    parser.add_argument(
+        "--atom-sample-pairs", type=int, default=100_000,
+        help="Pairs sampled when reporting atom-pair geometry per scale codebook.",
+    )
     parser.add_argument("--n-cues", type=int, default=2000)
     parser.add_argument("--checkpoint-every", type=int, default=500)
     parser.add_argument("--drift-magnitude", type=float, default=0.15)
@@ -490,6 +616,8 @@ def main() -> None:
         substrate=substrate,
         phase4_units=None,
         initial_codebook=baseline_codebook,
+        rank_k=args.rank_k,
+        atom_sample_pairs=args.atom_sample_pairs,
     )
     all_results["baseline"] = baseline_results
 
@@ -557,6 +685,8 @@ def main() -> None:
         substrate=substrate,
         phase4_units=phase4_units,
         initial_codebook=phase4_codebook,
+        rank_k=args.rank_k,
+        atom_sample_pairs=args.atom_sample_pairs,
     )
     all_results["phase4"] = phase4_results
 

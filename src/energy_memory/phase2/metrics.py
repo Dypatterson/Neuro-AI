@@ -73,13 +73,43 @@ def meta_stable_rate(top_scores: Sequence[float], threshold: float = 0.95) -> fl
 
 
 def build_frequency_buckets(counts: Dict[str, int]) -> Dict[str, str]:
-    ranked = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
-    if not ranked:
+    """Bucket tokens by *occurrence-weighted* quartile of total count mass.
+
+    Each bucket contains tokens whose cumulative count (ordered most- to
+    least-frequent) covers ~25% of total occurrences. Under a Zipfian
+    distribution this means q1_most_frequent holds a small number of
+    very common tokens, while q4_least_frequent holds the long tail of
+    rare tokens.
+
+    Rank-based bucketing (the previous behavior) is degenerate on
+    Zipfian corpora because the top 25% of tokens by rank also account
+    for ~99% of occurrences -- every test target lands in q1. Report
+    019's frequency-bucket analysis surfaced that exact failure.
+    Occurrence-weighted buckets restore meaningful rare-vs-frequent
+    discrimination at evaluation time.
+    """
+    if not counts:
         return {}
-    bucket_size = max(1, math.ceil(len(ranked) / 4))
+    ranked = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+    total_mass = sum(c for _, c in ranked)
+    if total_mass <= 0:
+        return {}
+
     labels = ["q1_most_frequent", "q2", "q3", "q4_least_frequent"]
+    # Quartile boundaries on cumulative mass; tokens whose cumulative
+    # mass crosses 25%/50%/75% transition into the next bucket.
+    boundaries = [0.25 * total_mass, 0.50 * total_mass, 0.75 * total_mass]
+
     buckets: Dict[str, str] = {}
-    for index, (token, _) in enumerate(ranked):
-        bucket_index = min(index // bucket_size, len(labels) - 1)
-        buckets[token] = labels[bucket_index]
+    cumulative = 0
+    bucket_index = 0
+    for token, count in ranked:
+        # Advance based on the running mass *before* this token. A
+        # dominant token whose mass spans multiple bucket-widths still
+        # lands in the bucket where its cumulative-start falls, leaving
+        # the subsequent buckets to start at the post-token cumulative.
+        while bucket_index < len(boundaries) and cumulative >= boundaries[bucket_index]:
+            bucket_index += 1
+        buckets[token] = labels[min(bucket_index, len(labels) - 1)]
+        cumulative += count
     return buckets

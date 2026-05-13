@@ -1,0 +1,96 @@
+{
+  "config": {
+    "repo_root": "/Users/dypatterson/Desktop/Neuro-AI",
+    "dim": 4096,
+    "device": "mps",
+    "window_size": 8,
+    "landscape_size": 64,
+    "beta": 3.0,
+    "test_samples": 500,
+    "mask_position": "end",
+    "seeds": [
+      17,
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "wikitext_name": "wikitext-2-raw-v1",
+    "out_csv": "reports/phase3_synergy_comparison.csv"
+  },
+  "aggregates": {
+    "random": {
+      "n": 2191,
+      "recall": 0.08352350524874487,
+      "recall_ci": [
+        0.07265456724809173,
+        0.09585034900645711
+      ],
+      "raw_synergy_mean": 0.3115341306185833,
+      "raw_synergy_ci": [
+        0.31114977236002717,
+        0.3119398178688834
+      ],
+      "settled_synergy_mean": 0.0018610495768231563,
+      "settled_synergy_ci": [
+        0.0006795736165340634,
+        0.003062087502874628
+      ]
+    },
+    "hebbian": {
+      "n": 2191,
+      "recall": 0.08717480602464628,
+      "recall_ci": [
+        0.07607359059515843,
+        0.09972114557167928
+      ],
+      "raw_synergy_mean": 0.298091185150176,
+      "raw_synergy_ci": [
+        0.29759352067619893,
+        0.29858904531298114
+      ],
+      "settled_synergy_mean": 0.2522401598641128,
+      "settled_synergy_ci": [
+        0.24890439271071857,
+        0.25564637158932324
+      ]
+    },
+    "reconstruction": {
+      "n": 2191,
+      "recall": 0.043359196713829304,
+      "recall_ci": [
+        0.03560045725210754,
+        0.05271643996726355
+      ],
+      "raw_synergy_mean": 0.29391138152100604,
+      "raw_synergy_ci": [
+        0.2931481276939484,
+        0.294617381292596
+      ],
+      "settled_synergy_mean": 0.22967732514842723,
+      "settled_synergy_ci": [
+        0.22660041860118169,
+        0.23261674915311054
+      ]
+    },
+    "error_driven": {
+      "n": 2191,
+      "recall": 0.03057964399817435,
+      "recall_ci": [
+        0.024151335716205858,
+        0.03865119181015413
+      ],
+      "raw_synergy_mean": 0.29752385758292493,
+      "raw_synergy_ci": [
+        0.2970050576209823,
+        0.29803067414128903
+      ],
+      "settled_synergy_mean": 0.2221432065839668,
+      "settled_synergy_ci": [
+        0.21920601676233833,
+        0.22522461782554412
+      ]
+    }
+  }
+}

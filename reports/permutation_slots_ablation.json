@@ -1,0 +1,114 @@
+[
+  {
+    "encoding": "bag",
+    "condition": "ordered",
+    "offset": -2,
+    "accuracy": 0.2,
+    "n_probes": 30
+  },
+  {
+    "encoding": "permutation",
+    "condition": "ordered",
+    "offset": -2,
+    "accuracy": 1.0,
+    "n_probes": 30
+  },
+  {
+    "encoding": "bag",
+    "condition": "ordered",
+    "offset": -1,
+    "accuracy": 0.2903225806451613,
+    "n_probes": 31
+  },
+  {
+    "encoding": "permutation",
+    "condition": "ordered",
+    "offset": -1,
+    "accuracy": 1.0,
+    "n_probes": 31
+  },
+  {
+    "encoding": "bag",
+    "condition": "ordered",
+    "offset": 1,
+    "accuracy": 0.3225806451612903,
+    "n_probes": 31
+  },
+  {
+    "encoding": "permutation",
+    "condition": "ordered",
+    "offset": 1,
+    "accuracy": 1.0,
+    "n_probes": 31
+  },
+  {
+    "encoding": "bag",
+    "condition": "ordered",
+    "offset": 2,
+    "accuracy": 0.23333333333333334,
+    "n_probes": 30
+  },
+  {
+    "encoding": "permutation",
+    "condition": "ordered",
+    "offset": 2,
+    "accuracy": 1.0,
+    "n_probes": 30
+  },
+  {
+    "encoding": "bag",
+    "condition": "shuffled",
+    "offset": -2,
+    "accuracy": 0.23333333333333334,
+    "n_probes": 30
+  },
+  {
+    "encoding": "permutation",
+    "condition": "shuffled",
+    "offset": -2,
+    "accuracy": 1.0,
+    "n_probes": 30
+  },
+  {
+    "encoding": "bag",
+    "condition": "shuffled",
+    "offset": -1,
+    "accuracy": 0.25806451612903225,
+    "n_probes": 31
+  },
+  {
+    "encoding": "permutation",
+    "condition": "shuffled",
+    "offset": -1,
+    "accuracy": 1.0,
+    "n_probes": 31
+  },
+  {
+    "encoding": "bag",
+    "condition": "shuffled",
+    "offset": 1,
+    "accuracy": 0.2903225806451613,
+    "n_probes": 31
+  },
+  {
+    "encoding": "permutation",
+    "condition": "shuffled",
+    "offset": 1,
+    "accuracy": 1.0,
+    "n_probes": 31
+  },
+  {
+    "encoding": "bag",
+    "condition": "shuffled",
+    "offset": 2,
+    "accuracy": 0.26666666666666666,
+    "n_probes": 30
+  },
+  {
+    "encoding": "permutation",
+    "condition": "shuffled",
+    "offset": 2,
+    "accuracy": 1.0,
+    "n_probes": 30
+  }
+]
