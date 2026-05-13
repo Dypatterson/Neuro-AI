@@ -1,0 +1,731 @@
+{
+  "config": {
+    "dim": 4096,
+    "device": null,
+    "max_vocab": 2048,
+    "corpus_source": "wikitext",
+    "wikitext_name": "wikitext-2-raw-v1",
+    "seed": 17,
+    "codebook_path": "reports/phase3c_reconstruction/phase3c_codebook_reconstruction.pt",
+    "scale_landscape": "2:4096,3:2048,4:1024",
+    "eval_window_size": 8,
+    "mask_position": "center",
+    "beta": 10.0,
+    "decode_k": 10,
+    "n_cues": 2000,
+    "checkpoint_every": 500,
+    "drift_magnitude": 0.15,
+    "test_samples": 400,
+    "replay_every": 50,
+    "replay_batch_size": 10,
+    "store_threshold": 0.05,
+    "resolve_threshold": 0.7,
+    "store_capacity": 500,
+    "consolidation_m": 6,
+    "consolidation_alpha": 0.25,
+    "novelty_strength": 1.0,
+    "retrieval_gain": 0.1,
+    "output_dir": "reports/phase4_drift_headline_b10"
+  },
+  "results": {
+    "baseline": [
+      {
+        "top1": 0.12244897959183673,
+        "topk": 0.30952380952380953,
+        "cap_t_03": 0.30952380952380953,
+        "cap_t_05": 0.2755102040816326,
+        "per_scale": {
+          "2": {
+            "mean_top_score": 0.9543128611684657,
+            "mean_entropy": 0.7296215084945263,
+            "metastable_rate": 0.4421768707482993
+          },
+          "3": {
+            "mean_top_score": 0.8876099028960377,
+            "mean_entropy": 0.7856069853922136,
+            "metastable_rate": 0.9931972789115646
+          },
+          "4": {
+            "mean_top_score": 0.8327003861365675,
+            "mean_entropy": 0.7450994307897529,
+            "metastable_rate": 0.717687074829932
+          }
+        },
+        "n": 294,
+        "cues_seen": 0,
+        "condition": "baseline"
+      },
+      {
+        "top1": 0.12244897959183673,
+        "topk": 0.30612244897959184,
+        "cap_t_03": 0.30612244897959184,
+        "cap_t_05": 0.25510204081632654,
+        "per_scale": {
+          "2": {
+            "mean_top_score": 0.9429427788776605,
+            "mean_entropy": 0.7374075703880414,
+            "metastable_rate": 0.47278911564625853
+          },
+          "3": {
+            "mean_top_score": 0.8877381753353846,
+            "mean_entropy": 0.785271826041799,
+            "metastable_rate": 0.9931972789115646
+          },
+          "4": {
+            "mean_top_score": 0.833167583561268,
+            "mean_entropy": 0.7448118975778826,
+            "metastable_rate": 0.7142857142857143
+          }
+        },
+        "n": 294,
+        "cues_seen": 500,
+        "condition": "baseline"
+      },
+      {
+        "top1": 0.12244897959183673,
+        "topk": 0.30612244897959184,
+        "cap_t_03": 0.30612244897959184,
+        "cap_t_05": 0.2585034013605442,
+        "per_scale": {
+          "2": {
+            "mean_top_score": 0.9467419975874375,
+            "mean_entropy": 0.7344541878116374,
+            "metastable_rate": 0.4421768707482993
+          },
+          "3": {
+            "mean_top_score": 0.8878611577611392,
+            "mean_entropy": 0.7852897271007097,
+            "metastable_rate": 0.9931972789115646
+          },
+          "4": {
+            "mean_top_score": 0.8339698963424786,
+            "mean_entropy": 0.7444352904955546,
+            "metastable_rate": 0.7142857142857143
+          }
+        },
+        "n": 294,
+        "cues_seen": 1000,
+        "condition": "baseline"
+      },
+      {
+        "top1": 0.12244897959183673,
+        "topk": 0.3197278911564626,
+        "cap_t_03": 0.3197278911564626,
+        "cap_t_05": 0.2585034013605442,
+        "per_scale": {
+          "2": {
+            "mean_top_score": 0.9460089904110448,
+            "mean_entropy": 0.7331676282444779,
+            "metastable_rate": 0.4557823129251701
+          },
+          "3": {
+            "mean_top_score": 0.8879236047770701,
+            "mean_entropy": 0.7851415254226347,
+            "metastable_rate": 0.9897959183673469
+          },
+          "4": {
+            "mean_top_score": 0.8341331025775598,
+            "mean_entropy": 0.7445658260867709,
+            "metastable_rate": 0.717687074829932
+          }
+        },
+        "n": 294,
+        "cues_seen": 1500,
+        "condition": "baseline"
+      },
+      {
+        "top1": 0.12244897959183673,
+        "topk": 0.3231292517006803,
+        "cap_t_03": 0.3231292517006803,
+        "cap_t_05": 0.2619047619047619,
+        "per_scale": {
+          "2": {
+            "mean_top_score": 0.946685792840257,
+            "mean_entropy": 0.7320900391153737,
+            "metastable_rate": 0.4421768707482993
+          },
+          "3": {
+            "mean_top_score": 0.8884712384671581,
+            "mean_entropy": 0.7847861292816344,
+            "metastable_rate": 0.9897959183673469
+          },
+          "4": {
+            "mean_top_score": 0.835257765792665,
+            "mean_entropy": 0.7436184070142758,
+            "metastable_rate": 0.7142857142857143
+          }
+        },
+        "n": 294,
+        "cues_seen": 2000,
+        "condition": "baseline"
+      }
+    ],
+    "phase4": [
+      {
+        "top1": 0.12244897959183673,
+        "topk": 0.30952380952380953,
+        "cap_t_03": 0.30952380952380953,
+        "cap_t_05": 0.2755102040816326,
+        "per_scale": {
+          "2": {
+            "mean_top_score": 0.9543128611684657,
+            "mean_entropy": 0.7296215084945263,
+            "metastable_rate": 0.4421768707482993
+          },
+          "3": {
+            "mean_top_score": 0.8876099028960377,
+            "mean_entropy": 0.7856069853922136,
+            "metastable_rate": 0.9931972789115646
+          },
+          "4": {
+            "mean_top_score": 0.8327003861365675,
+            "mean_entropy": 0.7450994307897529,
+            "metastable_rate": 0.717687074829932
+          }
+        },
+        "n": 294,
+        "cues_seen": 0,
+        "condition": "phase4",
+        "phase4_stats_w2": {
+          "retrievals": 0,
+          "candidates_total": 0,
+          "store": {
+            "size": 0,
+            "capacity": 500,
+            "evicted": 0,
+            "mean_gate": 0.0,
+            "max_gate": 0.0,
+            "mean_age": 0.0
+          },
+          "consolidation": {
+            "n_patterns": 4096,
+            "mean_strength": 1.0,
+            "max_strength": 1.0,
+            "mean_u": [
+              1.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "patterns_below_threshold": 0,
+            "patterns_dead": 0,
+            "step_count": 0
+          },
+          "memory_size": 4096
+        },
+        "phase4_stats_w3": {
+          "retrievals": 0,
+          "candidates_total": 0,
+          "store": {
+            "size": 0,
+            "capacity": 500,
+            "evicted": 0,
+            "mean_gate": 0.0,
+            "max_gate": 0.0,
+            "mean_age": 0.0
+          },
+          "consolidation": {
+            "n_patterns": 2048,
+            "mean_strength": 1.0,
+            "max_strength": 1.0,
+            "mean_u": [
+              1.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "patterns_below_threshold": 0,
+            "patterns_dead": 0,
+            "step_count": 0
+          },
+          "memory_size": 2048
+        },
+        "phase4_stats_w4": {
+          "retrievals": 0,
+          "candidates_total": 0,
+          "store": {
+            "size": 0,
+            "capacity": 500,
+            "evicted": 0,
+            "mean_gate": 0.0,
+            "max_gate": 0.0,
+            "mean_age": 0.0
+          },
+          "consolidation": {
+            "n_patterns": 1024,
+            "mean_strength": 1.0,
+            "max_strength": 1.0,
+            "mean_u": [
+              1.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "patterns_below_threshold": 0,
+            "patterns_dead": 0,
+            "step_count": 0
+          },
+          "memory_size": 1024
+        }
+      },
+      {
+        "top1": 0.12244897959183673,
+        "topk": 0.30952380952380953,
+        "cap_t_03": 0.30952380952380953,
+        "cap_t_05": 0.25510204081632654,
+        "per_scale": {
+          "2": {
+            "mean_top_score": 0.9996984574665018,
+            "mean_entropy": 0.7008815196906628,
+            "metastable_rate": 0.0
+          },
+          "3": {
+            "mean_top_score": 0.9999989467818721,
+            "mean_entropy": 0.7263819709116098,
+            "metastable_rate": 0.0
+          },
+          "4": {
+            "mean_top_score": 0.9651202186435258,
+            "mean_entropy": 0.6454146776069589,
+            "metastable_rate": 0.24829931972789115
+          }
+        },
+        "n": 294,
+        "cues_seen": 500,
+        "condition": "phase4",
+        "phase4_stats_w2": {
+          "retrievals": 500,
+          "candidates_total": 33,
+          "store": {
+            "size": 0,
+            "capacity": 500,
+            "evicted": 0,
+            "mean_gate": 0.0,
+            "max_gate": 0.0,
+            "mean_age": 0.0
+          },
+          "consolidation": {
+            "n_patterns": 4129,
+            "mean_strength": 0.13329751789569855,
+            "max_strength": 3.2642765045166016,
+            "mean_u": [
+              0.058220066130161285,
+              0.08831386268138885,
+              0.08423925936222076,
+              0.059570081532001495,
+              0.03230192884802818,
+              0.012658104300498962
+            ],
+            "patterns_below_threshold": 0,
+            "patterns_dead": 0,
+            "step_count": 10
+          },
+          "memory_size": 4129
+        },
+        "phase4_stats_w3": {
+          "retrievals": 500,
+          "candidates_total": 52,
+          "store": {
+            "size": 0,
+            "capacity": 500,
+            "evicted": 0,
+            "mean_gate": 0.0,
+            "max_gate": 0.0,
+            "mean_age": 0.0
+          },
+          "consolidation": {
+            "n_patterns": 2100,
+            "mean_strength": 0.13735447824001312,
+            "max_strength": 13.222565650939941,
+            "mean_u": [
+              0.06070972606539726,
+              0.09075307101011276,
+              0.08545517921447754,
+              0.059934038668870926,
+              0.03230062872171402,
+              0.012603523209691048
+            ],
+            "patterns_below_threshold": 0,
+            "patterns_dead": 0,
+            "step_count": 10
+          },
+          "memory_size": 2100
+        },
+        "phase4_stats_w4": {
+          "retrievals": 500,
+          "candidates_total": 42,
+          "store": {
+            "size": 0,
+            "capacity": 500,
+            "evicted": 0,
+            "mean_gate": 0.0,
+            "max_gate": 0.0,
+            "mean_age": 0.0
+          },
+          "consolidation": {
+            "n_patterns": 1066,
+            "mean_strength": 0.14390632510185242,
+            "max_strength": 13.216504096984863,
+            "mean_u": [
+              0.06471530348062515,
+              0.09457944333553314,
+              0.08746539801359177,
+              0.060812678188085556,
+              0.03259783238172531,
+              0.012672059237957
+            ],
+            "patterns_below_threshold": 0,
+            "patterns_dead": 0,
+            "step_count": 10
+          },
+          "memory_size": 1066
+        }
+      },
+      {
+        "top1": 0.12244897959183673,
+        "topk": 0.30952380952380953,
+        "cap_t_03": 0.30952380952380953,
+        "cap_t_05": 0.25510204081632654,
+        "per_scale": {
+          "2": {
+            "mean_top_score": 0.9996998571619695,
+            "mean_entropy": 0.700869291412587,
+            "metastable_rate": 0.0
+          },
+          "3": {
+            "mean_top_score": 0.9999989625953493,
+            "mean_entropy": 0.7263814101413805,
+            "metastable_rate": 0.0
+          },
+          "4": {
+            "mean_top_score": 0.966620134658554,
+            "mean_entropy": 0.6442083276453472,
+            "metastable_rate": 0.24829931972789115
+          }
+        },
+        "n": 294,
+        "cues_seen": 1000,
+        "condition": "phase4",
+        "phase4_stats_w2": {
+          "retrievals": 1000,
+          "candidates_total": 33,
+          "store": {
+            "size": 0,
+            "capacity": 500,
+            "evicted": 0,
+            "mean_gate": 0.0,
+            "max_gate": 0.0,
+            "mean_age": 0.0
+          },
+          "consolidation": {
+            "n_patterns": 4129,
+            "mean_strength": 0.06496796756982803,
+            "max_strength": 4.717338562011719,
+            "mean_u": [
+              0.024679411202669144,
+              0.04112023860216141,
+              0.047022487968206406,
+              0.043347667902708054,
+              0.03234190121293068,
+              0.017055567353963852
+            ],
+            "patterns_below_threshold": 0,
+            "patterns_dead": 0,
+            "step_count": 20
+          },
+          "memory_size": 4129
+        },
+        "phase4_stats_w3": {
+          "retrievals": 1000,
+          "candidates_total": 52,
+          "store": {
+            "size": 0,
+            "capacity": 500,
+            "evicted": 0,
+            "mean_gate": 0.0,
+            "max_gate": 0.0,
+            "mean_age": 0.0
+          },
+          "consolidation": {
+            "n_patterns": 2100,
+            "mean_strength": 0.06941116601228714,
+            "max_strength": 17.842966079711914,
+            "mean_u": [
+              0.027152661234140396,
+              0.04378630593419075,
+              0.04882967844605446,
+              0.04446183145046234,
+              0.03294730186462402,
+              0.017311880365014076
+            ],
+            "patterns_below_threshold": 0,
+            "patterns_dead": 0,
+            "step_count": 20
+          },
+          "memory_size": 2100
+        },
+        "phase4_stats_w4": {
+          "retrievals": 1000,
+          "candidates_total": 42,
+          "store": {
+            "size": 0,
+            "capacity": 500,
+            "evicted": 0,
+            "mean_gate": 0.0,
+            "max_gate": 0.0,
+            "mean_age": 0.0
+          },
+          "consolidation": {
+            "n_patterns": 1066,
+            "mean_strength": 0.0778442993760109,
+            "max_strength": 17.604957580566406,
+            "mean_u": [
+              0.031887318938970566,
+              0.0488218329846859,
+              0.05218110606074333,
+              0.04651744291186333,
+              0.03407740592956543,
+              0.01780056208372116
+            ],
+            "patterns_below_threshold": 0,
+            "patterns_dead": 0,
+            "step_count": 20
+          },
+          "memory_size": 1066
+        }
+      },
+      {
+        "top1": 0.12244897959183673,
+        "topk": 0.30612244897959184,
+        "cap_t_03": 0.30612244897959184,
+        "cap_t_05": 0.25510204081632654,
+        "per_scale": {
+          "2": {
+            "mean_top_score": 0.9996978952771142,
+            "mean_entropy": 0.7009447967114092,
+            "metastable_rate": 0.0
+          },
+          "3": {
+            "mean_top_score": 0.9999989652309288,
+            "mean_entropy": 0.7263813403998913,
+            "metastable_rate": 0.0
+          },
+          "4": {
+            "mean_top_score": 0.9671320161040948,
+            "mean_entropy": 0.6434123996569185,
+            "metastable_rate": 0.24489795918367346
+          }
+        },
+        "n": 294,
+        "cues_seen": 1500,
+        "condition": "phase4",
+        "phase4_stats_w2": {
+          "retrievals": 1500,
+          "candidates_total": 33,
+          "store": {
+            "size": 0,
+            "capacity": 500,
+            "evicted": 0,
+            "mean_gate": 0.0,
+            "max_gate": 0.0,
+            "mean_age": 0.0
+          },
+          "consolidation": {
+            "n_patterns": 4129,
+            "mean_strength": 0.039338331669569016,
+            "max_strength": 5.0561113357543945,
+            "mean_u": [
+              0.014730971306562424,
+              0.02451947145164013,
+              0.028694815933704376,
+              0.027632305398583412,
+              0.02161097526550293,
+              0.011814390309154987
+            ],
+            "patterns_below_threshold": 0,
+            "patterns_dead": 0,
+            "step_count": 30
+          },
+          "memory_size": 4129
+        },
+        "phase4_stats_w3": {
+          "retrievals": 1500,
+          "candidates_total": 52,
+          "store": {
+            "size": 0,
+            "capacity": 500,
+            "evicted": 0,
+            "mean_gate": 0.0,
+            "max_gate": 0.0,
+            "mean_age": 0.0
+          },
+          "consolidation": {
+            "n_patterns": 2100,
+            "mean_strength": 0.04419982060790062,
+            "max_strength": 20.215316772460938,
+            "mean_u": [
+              0.017339840531349182,
+              0.02744172140955925,
+              0.030841849744319916,
+              0.029107723385095596,
+              0.02252066321671009,
+              0.012244902551174164
+            ],
+            "patterns_below_threshold": 0,
+            "patterns_dead": 0,
+            "step_count": 30
+          },
+          "memory_size": 2100
+        },
+        "phase4_stats_w4": {
+          "retrievals": 1500,
+          "candidates_total": 42,
+          "store": {
+            "size": 0,
+            "capacity": 500,
+            "evicted": 0,
+            "mean_gate": 0.0,
+            "max_gate": 0.0,
+            "mean_age": 0.0
+          },
+          "consolidation": {
+            "n_patterns": 1066,
+            "mean_strength": 0.053643085062503815,
+            "max_strength": 20.0910587310791,
+            "mean_u": [
+              0.022432900965213776,
+              0.03311248868703842,
+              0.034966446459293365,
+              0.031915582716464996,
+              0.024238979443907738,
+              0.013054264709353447
+            ],
+            "patterns_below_threshold": 0,
+            "patterns_dead": 0,
+            "step_count": 30
+          },
+          "memory_size": 1066
+        }
+      },
+      {
+        "top1": 0.12244897959183673,
+        "topk": 0.30612244897959184,
+        "cap_t_03": 0.30612244897959184,
+        "cap_t_05": 0.25510204081632654,
+        "per_scale": {
+          "2": {
+            "mean_top_score": 0.9996897499172055,
+            "mean_entropy": 0.7009845767296902,
+            "metastable_rate": 0.0
+          },
+          "3": {
+            "mean_top_score": 0.9999989654336657,
+            "mean_entropy": 0.7263812278809191,
+            "metastable_rate": 0.0
+          },
+          "4": {
+            "mean_top_score": 0.9672351986372552,
+            "mean_entropy": 0.6433617032709575,
+            "metastable_rate": 0.24829931972789115
+          }
+        },
+        "n": 294,
+        "cues_seen": 2000,
+        "condition": "phase4",
+        "phase4_stats_w2": {
+          "retrievals": 2000,
+          "candidates_total": 33,
+          "store": {
+            "size": 0,
+            "capacity": 500,
+            "evicted": 0,
+            "mean_gate": 0.0,
+            "max_gate": 0.0,
+            "mean_age": 0.0
+          },
+          "consolidation": {
+            "n_patterns": 4129,
+            "mean_strength": 0.02570299245417118,
+            "max_strength": 5.179598331451416,
+            "mean_u": [
+              0.009876621887087822,
+              0.015934627503156662,
+              0.018282203003764153,
+              0.017544200643897057,
+              0.013755296356976032,
+              0.007544780615717173
+            ],
+            "patterns_below_threshold": 0,
+            "patterns_dead": 0,
+            "step_count": 40
+          },
+          "memory_size": 4129
+        },
+        "phase4_stats_w3": {
+          "retrievals": 2000,
+          "candidates_total": 52,
+          "store": {
+            "size": 0,
+            "capacity": 500,
+            "evicted": 0,
+            "mean_gate": 0.0,
+            "max_gate": 0.0,
+            "mean_age": 0.0
+          },
+          "consolidation": {
+            "n_patterns": 2100,
+            "mean_strength": 0.030831269919872284,
+            "max_strength": 21.565387725830078,
+            "mean_u": [
+              0.012576800771057606,
+              0.019022751599550247,
+              0.0206384789198637,
+              0.01923152431845665,
+              0.014836832880973816,
+              0.008071395568549633
+            ],
+            "patterns_below_threshold": 0,
+            "patterns_dead": 0,
+            "step_count": 40
+          },
+          "memory_size": 2100
+        },
+        "phase4_stats_w4": {
+          "retrievals": 2000,
+          "candidates_total": 42,
+          "store": {
+            "size": 0,
+            "capacity": 500,
+            "evicted": 0,
+            "mean_gate": 0.0,
+            "max_gate": 0.0,
+            "mean_age": 0.0
+          },
+          "consolidation": {
+            "n_patterns": 1066,
+            "mean_strength": 0.04086810350418091,
+            "max_strength": 21.5050048828125,
+            "mean_u": [
+              0.01787649095058441,
+              0.02506454847753048,
+              0.025223400443792343,
+              0.022497110068798065,
+              0.016920337453484535,
+              0.009082701057195663
+            ],
+            "patterns_below_threshold": 0,
+            "patterns_dead": 0,
+            "step_count": 40
+          },
+          "memory_size": 1066
+        }
+      }
+    ]
+  }
+}

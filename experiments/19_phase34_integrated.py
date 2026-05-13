@@ -53,6 +53,9 @@ from energy_memory.phase2.encoding import (
     masked_window,
 )
 from energy_memory.phase2.persistence import load_codebook
+from energy_memory.phase34.hebbian_online import (
+    HebbianOnlineCodebookUpdater,
+)
 from energy_memory.phase34.online_codebook import OnlineCodebookUpdater
 from energy_memory.phase34.reencoding import codebook_drift, reencode_patterns
 from energy_memory.phase4.consolidation import (
@@ -65,6 +68,33 @@ from energy_memory.phase4.replay_loop import (
 )
 from energy_memory.phase4.trajectory import TracedHopfieldMemory
 from energy_memory.substrate.torch_fhrr import TorchFHRR
+
+
+def build_updaters(kind, substrate, codebook, scales, args):
+    """Construct one updater per scale based on --updater-kind."""
+    if kind == "none":
+        return None
+    if kind == "hebbian":
+        return {
+            s: HebbianOnlineCodebookUpdater(
+                substrate=substrate, codebook=codebook,
+                lr_hebbian=args.lr_hebbian,
+                success_threshold=args.success_threshold,
+                trivial_skip_threshold=0.95,
+            )
+            for s in scales
+        }
+    if kind == "error_driven":
+        return {
+            s: OnlineCodebookUpdater(
+                substrate=substrate, codebook=codebook,
+                lr_pull=args.lr_pull, lr_push=args.lr_push,
+                consolidation_k=args.consolidation_k,
+                quality_threshold=args.quality_threshold,
+            )
+            for s in scales
+        }
+    raise ValueError(f"unknown updater_kind: {kind}")
 
 
 class ScaleSlot:
@@ -273,27 +303,39 @@ def stream_phase34(
             else:
                 result = slot.memory.retrieve(cue_vec, beta=beta, max_iter=12)
 
-            # Phase 3 online update (conditions B and C)
+            # Phase 3 online update (conditions B and C). Dispatches on
+            # updater kind: Hebbian fires on retrieval success, error-driven
+            # buffers retrieval failures.
             if updaters and scale in updaters:
-                slot_query = substrate.unbind(
-                    result.state, slot.positions[local_masked],
-                )
-                # Determine predicted_id: argmax over codebook
-                candidate_matrix = codebook_box[0][
-                    torch.tensor(decode_ids, device=codebook_box[0].device)
-                ]
-                sims = substrate.similarity_matrix(slot_query, candidate_matrix)
-                predicted_local = int(sims.argmax().detach().cpu())
-                predicted_id = decode_ids[predicted_local]
-                ready = updaters[scale].observe(
-                    target_id=target,
-                    slot_query=slot_query,
-                    predicted_id=predicted_id,
-                )
-                if ready:
-                    diag = updaters[scale].consolidate_if_ready()
-                    if diag is not None:
+                upd = updaters[scale]
+                if isinstance(upd, HebbianOnlineCodebookUpdater):
+                    slot_query = substrate.unbind(
+                        result.state, slot.positions[local_masked],
+                    )
+                    q = float(substrate.similarity(
+                        slot_query, codebook_box[0][target],
+                    ))
+                    if upd.observe(q=q, cue_token_ids=list(sub_window)):
                         consolidations += 1
+                else:
+                    slot_query = substrate.unbind(
+                        result.state, slot.positions[local_masked],
+                    )
+                    candidate_matrix = codebook_box[0][
+                        torch.tensor(decode_ids, device=codebook_box[0].device)
+                    ]
+                    sims = substrate.similarity_matrix(slot_query, candidate_matrix)
+                    predicted_local = int(sims.argmax().detach().cpu())
+                    predicted_id = decode_ids[predicted_local]
+                    ready = upd.observe(
+                        target_id=target,
+                        slot_query=slot_query,
+                        predicted_id=predicted_id,
+                    )
+                    if ready:
+                        diag = upd.consolidate_if_ready()
+                        if diag is not None:
+                            consolidations += 1
 
         cues_seen += 1
         cycles_since_reencode += 1
@@ -355,7 +397,13 @@ def stream_phase34(
             extra = ""
             if updaters and 2 in updaters:
                 s = updaters[2].stats()
-                extra += f"  fail={s['failure_rate']:.3f}"
+                if "success_rate" in s:
+                    extra += (
+                        f"  succ_rate={s['success_rate']:.3f}"
+                        f"  upd={s.get('atoms_updated', 0)}"
+                    )
+                elif "failure_rate" in s:
+                    extra += f"  fail={s['failure_rate']:.3f}"
             if phase4_units and 2 in phase4_units:
                 store_size = len(phase4_units[2].store)
                 u_mean = phase4_units[2].consolidation.stats()["mean_strength"]
@@ -397,8 +445,20 @@ def main() -> None:
     parser.add_argument("--checkpoint-every", type=int, default=300)
     parser.add_argument("--test-samples", type=int, default=300)
     # Phase 3 settings
+    parser.add_argument(
+        "--updater-kind", default="hebbian",
+        choices=["hebbian", "error_driven", "none"],
+        help=(
+            "Online codebook updater. 'hebbian' is the architecturally-correct "
+            "runtime pathway (phase-3-deep-dive.md:100). 'error_driven' is the "
+            "original OnlineCodebookUpdater (confirmed unsafe in "
+            "reports/phase34_hebbian/findings.md). 'none' freezes the codebook."
+        ),
+    )
     parser.add_argument("--lr-pull", type=float, default=0.1)
     parser.add_argument("--lr-push", type=float, default=0.05)
+    parser.add_argument("--lr-hebbian", type=float, default=0.01)
+    parser.add_argument("--success-threshold", type=float, default=0.5)
     parser.add_argument("--consolidation-k", type=int, default=50)
     parser.add_argument("--quality-threshold", type=float, default=0.15)
     # Phase 4 settings
@@ -529,15 +589,9 @@ def main() -> None:
     substrate.generator.set_state(initial_gen_state)
     cb_b = [initial_codebook.clone()]
     slots_b = build_slots(cb_b[0], traced=False)
-    updaters_b = {
-        s: OnlineCodebookUpdater(
-            substrate=substrate, codebook=cb_b[0],
-            lr_pull=args.lr_pull, lr_push=args.lr_push,
-            consolidation_k=args.consolidation_k,
-            quality_threshold=args.quality_threshold,
-        )
-        for s in scales
-    }
+    updaters_b = build_updaters(
+        args.updater_kind, substrate, cb_b[0], scales, args,
+    )
     all_results["phase3_reencode"] = stream_phase34(
         condition="phase3_reencode",
         slots=slots_b, cue_stream=cue_stream,
@@ -563,15 +617,9 @@ def main() -> None:
     cb_c = [initial_codebook.clone()]
     slots_c = build_slots(cb_c[0], traced=True)
 
-    updaters_c = {
-        s: OnlineCodebookUpdater(
-            substrate=substrate, codebook=cb_c[0],
-            lr_pull=args.lr_pull, lr_push=args.lr_push,
-            consolidation_k=args.consolidation_k,
-            quality_threshold=args.quality_threshold,
-        )
-        for s in scales
-    }
+    updaters_c = build_updaters(
+        args.updater_kind, substrate, cb_c[0], scales, args,
+    )
 
     replay_config = ReplayConfig(
         store_threshold=args.store_threshold,

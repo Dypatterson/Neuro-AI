@@ -1,0 +1,154 @@
+{
+  "config": {
+    "dim": 4096,
+    "device": null,
+    "max_vocab": 2048,
+    "corpus_source": "wikitext",
+    "wikitext_name": "wikitext-2-raw-v1",
+    "seed": 17,
+    "codebook_path": "reports/phase3c_reconstruction/phase3c_codebook_reconstruction.pt",
+    "random_codebook": false,
+    "scale_landscape": "2:4096,3:2048,4:1024",
+    "eval_window_size": 8,
+    "mask_position": "center",
+    "beta": 10.0,
+    "decode_k": 10,
+    "n_cues": 200,
+    "checkpoint_every": 100,
+    "test_samples": 100,
+    "updater_kind": "hebbian",
+    "lr_pull": 0.1,
+    "lr_push": 0.05,
+    "lr_hebbian": 0.01,
+    "success_threshold": 0.5,
+    "consolidation_k": 50,
+    "quality_threshold": 0.15,
+    "replay_every": 50,
+    "replay_batch_size": 10,
+    "store_threshold": 0.05,
+    "resolve_threshold": 0.7,
+    "store_capacity": 500,
+    "consolidation_m": 6,
+    "consolidation_alpha": 0.25,
+    "novelty_strength": 1.0,
+    "retrieval_gain": 0.1,
+    "reencode_every": 100,
+    "output_dir": "reports/phase34_smoke"
+  },
+  "results": {
+    "baseline_static": [
+      {
+        "top1": 0.16666666666666666,
+        "topk": 0.34615384615384615,
+        "cap_t_03": 0.34615384615384615,
+        "cap_t_05": 0.32051282051282054,
+        "n": 78,
+        "mean_top_score_w2": 0.9527607544874533,
+        "cues_seen": 0,
+        "condition": "baseline_static"
+      },
+      {
+        "top1": 0.16666666666666666,
+        "topk": 0.34615384615384615,
+        "cap_t_03": 0.34615384615384615,
+        "cap_t_05": 0.32051282051282054,
+        "n": 78,
+        "mean_top_score_w2": 0.9527607544874533,
+        "cues_seen": 100,
+        "condition": "baseline_static",
+        "consolidations": 0,
+        "candidates_total": 0,
+        "codebook_drift_from_initial": 0.0
+      },
+      {
+        "top1": 0.16666666666666666,
+        "topk": 0.34615384615384615,
+        "cap_t_03": 0.34615384615384615,
+        "cap_t_05": 0.32051282051282054,
+        "n": 78,
+        "mean_top_score_w2": 0.9527607544874533,
+        "cues_seen": 200,
+        "condition": "baseline_static",
+        "consolidations": 0,
+        "candidates_total": 0,
+        "codebook_drift_from_initial": 0.0
+      }
+    ],
+    "phase3_reencode": [
+      {
+        "top1": 0.16666666666666666,
+        "topk": 0.34615384615384615,
+        "cap_t_03": 0.34615384615384615,
+        "cap_t_05": 0.32051282051282054,
+        "n": 78,
+        "mean_top_score_w2": 0.9527607544874533,
+        "cues_seen": 0,
+        "condition": "phase3_reencode"
+      },
+      {
+        "top1": 0.16666666666666666,
+        "topk": 0.34615384615384615,
+        "cap_t_03": 0.34615384615384615,
+        "cap_t_05": 0.32051282051282054,
+        "n": 78,
+        "mean_top_score_w2": 0.9532376726468405,
+        "cues_seen": 100,
+        "condition": "phase3_reencode",
+        "consolidations": 2,
+        "candidates_total": 0,
+        "codebook_drift_from_initial": 1.6485772746932525e-08
+      },
+      {
+        "top1": 0.16666666666666666,
+        "topk": 0.34615384615384615,
+        "cap_t_03": 0.34615384615384615,
+        "cap_t_05": 0.32051282051282054,
+        "n": 78,
+        "mean_top_score_w2": 0.9532376726468405,
+        "cues_seen": 200,
+        "condition": "phase3_reencode",
+        "consolidations": 2,
+        "candidates_total": 0,
+        "codebook_drift_from_initial": 1.6485772746932525e-08
+      }
+    ],
+    "phase3_phase4": [
+      {
+        "top1": 0.16666666666666666,
+        "topk": 0.34615384615384615,
+        "cap_t_03": 0.34615384615384615,
+        "cap_t_05": 0.32051282051282054,
+        "n": 78,
+        "mean_top_score_w2": 0.9527607544874533,
+        "cues_seen": 0,
+        "condition": "phase3_phase4"
+      },
+      {
+        "top1": 0.16666666666666666,
+        "topk": 0.358974358974359,
+        "cap_t_03": 0.358974358974359,
+        "cap_t_05": 0.32051282051282054,
+        "n": 78,
+        "mean_top_score_w2": 0.9997603320158445,
+        "cues_seen": 100,
+        "condition": "phase3_phase4",
+        "consolidations": 2,
+        "candidates_total": 60,
+        "codebook_drift_from_initial": 1.6485772746932525e-08
+      },
+      {
+        "top1": 0.16666666666666666,
+        "topk": 0.3717948717948718,
+        "cap_t_03": 0.3717948717948718,
+        "cap_t_05": 0.3333333333333333,
+        "n": 78,
+        "mean_top_score_w2": 0.9997836420169244,
+        "cues_seen": 200,
+        "condition": "phase3_phase4",
+        "consolidations": 2,
+        "candidates_total": 112,
+        "codebook_drift_from_initial": 1.6485772746932525e-08
+      }
+    ]
+  }
+}

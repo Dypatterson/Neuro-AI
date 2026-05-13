@@ -287,6 +287,27 @@ drift + replay, the consolidation pipeline should keep durable patterns
 aligned with the current codebook through repeated reinforcement of u_k
 chains.
 
+**On what "codebook drift" means here (clarified 2026-05-12):** the
+empirical regression in `reports/phase34_stable_v2/findings.md` and
+`reports/phase34_hebbian/findings.md` confirmed that online error-driven
+contrastive updates are unsafe regardless of init. So the codebook drift
+that Phase 4 is built to handle does *not* come from an online
+error-driven updater running in the streaming loop. The two sanctioned
+drift sources are:
+
+1. **Periodic batch retrains** of the codebook (offline) — e.g., running
+   `ReconstructionLearner` again after accumulating new experience. The
+   re-encode mechanism then realigns stored patterns to the new
+   codebook.
+2. **Online Hebbian reinforcement** on successful retrievals
+   (`HebbianOnlineCodebookUpdater`) — small, light-touch, doesn't
+   destabilize.
+
+For the Phase 4 headline experiment, a third option is to *simulate*
+drift directly (synthetic perturbation of the codebook by a known
+magnitude) — this gives a clean before/after split without tangling the
+test in the dynamics of any particular learning rule.
+
 Drill-downs:
 - Meta-stable rate over time (should stay lower with replay)
 - Mean engagement over time (should drop as landscape stabilizes)
