@@ -15,10 +15,13 @@ Two conditions, identical seeds and cue stream:
      winner replicated as control)
   B. ham_with_layer2: same HAM, but Phase 4 discovery populates
      layer-2 from streamed cues
+  C. ham_random_layer2: same HAM, but random layer-2 attractors are
+     added to match B's attractor count at each checkpoint
 
 Headline metric: top-1 and cap_t05 on held-out test set, evaluated at
-checkpoints. Hypothesis: B > A as layer-2 grows, especially at W=8
-β=10 where the Step 1 HAM win was largest.
+checkpoints. Hypothesis: B > A and B > C as layer-2 grows. If B and C
+move together, layer-2 is acting as generic smoothing/bias rather than
+a discovery channel.
 """
 
 from __future__ import annotations
@@ -156,6 +159,32 @@ def evaluate_ham(
         "topk": correct_topk / total,
         "cap_t_05": correct_cap_t05 / total,
     }
+
+
+def add_random_layer2_profiles(
+    aggregator: HAMWithLayer2,
+    count: int,
+    n_candidates: int,
+    rng: random.Random,
+) -> int:
+    """Add random normalized layer-2 profiles up to a target count.
+
+    This is the matched-count control for replay-discovered attractors. The
+    random profiles live in the same consensus simplex as discovered layer-2
+    profiles, but carry no information from replay.
+    """
+    added = 0
+    while len(aggregator.layer2) < count:
+        values = [rng.random() + 1e-6 for _ in range(n_candidates)]
+        total = sum(values)
+        profile = torch.tensor(
+            [v / total for v in values],
+            dtype=torch.float32,
+            device=aggregator.substrate.device,
+        )
+        aggregator.add_discovery(profile)
+        added += 1
+    return added
 
 
 def stream_with_discovery(
@@ -360,7 +389,9 @@ def main() -> None:
 
         initial_gen_state = substrate.generator.get_state().clone()
 
-        for condition in ["ham_baseline", "ham_with_layer2"]:
+        matched_layer2_counts: Dict[int, int] = {}
+
+        for condition in ["ham_baseline", "ham_with_layer2", "ham_random_layer2"]:
             substrate.generator.set_state(initial_gen_state)
             slots = {}
             for s in scales:
@@ -406,6 +437,7 @@ def main() -> None:
 
             enable_discovery = (condition == "ham_with_layer2")
             rng = random.Random(seed)
+            random_control_rng = random.Random(seed + 12345)
 
             # Stream in checkpoint chunks so we can evaluate periodically
             chunk_size = args.checkpoint_every
@@ -427,6 +459,19 @@ def main() -> None:
                     rng=rng,
                 )
                 cues_so_far = chunk_start + stats["cues_seen"]
+                if condition == "ham_with_layer2":
+                    matched_layer2_counts[cues_so_far] = stats["layer2_size_end"]
+                elif condition == "ham_random_layer2":
+                    target_count = matched_layer2_counts.get(cues_so_far, 0)
+                    random_added = add_random_layer2_profiles(
+                        aggregator=aggregator,
+                        count=target_count,
+                        n_candidates=len(decode_ids),
+                        rng=random_control_rng,
+                    )
+                    stats["layer2_size_end"] = len(aggregator.layer2)
+                    stats["candidates_added"] = random_added
+
                 ev = evaluate_ham(
                     aggregator=aggregator, slots=slots, codebook=codebook,
                     test_windows=test_windows,
@@ -456,7 +501,7 @@ def main() -> None:
     print(f"\n{'=' * 70}\n  Aggregated across seeds (final checkpoint)\n{'=' * 70}")
 
     final_step = max(r["cues_seen"] for r in rows)
-    for condition in ["ham_baseline", "ham_with_layer2"]:
+    for condition in ["ham_baseline", "ham_with_layer2", "ham_random_layer2"]:
         finals = [
             r for r in rows
             if r["condition"] == condition and r["cues_seen"] == final_step
