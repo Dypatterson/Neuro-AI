@@ -1,0 +1,34 @@
+loading corpus...
+  vocab: 2050 tokens
+  codebook: torch.Size([2050, 4096])
+  cue stream: 2000 valid cues (filtered from 23008 candidates); test set: 400
+
+======================================================================
+  Condition: baseline (no replay, no consolidation)
+======================================================================
+  step=    0  top1=0.122  topk=0.310  cap_t05=0.276
+  step=  500  top1=0.122  topk=0.330  cap_t05=0.255
+  step= 1000  top1=0.092  topk=0.293  cap_t05=0.248
+  step= 1500  top1=0.092  topk=0.293  cap_t05=0.228
+  step= 2000  top1=0.088  topk=0.296  cap_t05=0.221
+
+======================================================================
+  Condition: phase4 (trajectory + consolidation + replay)
+======================================================================
+  step=    0  top1=0.122  topk=0.310  cap_t05=0.276
+  step=  500  top1=0.122  topk=0.306  cap_t05=0.248  store=0 meanU=0.133 n_pat=4126 cands=30
+  step= 1000  top1=0.122  topk=0.296  cap_t05=0.248  store=0 meanU=0.065 n_pat=4126 cands=30
+  step= 1500  top1=0.116  topk=0.293  cap_t05=0.235  store=0 meanU=0.039 n_pat=4127 cands=31
+  step= 2000  top1=0.082  topk=0.313  cap_t05=0.245  store=0 meanU=0.026 n_pat=4127 cands=31
+
+======================================================================
+  Summary: deltas at each checkpoint
+======================================================================
+    step    cb_top1    p4_top1    Δtop1   cb_capt5   p4_capt5    Δcap_t5
+       0      0.122      0.122   +0.000      0.276      0.276     +0.000
+     500      0.122      0.122   +0.000      0.255      0.248     -0.007
+    1000      0.092      0.122   +0.031      0.248      0.248     +0.000
+    1500      0.092      0.116   +0.024      0.228      0.235     +0.007
+    2000      0.088      0.082   -0.007      0.221      0.245     +0.024
+
+  results: /Users/dypatterson/Desktop/Neuro-AI/reports/phase4_rt0p80/phase4_unified_results.json

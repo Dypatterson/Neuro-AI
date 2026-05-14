@@ -1,0 +1,46 @@
+loading corpus...
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+  vocab: 2050 tokens
+  codebook: torch.Size([2050, 4096])
+  W=4 seed=11 β=  10 N= 384  bg=0.049  sum1=0.086 sumK=0.331  hgm1=0.068 hgmK=0.320  har1=0.109 harK=0.333
+  W=4 seed=11 β=  30 N= 384  bg=0.049  sum1=0.115 sumK=0.328  hgm1=0.117 hgmK=0.315  har1=0.115 harK=0.315
+  W=4 seed=17 β=  10 N= 357  bg=0.064  sum1=0.081 sumK=0.339  hgm1=0.053 hgmK=0.325  har1=0.073 harK=0.333
+  W=4 seed=17 β=  30 N= 357  bg=0.064  sum1=0.134 sumK=0.339  hgm1=0.126 hgmK=0.336  har1=0.134 harK=0.342
+  W=4 seed=23 β=  10 N= 361  bg=0.064  sum1=0.122 sumK=0.321  hgm1=0.111 hgmK=0.316  har1=0.114 harK=0.324
+  W=4 seed=23 β=  30 N= 361  bg=0.064  sum1=0.125 sumK=0.319  hgm1=0.136 hgmK=0.296  har1=0.141 harK=0.341
+  W=4 seed=1 β=  10 N= 375  bg=0.069  sum1=0.139 sumK=0.317  hgm1=0.128 hgmK=0.309  har1=0.128 harK=0.312
+  W=4 seed=1 β=  30 N= 375  bg=0.069  sum1=0.133 sumK=0.323  hgm1=0.133 hgmK=0.288  har1=0.144 harK=0.312
+  W=4 seed=2 β=  10 N= 381  bg=0.060  sum1=0.129 sumK=0.310  hgm1=0.129 hgmK=0.297  har1=0.129 harK=0.312
+  W=4 seed=2 β=  30 N= 381  bg=0.060  sum1=0.150 sumK=0.304  hgm1=0.142 hgmK=0.299  har1=0.144 harK=0.297
+  W=8 seed=11 β=  10 N= 343  bg=0.038  sum1=0.055 sumK=0.321  hgm1=0.131 hgmK=0.327  har1=0.131 harK=0.338
+  W=8 seed=11 β=  30 N= 343  bg=0.038  sum1=0.152 sumK=0.341  hgm1=0.157 hgmK=0.344  har1=0.152 harK=0.321
+  W=8 seed=17 β=  10 N= 344  bg=0.049  sum1=0.145 sumK=0.326  hgm1=0.116 hgmK=0.326  har1=0.134 harK=0.320
+  W=8 seed=17 β=  30 N= 344  bg=0.049  sum1=0.140 sumK=0.320  hgm1=0.140 hgmK=0.317  har1=0.148 harK=0.314
+  W=8 seed=23 β=  10 N= 366  bg=0.066  sum1=0.123 sumK=0.342  hgm1=0.101 hgmK=0.311  har1=0.120 harK=0.325
+  W=8 seed=23 β=  30 N= 366  bg=0.066  sum1=0.137 sumK=0.344  hgm1=0.153 hgmK=0.344  har1=0.156 harK=0.355
+  W=8 seed=1 β=  10 N= 367  bg=0.057  sum1=0.082 sumK=0.354  hgm1=0.139 hgmK=0.341  har1=0.139 harK=0.354
+  W=8 seed=1 β=  30 N= 367  bg=0.057  sum1=0.150 sumK=0.332  hgm1=0.120 hgmK=0.338  har1=0.128 harK=0.319
+  W=8 seed=2 β=  10 N= 348  bg=0.052  sum1=0.149 sumK=0.382  hgm1=0.089 hgmK=0.345  har1=0.141 harK=0.351
+  W=8 seed=2 β=  30 N= 348  bg=0.052  sum1=0.155 sumK=0.365  hgm1=0.158 hgmK=0.359  har1=0.164 harK=0.348
+
+======================================================================
+  Aggregated across seeds (mean ± std)
+======================================================================
+
+  W=4 β=  10  bigram=0.061
+    top1:  summed=0.111±0.023  ham_geom=0.098±0.031  ham_arith=0.110±0.020
+    topk:  summed=0.324  ham_geom=0.313  ham_arith=0.323
+
+  W=4 β=  30  bigram=0.061
+    top1:  summed=0.131±0.012  ham_geom=0.131±0.008  ham_arith=0.136±0.011
+    topk:  summed=0.323  ham_geom=0.307  ham_arith=0.321
+
+  W=8 β=  10  bigram=0.052
+    top1:  summed=0.111±0.037  ham_geom=0.115±0.018  ham_arith=0.133±0.007
+    topk:  summed=0.345  ham_geom=0.330  ham_arith=0.338
+
+  W=8 β=  30  bigram=0.052
+    top1:  summed=0.147±0.007  ham_geom=0.146±0.014  ham_arith=0.149±0.012
+    topk:  summed=0.341  ham_geom=0.340  ham_arith=0.331
+
+  results: /Users/dypatterson/Desktop/Neuro-AI/reports/ham_5seed/ham_vs_summed_results.json

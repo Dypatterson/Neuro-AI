@@ -1,0 +1,106 @@
+{
+  "config": {
+    "sample_pairs": 200000,
+    "seed": 11
+  },
+  "results": {
+    "random_baseline": {
+      "n_pairs": 200000,
+      "n_atoms": 2048,
+      "dim": 4096,
+      "mean": -2.67281031148741e-06,
+      "std": 0.01103925820178944,
+      "p50": 2.049986505880952e-06,
+      "p95": 0.01817527450621127,
+      "p99": 0.025615260004997253,
+      "p999": 0.03390803454816323,
+      "max": 0.049680858850479126,
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase2_full_matrix/phase2_codebook.pt",
+      "vocab_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase2_full_matrix/phase2_vocab.json"
+    },
+    "hebbian_w8": {
+      "n_pairs": 200000,
+      "n_atoms": 2048,
+      "dim": 4096,
+      "mean": 0.40943061884745957,
+      "std": 0.03295115071431299,
+      "p50": 0.41329941153526306,
+      "p95": 0.4517545640468597,
+      "p99": 0.4769226866960526,
+      "p999": 0.5260482618808738,
+      "max": 0.6627944707870483,
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase3c_reconstruction/phase3c_codebook_hebbian.pt",
+      "vocab_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase3c_reconstruction/phase3c_vocab.json"
+    },
+    "reconstruction_w8": {
+      "n_pairs": 200000,
+      "n_atoms": 2048,
+      "dim": 4096,
+      "mean": 0.4102211799589917,
+      "std": 0.03221477203301602,
+      "p50": 0.4145345985889435,
+      "p95": 0.45149454176425935,
+      "p99": 0.46923490226268777,
+      "p999": 0.4943650145828723,
+      "max": 0.6612575054168701,
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase3c_reconstruction/phase3c_codebook_reconstruction.pt",
+      "vocab_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase3c_reconstruction/phase3c_vocab.json"
+    },
+    "error_driven_w8": {
+      "n_pairs": 200000,
+      "n_atoms": 2048,
+      "dim": 4096,
+      "mean": 0.4060116280832514,
+      "std": 0.032197561765797744,
+      "p50": 0.4106880724430084,
+      "p95": 0.4467715173959732,
+      "p99": 0.46352423459291464,
+      "p999": 0.4916633617877932,
+      "max": 0.6539623737335205,
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase3b_error_driven/phase3b_codebook_error_driven.pt",
+      "vocab_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase3b_error_driven/phase3b_vocab.json"
+    },
+    "per_scale_w2": {
+      "n_pairs": 200000,
+      "n_atoms": 2048,
+      "dim": 4096,
+      "mean": 0.007610152519648109,
+      "std": 0.016089702801644564,
+      "p50": 0.005811867769807577,
+      "p95": 0.03646938130259514,
+      "p99": 0.06134800866246225,
+      "p999": 0.0828722726553672,
+      "max": 0.1239924430847168,
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase4_per_scale/codebook_w2.pt",
+      "vocab_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase4_per_scale/vocab.json"
+    },
+    "per_scale_w3": {
+      "n_pairs": 200000,
+      "n_atoms": 2048,
+      "dim": 4096,
+      "mean": 0.007459126147211064,
+      "std": 0.01719120523442884,
+      "p50": 0.005396172637119889,
+      "p95": 0.03570238873362541,
+      "p99": 0.0700850662589074,
+      "p999": 0.1200747373253102,
+      "max": 0.16508205235004425,
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase4_per_scale/codebook_w3.pt",
+      "vocab_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase4_per_scale/vocab.json"
+    },
+    "per_scale_w4": {
+      "n_pairs": 200000,
+      "n_atoms": 2048,
+      "dim": 4096,
+      "mean": 0.005375996005836278,
+      "std": 0.016315457381337013,
+      "p50": 0.0038080025697126985,
+      "p95": 0.02992947343736887,
+      "p99": 0.05978049293160456,
+      "p999": 0.1390318544507008,
+      "max": 0.27445393800735474,
+      "codebook_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase4_per_scale/codebook_w4.pt",
+      "vocab_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase4_per_scale/vocab.json"
+    }
+  }
+}

@@ -17,22 +17,67 @@ emergent-codebook subsystem has its own multi-phase plan under
 and synthesis from cross-paper reviews live in dated notes under
 [notes/notes/](notes/notes/).
 
+## Session-start protocol (read first, every session)
+
+Before doing anything else in a session — before reading reports, before
+planning, before answering a question that involves project state — read:
+
+1. [STATUS.md](STATUS.md) at the repo root. This is the bookmark. It names
+   the active phase, the current headline metric, the last verified result,
+   and the active blockers.
+2. The exit checklist for the active phase (e.g.
+   [notes/emergent-codebook/phase-4-checklist.md](notes/emergent-codebook/phase-4-checklist.md))
+   if one exists for the active phase. Every line item with a non-✅ status
+   is potentially relevant to the current session.
+
+`STATUS.md` and the active checklist are *binding*, not advisory. If you
+catch a contradiction between them and another document mid-session, that
+is itself a finding — surface it to the user, don't paper over it.
+
+If a session causes any status change (a blocker becomes done, a new
+blocker surfaces, an audit fails), update `STATUS.md` and the checklist
+**before** ending the session. The walk-back is the first edit, not the
+last.
+
+## Experiment preamble requirement
+
+Before running any experiment that produces a numbered report or that
+informs a phase-graduation decision, the agent must state, in plain text:
+
+> **Active phase:** [N]
+> **Headline metric per [spec file:line]:** [exact metric, e.g. "Δ Recall@K
+> + Δ cap-coverage with active drift"]
+> **Required controls per [spec file:line]:** [list]
+> **Last verified result:** [report]
+> **Why this experiment now:** [one sentence tying it to a STATUS.md
+> blocker or checklist line item]
+
+If you cannot fill in any field — for example you do not know what the
+headline metric should be, or you cannot identify a STATUS.md blocker
+the experiment addresses — **stop** and ask the user. Do not improvise.
+
+This preamble is a forcing function against the failure mode of "report
+top1 first because exp 18 prints it first." It is cheap. The cost of
+skipping it is hours of work against the wrong metric.
+
 ## Before designing or building anything non-trivial
 
 **Mandatory check order** — do this *before* writing a spec, before writing
 code, and before recommending an approach:
 
-1. Read [docs/PROJECT_PLAN.md](docs/PROJECT_PLAN.md) for the current phase and
-   non-negotiable design rules.
-2. Search [notes/](notes/) for any document that names or specifies what
+1. Read [STATUS.md](STATUS.md) and the active phase checklist (see
+   session-start protocol above).
+2. Read [docs/PROJECT_PLAN.md](docs/PROJECT_PLAN.md) for the current phase
+   and non-negotiable design rules.
+3. Search [notes/](notes/) for any document that names or specifies what
    you're about to build. Phase 4 work has a Phase 4 design note; Phase 3 work
    has a Phase 3 deep-dive; etc. **A design document existing for a feature
    is the strongest signal that someone already thought hard about it.**
    `grep -rln "<keyword>" notes/` is your friend.
-3. Skim relevant dated notes under [notes/notes/](notes/notes/) — these
+4. Skim relevant dated notes under [notes/notes/](notes/notes/) — these
    capture cross-paper syntheses and architectural decisions that don't
    always make it into the phase docs.
-4. Check [research/](research/) for papers the project has bookmarked.
+5. Check [research/](research/) for papers the project has bookmarked.
    Extracted text is in [tmp/pdf_text/](tmp/pdf_text/). The 2026-05-09
    paper synthesis note ([notes/notes/2026-05-09-papers-diagnostics-and-actuator-dynamics.md](notes/notes/2026-05-09-papers-diagnostics-and-actuator-dynamics.md))
    catalogues which papers are load-bearing and why.

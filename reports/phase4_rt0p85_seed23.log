@@ -1,0 +1,35 @@
+loading corpus...
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+  vocab: 2050 tokens
+  codebook: torch.Size([2050, 4096])
+  cue stream: 2000 valid cues (filtered from 23008 candidates); test set: 400
+
+======================================================================
+  Condition: baseline (no replay, no consolidation)
+======================================================================
+  step=    0  top1=0.099  topk=0.364  cap_t05=0.242
+  step=  500  top1=0.103  topk=0.358  cap_t05=0.245
+  step= 1000  top1=0.099  topk=0.361  cap_t05=0.219
+  step= 1500  top1=0.093  topk=0.348  cap_t05=0.202
+  step= 2000  top1=0.103  topk=0.338  cap_t05=0.139
+
+======================================================================
+  Condition: phase4 (trajectory + consolidation + replay)
+======================================================================
+  step=    0  top1=0.099  topk=0.364  cap_t05=0.242
+  step=  500  top1=0.123  topk=0.344  cap_t05=0.248  store=0 meanU=0.133 n_pat=4097 cands=1
+  step= 1000  top1=0.116  topk=0.348  cap_t05=0.149  store=0 meanU=0.065 n_pat=4098 cands=2
+  step= 1500  top1=0.109  topk=0.341  cap_t05=0.103  store=0 meanU=0.039 n_pat=4099 cands=3
+  step= 2000  top1=0.106  topk=0.341  cap_t05=0.099  store=0 meanU=0.026 n_pat=4099 cands=3
+
+======================================================================
+  Summary: deltas at each checkpoint
+======================================================================
+    step    cb_top1    p4_top1    Δtop1   cb_capt5   p4_capt5    Δcap_t5
+       0      0.099      0.099   +0.000      0.242      0.242     +0.000
+     500      0.103      0.123   +0.020      0.245      0.248     +0.003
+    1000      0.099      0.116   +0.017      0.219      0.149     -0.070
+    1500      0.093      0.109   +0.017      0.202      0.103     -0.099
+    2000      0.103      0.106   +0.003      0.139      0.099     -0.040
+
+  results: /Users/dypatterson/Desktop/Neuro-AI/reports/phase4_rt0p85_seed23/phase4_unified_results.json

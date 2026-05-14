@@ -1,0 +1,35 @@
+loading corpus...
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+  vocab: 2050 tokens
+  codebook: torch.Size([2050, 4096])
+  cue stream: 2000 valid cues (filtered from 23008 candidates); test set: 400
+
+======================================================================
+  Condition: baseline (no replay, no consolidation)
+======================================================================
+  step=    0  top1=0.122  topk=0.310  cap_t05=0.276
+  step=  500  top1=0.122  topk=0.323  cap_t05=0.255
+  step= 1000  top1=0.088  topk=0.313  cap_t05=0.201
+  step= 1500  top1=0.092  topk=0.313  cap_t05=0.102
+  step= 2000  top1=0.071  topk=0.333  cap_t05=0.058
+
+======================================================================
+  Condition: phase4 (trajectory + consolidation + replay)
+======================================================================
+  step=    0  top1=0.122  topk=0.310  cap_t05=0.276
+  step=  500  top1=0.122  topk=0.306  cap_t05=0.235  store=0 meanU=0.133 n_pat=4126 cands=30
+  step= 1000  top1=0.088  topk=0.320  cap_t05=0.207  store=0 meanU=0.065 n_pat=4127 cands=31
+  step= 1500  top1=0.082  topk=0.313  cap_t05=0.167  store=0 meanU=0.039 n_pat=4127 cands=31
+  step= 2000  top1=0.068  topk=0.320  cap_t05=0.078  store=0 meanU=0.026 n_pat=4127 cands=31
+
+======================================================================
+  Summary: deltas at each checkpoint
+======================================================================
+    step    cb_top1    p4_top1    Δtop1   cb_capt5   p4_capt5    Δcap_t5
+       0      0.122      0.122   +0.000      0.276      0.276     +0.000
+     500      0.122      0.122   +0.000      0.255      0.235     -0.020
+    1000      0.088      0.088   +0.000      0.201      0.207     +0.007
+    1500      0.092      0.082   -0.010      0.102      0.167     +0.065
+    2000      0.071      0.068   -0.003      0.058      0.078     +0.020
+
+  results: /Users/dypatterson/Desktop/Neuro-AI/reports/phase4_drift_0p50/phase4_unified_results.json

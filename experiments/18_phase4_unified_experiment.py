@@ -63,6 +63,7 @@ from energy_memory.phase4.consolidation import (
     ConsolidationConfig,
     ConsolidationState,
 )
+from energy_memory.phase34.reencoding import reencode_patterns
 from energy_memory.phase4.replay_loop import (
     ReplayConfig,
     UnifiedReplayMemory,
@@ -154,11 +155,18 @@ class ScaleSlot:
             self.memory = TracedHopfieldMemory(substrate, snapshot_k=8)
         else:
             self.memory = TorchHopfieldMemory(substrate)
+        # Track the source window for each stored pattern so the
+        # re-encode helper can refresh stale patterns against the
+        # current codebook. Discovered patterns (added later via
+        # the Phase 4 replay channel) have no source window — we
+        # append None for those.
+        self.source_windows: List[Optional[tuple[int, ...]]] = []
         for idx, w in enumerate(landscape):
             self.memory.store(
                 encode_window(substrate, self.positions, codebook, w),
                 label=f"w_{idx}",
             )
+            self.source_windows.append(tuple(w))
         self.landscape_size = actual_l
 
 
@@ -355,6 +363,7 @@ def stream_and_replay(
     initial_codebook: Optional[torch.Tensor] = None,
     rank_k: int = 50,
     atom_sample_pairs: int = 100_000,
+    reencode_every: int = 0,
 ) -> Tuple[List[Dict], torch.Tensor]:
     """Stream cues through the slots, checkpoint, apply drift.
 
@@ -411,25 +420,38 @@ def stream_and_replay(
                 unit = phase4_units[scale]
                 unit.retrieve_and_observe(cue_vec, beta=beta, max_iter=12)
                 if unit.should_replay():
-                    def make_handler(scale_idx):
+                    def make_handler(scale_idx, slot_ref):
                         def handler(trace):
-                            new_idx = slot.memory.stored_count
-                            slot.memory.store(
+                            new_idx = slot_ref.memory.stored_count
+                            slot_ref.memory.store(
                                 trace.final_state.clone(),
                                 label=f"discovered_w{scale_idx}_{new_idx}",
                             )
+                            # Discovered patterns have no source window;
+                            # they will be skipped by reencode_patterns.
+                            slot_ref.source_windows.append(None)
                             return new_idx
                         return handler
 
                     unit.run_replay_cycle(
                         beta=beta, max_iter=12,
-                        candidate_handler=make_handler(scale),
+                        candidate_handler=make_handler(scale, slot),
                     )
                     unit.garbage_collect()
             else:
                 slot.memory.retrieve(cue_vec, beta=beta, max_iter=12)
 
         cues_seen += 1
+
+        # Periodically re-encode stored patterns through the current
+        # codebook. The reencode helper skips entries without a source
+        # window (e.g. patterns added via the Phase 4 discovery channel).
+        if reencode_every > 0 and cues_seen % reencode_every == 0 and codebook is not None:
+            for slot in slots.values():
+                reencode_patterns(
+                    slot.memory, slot.source_windows,
+                    substrate, slot.positions, slot.codebook,
+                )
 
         if cues_seen % checkpoint_every == 0:
             if drift_magnitude > 0 and codebook is not None:
@@ -511,6 +533,22 @@ def main() -> None:
     parser.add_argument("--consolidation-alpha", type=float, default=0.25)
     parser.add_argument("--novelty-strength", type=float, default=1.0)
     parser.add_argument("--retrieval-gain", type=float, default=0.1)
+    parser.add_argument(
+        "--death-window", type=int, default=10000,
+        help="Patterns whose strength stays below death_threshold for this "
+             "many consolidation steps get pruned. Lower => stale patterns "
+             "are replaced by replay-discovered ones faster.",
+    )
+    parser.add_argument(
+        "--death-threshold", type=float, default=0.005,
+        help="Strength threshold below which death_window counter advances.",
+    )
+    parser.add_argument(
+        "--reencode-every", type=int, default=0,
+        help="Re-encode stored patterns through the current codebook every "
+             "N cues. 0 disables. Only landscape patterns are re-encoded; "
+             "discovered patterns are skipped (no source window).",
+    )
     parser.add_argument("--output-dir", default="reports/phase4_unified")
     args = parser.parse_args()
 
@@ -618,6 +656,7 @@ def main() -> None:
         initial_codebook=baseline_codebook,
         rank_k=args.rank_k,
         atom_sample_pairs=args.atom_sample_pairs,
+        reencode_every=args.reencode_every,
     )
     all_results["baseline"] = baseline_results
 
@@ -645,8 +684,8 @@ def main() -> None:
         alpha=args.consolidation_alpha,
         novelty_strength=args.novelty_strength,
         retrieval_gain=args.retrieval_gain,
-        death_threshold=0.005,
-        death_window=10000,
+        death_threshold=args.death_threshold,
+        death_window=args.death_window,
     )
     for s in scales:
         train_windows_s = make_windows(train_ids, s)
@@ -687,6 +726,7 @@ def main() -> None:
         initial_codebook=phase4_codebook,
         rank_k=args.rank_k,
         atom_sample_pairs=args.atom_sample_pairs,
+        reencode_every=args.reencode_every,
     )
     all_results["phase4"] = phase4_results
 
