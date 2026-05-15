@@ -62,6 +62,45 @@ def reencode_patterns(
     return re_encoded
 
 
+def reencode_discovered_patterns(
+    memory: TorchHopfieldMemory,
+    discovered_queries: Sequence[Optional["torch.Tensor"]],
+    beta: float = 10.0,
+    max_iter: int = 12,
+) -> int:
+    """Re-settle each cached discovered-pattern query against the current memory.
+
+    Discovered patterns (those emitted by Phase 4 replay) have no source
+    window, so `reencode_patterns` skips them. As the codebook drifts under
+    online Hebbian updates, the originally-stored final_state vectors go
+    stale relative to the refreshed memory landscape.
+
+    This function takes the per-pattern cached query (saved at discovery
+    time), re-runs retrieval against the *current* memory, and replaces the
+    stored pattern with the new settled state. It's a local geometric
+    dynamic — no controller decides what to refresh; the architecture
+    timer triggers the pass.
+
+    discovered_queries[i] is the cached cue vector that produced pattern i,
+    or None if pattern i is an original (handled by reencode_patterns).
+
+    Returns the number of patterns actually re-encoded.
+    """
+    if torch is None:  # pragma: no cover
+        raise ModuleNotFoundError("reencode_discovered_patterns requires torch") from _IMPORT_ERROR
+
+    n = min(len(memory._patterns), len(discovered_queries))
+    re_encoded = 0
+    for idx in range(n):
+        query = discovered_queries[idx]
+        if query is None:
+            continue
+        result = memory.retrieve(query, beta=beta, max_iter=max_iter)
+        memory._patterns[idx] = result.state.detach().clone()
+        re_encoded += 1
+    return re_encoded
+
+
 def codebook_drift(
     codebook_a: "torch.Tensor",
     codebook_b: "torch.Tensor",

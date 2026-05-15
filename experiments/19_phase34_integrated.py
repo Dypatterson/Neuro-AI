@@ -57,7 +57,11 @@ from energy_memory.phase34.hebbian_online import (
     HebbianOnlineCodebookUpdater,
 )
 from energy_memory.phase34.online_codebook import OnlineCodebookUpdater
-from energy_memory.phase34.reencoding import codebook_drift, reencode_patterns
+from energy_memory.phase34.reencoding import (
+    codebook_drift,
+    reencode_discovered_patterns,
+    reencode_patterns,
+)
 from energy_memory.phase4.consolidation import (
     ConsolidationConfig,
     ConsolidationState,
@@ -117,6 +121,12 @@ class ScaleSlot:
         self.source_windows: List[Optional[tuple[int, ...]]] = list(
             sample_windows(train_windows, actual_l, seed=seed)
         )
+        # Parallel to source_windows: cached cue-vector queries for
+        # discovered patterns (entries that get added later via Phase 4
+        # replay). Original patterns have None here; discovered ones store
+        # the cue vector that produced them so reencode_discovered_patterns
+        # can re-settle them when the codebook drifts.
+        self.discovered_queries: List[Optional[torch.Tensor]] = [None] * actual_l
 
         if traced:
             self.memory = TracedHopfieldMemory(substrate, snapshot_k=8)
@@ -235,6 +245,7 @@ def stream_phase34(
     updaters: Optional[Dict[int, OnlineCodebookUpdater]] = None,
     phase4_units: Optional[Dict[int, UnifiedReplayMemory]] = None,
     reencode_every: int = 0,
+    reencode_discovered: bool = True,
 ) -> List[Dict]:
     """Run one condition's streaming loop. Codebook lives in codebook_box[0]
     so consolidation events can update it in-place across scales."""
@@ -353,6 +364,12 @@ def stream_phase34(
                             label=f"discovered_w{sc}_{new_idx}",
                         )
                         sl.source_windows.append(None)
+                        # Cache the cue vector so this pattern can be
+                        # refreshed by reencode_discovered_patterns when
+                        # the codebook drifts. Without this, discovered
+                        # patterns go stale under online Hebbian updates
+                        # (report 029 §Top1 regression).
+                        sl.discovered_queries.append(trace.query.detach().clone())
                         return new_idx
                     return handler
 
@@ -363,7 +380,14 @@ def stream_phase34(
                 candidates_total += cycle.get("candidates", 0)
                 unit.garbage_collect()
 
-        # Periodic re-encoding (condition C)
+        # Periodic re-encoding (condition C). Two passes:
+        #   1. reencode_patterns refreshes original (token-window) patterns
+        #      against the current codebook.
+        #   2. reencode_discovered_patterns re-settles cached queries for
+        #      Phase 4-discovered patterns through the refreshed memory
+        #      so they don't go stale (fix for report 029 §Top1 regression).
+        # Pass 2 runs AFTER pass 1 so discovered patterns settle against
+        # the up-to-date original-pattern landscape.
         if reencode_every > 0 and cycles_since_reencode >= reencode_every:
             for scale, slot in slots.items():
                 reencode_patterns(
@@ -373,6 +397,13 @@ def stream_phase34(
                     positions=slot.positions,
                     codebook=codebook_box[0],
                 )
+                if reencode_discovered:
+                    reencode_discovered_patterns(
+                        memory=slot.memory,
+                        discovered_queries=slot.discovered_queries,
+                        beta=beta,
+                        max_iter=12,
+                    )
             cycles_since_reencode = 0
 
         if cues_seen % checkpoint_every == 0:
@@ -472,6 +503,17 @@ def main() -> None:
     parser.add_argument("--novelty-strength", type=float, default=1.0)
     parser.add_argument("--retrieval-gain", type=float, default=0.1)
     parser.add_argument("--reencode-every", type=int, default=100)
+    parser.add_argument(
+        "--reencode-discovered",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "Whether to re-settle cached queries for Phase 4-discovered "
+            "patterns during periodic reencoding. Fixes the stale-pattern "
+            "gap surfaced in report 029. Use --no-reencode-discovered to "
+            "reproduce the pre-fix behavior for A/B comparison."
+        ),
+    )
     parser.add_argument("--output-dir", default="reports/phase34_integrated")
     args = parser.parse_args()
 
@@ -665,6 +707,7 @@ def main() -> None:
         updaters=updaters_c,
         phase4_units=phase4_units_c,
         reencode_every=args.reencode_every,
+        reencode_discovered=args.reencode_discovered,
     )
 
     # ──────────── Save and summarize ────────────
