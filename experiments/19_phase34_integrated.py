@@ -270,6 +270,7 @@ def stream_phase34(
     cycles_since_reencode = 0
     consolidations = 0
     candidates_total = 0
+    deaths_total = 0
 
     for cue_window in cue_stream:
         target = cue_window[masked_pos]
@@ -378,7 +379,19 @@ def stream_phase34(
                     candidate_handler=make_handler(scale, slot),
                 )
                 candidates_total += cycle.get("candidates", 0)
-                unit.garbage_collect()
+                # Death step: garbage_collect removes patterns from
+                # memory._patterns + consolidation; we must also remove the
+                # parallel entries in source_windows and discovered_queries
+                # or subsequent reencode_patterns will reencode at the wrong
+                # indices. Sort dead descending so popping doesn't shift
+                # later indices.
+                dead = unit.garbage_collect()
+                deaths_total += len(dead)
+                for idx in sorted(dead, reverse=True):
+                    if idx < len(slot.source_windows):
+                        slot.source_windows.pop(idx)
+                    if idx < len(slot.discovered_queries):
+                        slot.discovered_queries.pop(idx)
 
         # Periodic re-encoding (condition C). Two passes:
         #   1. reencode_patterns refreshes original (token-window) patterns
@@ -419,6 +432,11 @@ def stream_phase34(
                 "condition": condition,
                 "consolidations": consolidations,
                 "candidates_total": candidates_total,
+                "deaths_total": deaths_total,
+                "n_patterns_alive_w2": (
+                    phase4_units[2].consolidation.n_patterns
+                    if phase4_units and 2 in phase4_units else None
+                ),
                 "codebook_drift_from_initial": codebook_drift(
                     initial_codebook, codebook_box[0],
                 ),
@@ -438,7 +456,11 @@ def stream_phase34(
             if phase4_units and 2 in phase4_units:
                 store_size = len(phase4_units[2].store)
                 u_mean = phase4_units[2].consolidation.stats()["mean_strength"]
-                extra += f"  store={store_size}  meanU={u_mean:.3f}  cands={candidates_total}"
+                extra += (
+                    f"  store={store_size}  meanU={u_mean:.3f}  "
+                    f"cands={candidates_total}  deaths={deaths_total}  "
+                    f"n_pat={phase4_units[2].consolidation.n_patterns}"
+                )
 
             print(
                 f"  step={cues_seen:5d}  top1={eval_result['top1']:.3f}  "
@@ -503,6 +525,26 @@ def main() -> None:
     parser.add_argument("--novelty-strength", type=float, default=1.0)
     parser.add_argument("--retrieval-gain", type=float, default=0.1)
     parser.add_argument("--reencode-every", type=int, default=100)
+    parser.add_argument(
+        "--death-threshold", type=float, default=0.05,
+        help=(
+            "Effective-strength threshold below which a pattern counts as "
+            "'below threshold' for death. Default 0.05 per the 2026-05-14 "
+            "audit recommendation (the prior 0.005 default sat below the "
+            "equilibrium mean_strength≈0.026, so death never fired)."
+        ),
+    )
+    parser.add_argument(
+        "--death-window", type=int, default=10,
+        help=(
+            "Number of consecutive consolidation steps a pattern must "
+            "remain below death_threshold before it is culled. Default 10 "
+            "(audit recommended ~20 but at the exp-19 default of n_cues=1500 "
+            "/ replay_every=50, total dynamics steps ≈ 30, so window 20 "
+            "rarely fires; window 10 gives the mechanism room to exercise "
+            "within budget). Prior production default was 10000."
+        ),
+    )
     parser.add_argument(
         "--reencode-discovered",
         action=argparse.BooleanOptionalAction,
@@ -680,8 +722,8 @@ def main() -> None:
         alpha=args.consolidation_alpha,
         novelty_strength=args.novelty_strength,
         retrieval_gain=args.retrieval_gain,
-        death_threshold=0.005,
-        death_window=10000,
+        death_threshold=args.death_threshold,
+        death_window=args.death_window,
     )
     phase4_units_c = {}
     for s in scales:
