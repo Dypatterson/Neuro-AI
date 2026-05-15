@@ -1,0 +1,17 @@
+{
+  "config": {"seed": 13, "n_cues": 1500, "success_threshold": 0.3, "reencode_discovered": false, "death_threshold": 0.05, "death_window": 10},
+  "results": {
+    "baseline_static": [
+      {"top1": 0.1023256, "topk": 0.3116279, "cap_t_05": 0.2511628, "n": 215, "cues_seen": 0, "condition": "baseline_static"},
+      {"top1": 0.1023256, "topk": 0.3116279, "cap_t_05": 0.2511628, "n": 215, "cues_seen": 1500, "condition": "baseline_static", "consolidations": 0, "candidates_total": 0, "deaths_total": 0, "codebook_drift_from_initial": 0.0}
+    ],
+    "phase3_reencode": [
+      {"top1": 0.1023256, "topk": 0.3116279, "cap_t_05": 0.2511628, "n": 215, "cues_seen": 0, "condition": "phase3_reencode"},
+      {"top1": 0.1069767, "topk": 0.3209302, "cap_t_05": 0.2465116, "n": 215, "cues_seen": 1500, "condition": "phase3_reencode", "consolidations": 85, "candidates_total": 0, "deaths_total": 0, "codebook_drift_from_initial": 5.67e-6}
+    ],
+    "phase3_phase4": [
+      {"top1": 0.1023256, "topk": 0.3116279, "cap_t_05": 0.2511628, "n": 215, "cues_seen": 0, "condition": "phase3_phase4"},
+      {"top1": 0.1162791, "topk": 0.3116279, "cap_t_05": 0.2418605, "n": 215, "cues_seen": 1500, "condition": "phase3_phase4", "consolidations": 85, "candidates_total": 80, "deaths_total": 0, "codebook_drift_from_initial": 5.67e-6}
+    ]
+  }
+}

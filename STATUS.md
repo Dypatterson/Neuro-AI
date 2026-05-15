@@ -1,6 +1,6 @@
 # Project STATUS
 
-**Last updated:** 2026-05-14 (post-report-030 — discovered-pattern reencoding fix did not work; hypothesis revised; death mechanism now load-bearing)
+**Last updated:** 2026-05-14 (post-report-032 — n=10 verification: report 029 was sample-lucky; true ΔR@10 effect is small ~+0.009 with CI still including 0)
 
 The bookmark. Read this first every session before doing anything. If something
 in this file is wrong or stale, fix this file *first*, then do the work.
@@ -52,6 +52,22 @@ integration via online Hebbian @ success_threshold=0.3, 5 seeds, Colab A100):
 - **Δtop1: −0.026, 4/5 NEGATIVE** ✗ — initially attributed to stale
   discovered patterns; report 030 falsified that hypothesis (see next).
 
+**[Report 032](reports/032_phase34_n10_verification.md)** (n=10 verification,
+same config as 029):
+- ΔR@10 at step 1500, n=10: **+0.009, 95% CI [−0.003, +0.021]**, 5+/3(0)/2−.
+  CI still includes 0. Report 029's +0.0145 was sample-lucky; new 5 seeds
+  produced +0.004 alone.
+- Δtop1: −0.018, 7/10 negative. Robust Phase-3-driven regression.
+- Pooled-Wilson R@10: A 0.329 [0.310, 0.349], C 0.339 [0.320, 0.359].
+  Windows overlap heavily.
+- C − B R@10: +0.004 mean — the clean architectural test of Phase 4 over
+  phase3-only. Positive sign, CI includes 0.
+- Bimodal seed distribution: strong-positives {1, 7}, near-zeros middle 6,
+  negatives {3, 23}. Variance is dynamics-trajectory, not substrate.
+- **Implication:** Phase 4's R@10 contribution under sanctioned online
+  drift is real but small (+0.005 to +0.015 plausible range). Architecture
+  is not falsified; effect size is just smaller than report 029 suggested.
+
 **[Report 030](reports/030_phase34_rfix_5seed.md)** (st=0.3 + `--reencode-discovered`
 fix, 5 seeds, Colab A100):
 - Δ Recall@10: +0.0109 (DOWN from 029's +0.0145; fix erodes the headline)
@@ -83,7 +99,7 @@ report-026 JSON checkpoints (not re-run, drilling into existing data):
 
 | # | Item | Why | Source |
 | - | --- | --- | --- |
-| 1 | 5-seed Phase 3+4 integration with active drift, ΔR@10 verified | **Conditionally closed** by report 029: ΔR@10 = +0.0145, 4/5 positive, exceeds report 026. Reproduced at +0.0109 in 030. Fully closes once blocker #2 (death) is fixed and rerun matches or exceeds 029. | Reports 029, 030 |
+| 1 | Phase 3+4 integration with active drift, ΔR@10 verified | **Open with revision.** Report 032 (n=10) shows ΔR@10 = +0.009, CI [−0.003, +0.021], includes 0. Report 029's +0.0145 was sample-lucky. Honest read: Phase 4 has small positive R@10 expectation under online drift, but effect size is not disjoint from zero at n=10. **Decision needed:** (a) accept current evidence and graduate as "small effect, design valid"; (b) run n=20+ for tighter CI; (c) reframe headline to D1 meta-stable rate (Δ=−0.51 W=3, std 0.038 — *that* result is robust). | Reports 029, 030, 032 |
 | 2 | **PROMOTED: Fix death mechanism, rerun st=0.3 5-seed** | Now load-bearing. Death never fires (`death_threshold=0.005` < equilibrium `mean_strength≈0.026`, `death_window=10000` ticks). Report 030 falsified the alternative fix (rfix) and showed top1 regression is Phase-3-driven, not Phase-4-driven — the architecturally-clean response is for stale Phase 4 patterns to *die*, not be refreshed. | Reports 026, 030 |
 | 6 | ~~Fix stale-discovered-patterns reencoding gap~~ | **CLOSED wrong-shaped** by report 030: the rfix variant erodes ΔR@10 (+0.0145 → +0.0109) and flips Δcapt5 negative (+0.006 → −0.004). Code kept as opt-in (default off); not the right primitive. | Report 030 |
 | 6′ | **Top1 regression is Phase 3 not Phase 4** | Report 030 §re-frame: condition B (phase3-only, no Phase 4) also shows top1 collapse under drift. The regression is a Hebbian-codebook-reshaping property, not a Phase 4 architectural gap. Action: characterize whether the top1 regression is an inherent online-Hebbian tradeoff (decide accept) or a fixable issue (decide investigate). | Report 030 |
@@ -129,7 +145,8 @@ If you graduate Phase 4 without these, document why.
 ## Reading order for someone catching up
 
 1. This file (STATUS.md).
-2. [reports/030_phase34_rfix_5seed.md](reports/030_phase34_rfix_5seed.md) — latest, rfix did not work; hypothesis revised; death mechanism now load-bearing.
+2. [reports/032_phase34_n10_verification.md](reports/032_phase34_n10_verification.md) — latest, n=10 verification, sober result.
+3. [reports/030_phase34_rfix_5seed.md](reports/030_phase34_rfix_5seed.md) — rfix did not work; hypothesis revised; death mechanism now load-bearing.
 3. [reports/029_phase34_integration_st03.md](reports/029_phase34_integration_st03.md) — ΔR@10 conditionally verified under real drift via st=0.3.
 4. [reports/028_phase34_integration_5seed.md](reports/028_phase34_integration_5seed.md) — st=0.5 run; drift didn't fire; superseded by 029.
 4. [reports/027_full_repo_audit_synthesis.md](reports/027_full_repo_audit_synthesis.md) — full audit.
