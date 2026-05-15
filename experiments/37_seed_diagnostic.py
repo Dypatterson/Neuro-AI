@@ -125,30 +125,32 @@ def run_seed(seed: int, args, repo_root: Path, output_dir: Path):
           f"target_entropy={target_entropy:.3f} bits")
     print(f"  top 10 targets: {[(vocab.id_to_token[t], c) for t, c in top_targets[:5]]}")
 
-    # 3. Per-scale position-pair geometry
+    # 3. Build positions ONCE per scale (build_position_vectors advances
+    #    substrate RNG state — calling it multiple times produces different
+    #    vectors and breaks cue/pattern alignment). Capture geometry stats
+    #    on the same positions used downstream.
     scales = [2, 3, 4]
     scale_ls = {2: 4096, 3: 2048, 4: 1024}
     scale_diagnostics = {}
-    for s in scales:
-        positions = build_position_vectors(substrate, s)
-        pos_stats = position_pair_stats(positions, n_pairs=100, seed=seed)
-        scale_diagnostics[s] = {'position_pair_stats': pos_stats}
-
-    # 4. Build memories + run condition A on test set, capture per-cue traces
     print("  building memories...", flush=True)
     slots = {}
     for s in scales:
+        positions = build_position_vectors(substrate, s)
+        scale_diagnostics[s] = {
+            'position_pair_stats': position_pair_stats(
+                positions, n_pairs=100, seed=seed,
+            ),
+        }
         train_windows_s = make_windows(train_ids, s)
         actual_l = min(scale_ls[s], len(train_windows_s))
         windows = sample_windows(train_windows_s, actual_l, seed=seed + s * 100)
         mem = TracedHopfieldMemory(substrate, snapshot_k=8)
         for idx, w in enumerate(windows):
-            mem.store(encode_window(substrate, build_position_vectors(substrate, s),
-                                    codebook, w), label=f"w_{idx}")
-        slots[s] = {
-            'mem': mem,
-            'positions': build_position_vectors(substrate, s),
-        }
+            mem.store(
+                encode_window(substrate, positions, codebook, w),
+                label=f"w_{idx}",
+            )
+        slots[s] = {'mem': mem, 'positions': positions}
 
     # 5. Baseline retrieval trace stats on test set (condition A, W=2 only)
     print("  running condition A trace dump on test set...", flush=True)
