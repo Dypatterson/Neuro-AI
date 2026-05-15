@@ -1,6 +1,6 @@
 # Project STATUS
 
-**Last updated:** 2026-05-14 (post-report-029 — st03 variant exposes drift-real Phase 4)
+**Last updated:** 2026-05-14 (post-report-030 — discovered-pattern reencoding fix did not work; hypothesis revised; death mechanism now load-bearing)
 
 The bookmark. Read this first every session before doing anything. If something
 in this file is wrong or stale, fix this file *first*, then do the work.
@@ -46,19 +46,27 @@ integration via online Hebbian @ success_threshold=0.5, 5 seeds, Colab A100):
 **[Report 029](reports/029_phase34_integration_st03.md)** (Phase 3+4
 integration via online Hebbian @ success_threshold=0.3, 5 seeds, Colab A100):
 - Δ Recall@10 at step 1500: **+0.0145, CI (t,4df) [-0.005, +0.034]**, 4/5
-  seeds ≥ 0; CI *barely* includes 0 due to recurring seed-23 outlier.
-  Pooled-Wilson Δ = +0.0144 (388/1111 vs 372/1111). Monotonically growing
-  trajectory matching report-026 shape. ✓ (mean exceeds report 026's +0.010)
-- Δ cap-coverage @ τ=0.5: +0.006, CI [-0.057, +0.069], 3/5 ≥ 0 ✗
-- **Δtop1: −0.026, 4/5 NEGATIVE** ✗ — Phase 4 *hurts* rank-1 when codebook
-  drifts. Mechanism: discovered patterns stored with `source_windows=None`
-  are never re-encoded against the current codebook
-  ([exp19:355-356](experiments/19_phase34_integrated.py), [reencoding.py](src/energy_memory/phase34/reencoding.py)),
-  so they go stale as Hebbian updates accumulate.
-- Hebbian fired on 14.5% of cues, mean drift 1.2e-5 (15× / 8× the 028 run).
-- Strongest support for stale-discovered-patterns hypothesis: seed 1 had
-  12 consolidations and largest C-B advantage (+0.031); seeds with 200+
-  consolidations had C-B near zero or negative.
+  seeds ≥ 0. Pooled-Wilson Δ = +0.0144 (388/1111 vs 372/1111). Monotonically
+  growing trajectory. ✓ (mean exceeds report 026's +0.010)
+- Δ cap-coverage @ τ=0.5: +0.006, 3/5 ≥ 0 ✗
+- **Δtop1: −0.026, 4/5 NEGATIVE** ✗ — initially attributed to stale
+  discovered patterns; report 030 falsified that hypothesis (see next).
+
+**[Report 030](reports/030_phase34_rfix_5seed.md)** (st=0.3 + `--reencode-discovered`
+fix, 5 seeds, Colab A100):
+- Δ Recall@10: +0.0109 (DOWN from 029's +0.0145; fix erodes the headline)
+- Δtop1: −0.0229 (essentially unchanged; regression persists)
+- Δcap_t05: −0.0043 (flipped negative; fix made capt5 worse)
+- **Verdict: fix was wrong-shaped.** Re-settling discovered queries pulls
+  them toward existing attractors, destroying the geometric property the
+  discovery channel was meant to capture. Default flipped to off; flag kept
+  as opt-in for future selective-refresh variants.
+- **Re-frame:** condition B (phase3-only, no Phase 4) *also* shows top1
+  collapse under drift (seed 11: B_top1 0.110→0.081). So the top1
+  regression is a **Phase 3 / Hebbian-codebook-reshaping** property, not
+  a Phase 4 stale-pattern property. The Phase 4 discovery channel adds a
+  small *additional* top1 cost on top, but the bulk is upstream.
+- Hebbian fired ~17% (slightly higher than 029's 14.5%), drift comparable.
 
 **[D1 5-seed aggregation](reports/d1_metastable_5seed.json)** from existing
 report-026 JSON checkpoints (not re-run, drilling into existing data):
@@ -75,9 +83,10 @@ report-026 JSON checkpoints (not re-run, drilling into existing data):
 
 | # | Item | Why | Source |
 | - | --- | --- | --- |
-| 1 | 5-seed Phase 3+4 integration with active drift, ΔR@10 verified | **Conditionally closed** by report 029: ΔR@10 = +0.0145, 4/5 positive, exceeds report 026. Per-seed CI barely includes 0 due to seed-23 outlier. Fully closes once blocker #6 (reencoding fix) is in. | Report 029 |
-| 6 | **NEW: Fix stale-discovered-patterns reencoding gap** | Discovered patterns are stored with `source_windows=None` → never re-encoded against the current codebook → go stale under drift. Causes 4/5 negative Δtop1 in report 029. | Report 029 §Top1 regression |
-| 2 | Fix death mechanism settings, rerun rt=0.85 5-seed | Death mechanism vacuous at current `death_window=1000`+`death_threshold=0.005`; zero patterns died in any session run | Report 026 §Pattern death |
+| 1 | 5-seed Phase 3+4 integration with active drift, ΔR@10 verified | **Conditionally closed** by report 029: ΔR@10 = +0.0145, 4/5 positive, exceeds report 026. Reproduced at +0.0109 in 030. Fully closes once blocker #2 (death) is fixed and rerun matches or exceeds 029. | Reports 029, 030 |
+| 2 | **PROMOTED: Fix death mechanism, rerun st=0.3 5-seed** | Now load-bearing. Death never fires (`death_threshold=0.005` < equilibrium `mean_strength≈0.026`, `death_window=10000` ticks). Report 030 falsified the alternative fix (rfix) and showed top1 regression is Phase-3-driven, not Phase-4-driven — the architecturally-clean response is for stale Phase 4 patterns to *die*, not be refreshed. | Reports 026, 030 |
+| 6 | ~~Fix stale-discovered-patterns reencoding gap~~ | **CLOSED wrong-shaped** by report 030: the rfix variant erodes ΔR@10 (+0.0145 → +0.0109) and flips Δcapt5 negative (+0.006 → −0.004). Code kept as opt-in (default off); not the right primitive. | Report 030 |
+| 6′ | **Top1 regression is Phase 3 not Phase 4** | Report 030 §re-frame: condition B (phase3-only, no Phase 4) also shows top1 collapse under drift. The regression is a Hebbian-codebook-reshaping property, not a Phase 4 architectural gap. Action: characterize whether the top1 regression is an inherent online-Hebbian tradeoff (decide accept) or a fixable issue (decide investigate). | Report 030 |
 | 3 | Δcap-coverage second headline | One of two design-spec headlines; not verified in 026, 028, or 029; per-seed variance 5–10× larger than ΔR@K | Reports 026, 028, 029 |
 | 4 | Diagnostic-actuator dynamic-form session | Named "next major architectural threshold" 2026-05-09, never held | [2026-05-09 paper synthesis](notes/notes/2026-05-09-papers-diagnostics-and-actuator-dynamics.md) |
 | 5 | Seed-23 diagnostic | **Three** independent runs (026, 028, 029) all identify seed 23 as the cap_t05 / R@10 outlier. Idiosyncratic geometry, not noise. Discipline problem — continued tolerance without diagnosis is the bottleneck on tightening CIs. | Reports 026, 028, 029 |
@@ -120,8 +129,9 @@ If you graduate Phase 4 without these, document why.
 ## Reading order for someone catching up
 
 1. This file (STATUS.md).
-2. [reports/029_phase34_integration_st03.md](reports/029_phase34_integration_st03.md) — latest, ΔR@10 conditionally verified under real drift; surfaces stale-discovered-patterns gap.
-3. [reports/028_phase34_integration_5seed.md](reports/028_phase34_integration_5seed.md) — prior st=0.5 run; drift didn't fire (superseded by 029, but useful context).
+2. [reports/030_phase34_rfix_5seed.md](reports/030_phase34_rfix_5seed.md) — latest, rfix did not work; hypothesis revised; death mechanism now load-bearing.
+3. [reports/029_phase34_integration_st03.md](reports/029_phase34_integration_st03.md) — ΔR@10 conditionally verified under real drift via st=0.3.
+4. [reports/028_phase34_integration_5seed.md](reports/028_phase34_integration_5seed.md) — st=0.5 run; drift didn't fire; superseded by 029.
 4. [reports/027_full_repo_audit_synthesis.md](reports/027_full_repo_audit_synthesis.md) — full audit.
 5. [reports/026_phase4_verification_design_spec.md](reports/026_phase4_verification_design_spec.md) — Phase 4 isolation verified.
 6. [reports/d1_metastable_5seed.json](reports/d1_metastable_5seed.json) — D1 drill-down (Phase 4 collapses W=3/W=4 meta-stable rate by ~50pp).

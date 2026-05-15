@@ -506,12 +506,14 @@ def main() -> None:
     parser.add_argument(
         "--reencode-discovered",
         action=argparse.BooleanOptionalAction,
-        default=True,
+        default=False,
         help=(
             "Whether to re-settle cached queries for Phase 4-discovered "
-            "patterns during periodic reencoding. Fixes the stale-pattern "
-            "gap surfaced in report 029. Use --no-reencode-discovered to "
-            "reproduce the pre-fix behavior for A/B comparison."
+            "patterns during periodic reencoding. Default flipped to False "
+            "after report 030 showed it pulls discovered patterns toward "
+            "existing attractors, eroding the discovery-channel's R@10 "
+            "advantage. Kept as opt-in for future variants (e.g. selective "
+            "refresh of patterns whose query atoms have drifted)."
         ),
     )
     parser.add_argument("--output-dir", default="reports/phase34_integrated")
