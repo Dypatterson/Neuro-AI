@@ -59,6 +59,8 @@ def reencode_patterns(
         fresh = encode_window(substrate, positions, codebook, window)
         memory._patterns[idx] = fresh.to(substrate.device)
         re_encoded += 1
+    if re_encoded:
+        memory.invalidate_cache()
     return re_encoded
 
 
@@ -98,6 +100,7 @@ def reencode_discovered_patterns(
         result = memory.retrieve(query, beta=beta, max_iter=max_iter)
         memory._patterns[idx] = result.state.detach().clone()
         re_encoded += 1
+        memory.invalidate_cache()
     return re_encoded
 
 

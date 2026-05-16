@@ -398,11 +398,9 @@ class UnifiedReplayMemory(Generic[T]):
         if not dead:
             return []
         for idx in sorted(dead, reverse=True):
-            if idx >= len(self.memory._patterns):
+            if idx >= self.memory.stored_count:
                 continue
-            self.memory._patterns.pop(idx)
-            if idx < len(self.memory.labels):
-                self.memory.labels.pop(idx)
+            self.memory.remove_pattern(idx)
             self.consolidation.remove_pattern(idx)
         return dead
 

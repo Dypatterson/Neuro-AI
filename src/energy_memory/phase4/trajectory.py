@@ -27,7 +27,10 @@ except ModuleNotFoundError as exc:  # pragma: no cover
 else:
     _IMPORT_ERROR = None
 
-from energy_memory.memory._torch_math import torch_normalized_entropy
+from energy_memory.memory._torch_math import (
+    torch_normalized_entropy,
+    torch_normalized_entropy_tensor as _torch_entropy_tensor,
+)
 from energy_memory.memory.torch_hopfield import (
     TorchHopfieldMemory,
     TorchRetrievalResult,
@@ -131,29 +134,75 @@ class TracedHopfieldMemory(TorchHopfieldMemory, Generic[T]):
 
         patterns = self._pattern_matrix()
         state = query.to(self.substrate.device)
-        energy_trace: List[float] = []
-        snapshots: List[TrajectorySnapshot] = []
-        converged = False
 
-        for iteration in range(1, max_iter + 1):
+        # Same deferred-sync pattern as TorchHopfieldMemory.retrieve, with
+        # the converged state captured on-device via torch.where (no list of
+        # max_iter intermediate states — see CLAUDE.md "GPU performance rule
+        # of thumb"). Snapshot tensors per iter are tiny (k=8 floats/ints) so
+        # we keep the simple list of those.
+        n_patterns = patterns.shape[0]
+        k = min(self.snapshot_k, n_patterns)
+        device = self.substrate.device
+
+        energy_tensors: List["torch.Tensor"] = []
+        snapshot_topk_indices: List["torch.Tensor"] = []
+        snapshot_topk_values: List["torch.Tensor"] = []
+        snapshot_entropies: List["torch.Tensor"] = []
+        frozen = torch.zeros((), dtype=torch.bool, device=device)
+        final_state = state
+        prev_energy: Optional["torch.Tensor"] = None
+
+        for _ in range(max_iter):
             scores = self._scores(state, patterns)
+            energy_t = self._energy_from_scores(scores, beta=beta, kernel="softmax")
             weights = torch.softmax(beta * scores, dim=0)
             next_state = self.substrate.normalize(
                 (patterns * weights[:, None]).sum(dim=0),
             )
-            energy = self.energy(state, beta=beta, patterns=patterns)
-            energy_trace.append(energy)
+            top_values, top_indices = torch.topk(weights, k)
 
-            snapshot = self._build_snapshot(
-                step=iteration, weights=weights, energy=energy,
-            )
-            snapshots.append(snapshot)
-
-            if iteration > 1 and abs(energy_trace[-1] - energy_trace[-2]) < tol:
-                converged = True
-                state = next_state
-                break
+            energy_tensors.append(energy_t)
+            snapshot_topk_indices.append(top_indices)
+            snapshot_topk_values.append(top_values)
+            snapshot_entropies.append(_torch_entropy_tensor(weights))
+            if prev_energy is not None:
+                converged_now = ((energy_t - prev_energy).abs() < tol) & (~frozen)
+                final_state = torch.where(converged_now, next_state, final_state)
+                frozen = frozen | converged_now
+            prev_energy = energy_t
             state = next_state
+        final_state = torch.where(frozen, final_state, state)
+
+        # Single batched sync.
+        energies = torch.stack(energy_tensors).detach().cpu().tolist()
+        entropies = torch.stack(snapshot_entropies).detach().cpu().tolist()
+        topk_idx_cpu = torch.stack(snapshot_topk_indices).detach().cpu().tolist()
+        topk_val_cpu = torch.stack(snapshot_topk_values).detach().cpu().tolist()
+
+        converged = False
+        converged_iter = max_iter
+        for kk in range(1, max_iter):
+            if abs(energies[kk] - energies[kk - 1]) < tol:
+                converged = True
+                converged_iter = kk + 1
+                break
+        energy_trace = energies[:converged_iter]
+        state = final_state
+
+        snapshots: List[TrajectorySnapshot] = []
+        for step_i in range(converged_iter):
+            values = topk_val_cpu[step_i]
+            indices = topk_idx_cpu[step_i]
+            kept_indices = [idx for idx, v in zip(indices, values)
+                            if v >= self.snapshot_min_weight]
+            kept_values = [v for v in values if v >= self.snapshot_min_weight]
+            snapshots.append(TrajectorySnapshot(
+                step=step_i + 1,
+                top_k_indices=kept_indices,
+                top_k_weights=kept_values,
+                entropy=float(entropies[step_i]),
+                energy=float(energies[step_i]),
+            ))
 
         final_scores = self._scores(state, patterns)
         final_weights = torch.softmax(beta * final_scores, dim=0)

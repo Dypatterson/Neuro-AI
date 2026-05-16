@@ -150,6 +150,35 @@ file specifies how cap-coverage is calculated for this project).
 - Run tests: `PYTHONPATH=src .venv/bin/python -m unittest tests.<module> -v`
 - Heavy artifacts (`*.pt` files >50MB) are gitignored — don't try to commit them
 
+## GPU performance rule of thumb (MPS / CUDA)
+
+> **Every `.cpu()`, `float(tensor)`, `int(tensor)`, `tensor.item()`, or
+> `tensor.tolist()` is a stop sign for the GPU pipeline.** Put them at
+> the end of hot loops, not inside them.
+
+PyTorch GPU work is *asynchronous*: the CPU queues commands and the GPU
+runs them in the background. Any operation that converts a tensor to a
+Python value forces a CPU↔GPU synchronization, which on MPS costs ~7ms
+of pure waiting per sync. If you sync once per iteration of a 12-iter
+settling loop, you pay ~84ms of waiting on top of ~50ms of actual work
+— the waiting becomes bigger than the work.
+
+When writing or reviewing tensor code in hot loops:
+- Accumulate intermediate values as **tensors**, not Python floats.
+- If a Python-level branch needs a value (e.g. early-exit convergence
+  check), prefer to run all iterations on-device and replay the branch
+  after a single batched `.cpu()` sync at the end. Capture intermediate
+  states if the branch decision selects one of them.
+- Provide a `_foo_tensor()` variant of any helper that currently returns
+  a Python float, so the hot path can call the tensor version.
+- `print(tensor)` and any logging that interpolates a tensor also syncs.
+
+Reference: the 2026-05-15 `torch_hopfield.retrieve()` refactor cut
+plain-retrieve time 17% and traced-retrieve 30% by deferring all
+mid-loop syncs to one batched sync. Bit-identical user-facing metrics
+preserved by capturing per-iteration states and selecting the converged
+one retrospectively.
+
 ## What "done" looks like for an experiment
 
 A phase result is not "done" until:

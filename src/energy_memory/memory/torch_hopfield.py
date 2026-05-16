@@ -46,6 +46,7 @@ class TorchHopfieldMemory(Generic[T]):
         self.substrate = substrate
         self._patterns: List["torch.Tensor"] = []
         self.labels: List[T] = []
+        self._cached_matrix: Optional["torch.Tensor"] = None
 
     @property
     def stored_count(self) -> int:
@@ -56,6 +57,27 @@ class TorchHopfieldMemory(Generic[T]):
             raise ValueError(f"expected dimension {self.substrate.dim}, got {pattern.shape[-1]}")
         self._patterns.append(pattern.to(self.substrate.device))
         self.labels.append(label)  # type: ignore[arg-type]
+        self._cached_matrix = None
+
+    def invalidate_cache(self) -> None:
+        """Drop the cached pattern matrix; force a rebuild on next retrieval.
+
+        Call after any direct mutation of `_patterns` or `labels` that
+        bypasses `store()` / `remove_pattern()`.
+        """
+        self._cached_matrix = None
+
+    def remove_pattern(self, idx: int) -> None:
+        """Remove the pattern at `idx` and invalidate the cache.
+
+        Keeps `_patterns`/`labels` in sync. Callers must also keep any
+        external per-pattern bookkeeping (consolidation state, source
+        windows) aligned.
+        """
+        self._patterns.pop(idx)
+        if idx < len(self.labels):
+            self.labels.pop(idx)
+        self._cached_matrix = None
 
     def retrieve(
         self,
@@ -73,20 +95,43 @@ class TorchHopfieldMemory(Generic[T]):
             raise ValueError(f"unknown kernel {kernel!r}; expected 'softmax' or 'lsr'")
         patterns = self._pattern_matrix()
         state = query.to(self.substrate.device)
-        energy_trace: List[float] = []
-        converged = False
 
-        for iteration in range(1, max_iter + 1):
+        # Run all max_iter iterations on-device without syncing, then replay
+        # the convergence check from a single batched CPU sync at the end.
+        # The converged state is captured on-device via torch.where against a
+        # frozen mask, so we don't hold max_iter intermediate states in memory
+        # (that ballooned the async-queue residency on MPS, see CLAUDE.md
+        # "GPU performance rule of thumb").
+        energy_tensors: List["torch.Tensor"] = []
+        device = self.substrate.device
+        frozen = torch.zeros((), dtype=torch.bool, device=device)
+        final_state = state
+        prev_energy: Optional["torch.Tensor"] = None
+        for _ in range(max_iter):
             scores = self._scores(state, patterns)
+            energy = self._energy_from_scores(scores, beta=beta, kernel=kernel)
+            energy_tensors.append(energy)
             weights = self._weights(scores, beta=beta, kernel=kernel)
             next_state = self.substrate.normalize((patterns * weights[:, None]).sum(dim=0))
-            energy = self.energy(state, beta=beta, patterns=patterns, kernel=kernel)
-            energy_trace.append(energy)
-            if iteration > 1 and abs(energy_trace[-1] - energy_trace[-2]) < tol:
-                converged = True
-                state = next_state
-                break
+            if prev_energy is not None:
+                converged_now = ((energy - prev_energy).abs() < tol) & (~frozen)
+                final_state = torch.where(converged_now, next_state, final_state)
+                frozen = frozen | converged_now
+            prev_energy = energy
             state = next_state
+        # If never frozen (never converged), fall through to the last next_state.
+        final_state = torch.where(frozen, final_state, state)
+
+        energies = torch.stack(energy_tensors).detach().cpu().tolist()
+        converged = False
+        converged_iter = max_iter
+        for k in range(1, max_iter):
+            if abs(energies[k] - energies[k - 1]) < tol:
+                converged = True
+                converged_iter = k + 1
+                break
+        energy_trace = energies[:converged_iter]
+        state = final_state
 
         final_scores = self._scores(state, patterns)
         final_weights = self._weights(final_scores, beta=beta, kernel=kernel)
@@ -108,17 +153,28 @@ class TorchHopfieldMemory(Generic[T]):
     def energy(self, state, beta: float = 8.0, patterns=None, kernel: str = "softmax") -> float:
         pattern_matrix = self._pattern_matrix() if patterns is None else patterns
         score_tensor = self._scores(state, pattern_matrix)
+        return float(self._energy_from_scores(score_tensor, beta=beta, kernel=kernel).detach().cpu())
+
+    @staticmethod
+    def _energy_from_scores(score_tensor, beta: float, kernel: str):
+        """Compute energy directly from a pre-computed score tensor.
+
+        Returns a 0-dim tensor (no CPU sync), so the retrieve loop can
+        accumulate energies and sync them in a single batch.
+        """
         if kernel == "softmax":
-            return float((-(torch.logsumexp(beta * score_tensor, dim=0)) / beta).detach().cpu())
+            return -torch.logsumexp(beta * score_tensor, dim=0) / beta
         if kernel == "lsr":
             # Lagrangian conjugate of the truncated-quadratic separation function:
             #   F(s) = (beta/2) * sum_i max(0, s_i)^2  -> E = -F.
             relu_scores = torch.clamp(score_tensor, min=0.0)
-            return float((-0.5 * beta * (relu_scores * relu_scores).sum()).detach().cpu())
+            return -0.5 * beta * (relu_scores * relu_scores).sum()
         raise ValueError(f"unknown kernel {kernel!r}")
 
     def _pattern_matrix(self):
-        return torch.stack(self._patterns, dim=0)
+        if self._cached_matrix is None:
+            self._cached_matrix = torch.stack(self._patterns, dim=0)
+        return self._cached_matrix
 
     def _scores(self, state, patterns):
         return self.substrate.similarity_matrix(state, patterns)

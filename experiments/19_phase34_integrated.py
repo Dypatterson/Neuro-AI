@@ -74,6 +74,26 @@ from energy_memory.phase4.trajectory import TracedHopfieldMemory
 from energy_memory.substrate.torch_fhrr import TorchFHRR
 
 
+def _empty_device_cache() -> None:
+    """Release the active device allocator's cache (MPS or CUDA).
+
+    Called between sequential conditions in main() to free pattern matrices
+    and other per-condition tensors back to the OS / runtime instead of
+    sitting in the PyTorch allocator pool. No-op on CPU.
+    """
+    for backend_name in ("mps", "cuda"):
+        backend = getattr(torch, backend_name, None)
+        if backend is None:
+            continue
+        empty_cache = getattr(backend, "empty_cache", None)
+        if empty_cache is None:
+            continue
+        try:
+            empty_cache()
+        except Exception:
+            pass
+
+
 def build_updaters(kind, substrate, codebook, scales, args):
     """Construct one updater per scale based on --updater-kind."""
     if kind == "none":
@@ -664,6 +684,9 @@ def main() -> None:
         reencode_every=0,
     )
 
+    del slots_a, cb_a
+    _empty_device_cache()
+
     # ──────────── Condition B: phase3_reencode ────────────
     # Codebook learns + stored patterns re-encoded through current codebook.
     # Re-encoding is part of Phase 4 per PROJECT_PLAN.md ("replay-and-re-encode
@@ -694,6 +717,9 @@ def main() -> None:
         phase4_units=None,
         reencode_every=args.reencode_every,
     )
+
+    del slots_b, cb_b, updaters_b
+    _empty_device_cache()
 
     # ──────────── Condition C: phase3_phase4 ────────────
     print(f"\n{'=' * 70}")
