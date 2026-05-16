@@ -299,8 +299,17 @@ class UnifiedReplayMemory(Generic[T]):
         max_iter: int = 12,
         tol: float = 1e-8,
     ) -> Tuple[TorchRetrievalResult[T], TrajectoryTrace]:
+        # Saighi A_k: bias retrieval scores away from already-used attractors.
+        # When inhibition_gain=0, A is all-zero and bias has no effect.
+        bias = None
+        if (
+            self.consolidation.config.inhibition_gain > 0.0
+            and self.consolidation.n_patterns == self.memory.stored_count
+        ):
+            bias = self.consolidation.inhibition_bias()
         result, trace = self.memory.retrieve_with_trace(
             query=query, beta=beta, max_iter=max_iter, tol=tol,
+            score_bias=bias,
         )
         gate = trace.gate_signal()
         if gate > self.config.store_threshold:
@@ -313,6 +322,9 @@ class UnifiedReplayMemory(Generic[T]):
                 trace.final_top_index,
                 magnitude=self.config.retrieval_gain,
             )
+            # Saighi A_k accumulation: every successful retrieval of
+            # attractor k increments A_k by inhibition_gain (no-op when 0).
+            self.consolidation.accumulate_inhibition(trace.final_top_index)
         self._retrieval_count += 1
         return result, trace
 
@@ -352,11 +364,27 @@ class UnifiedReplayMemory(Generic[T]):
         candidates = 0
         decayed = 0
 
+        # Replay re-settling also respects Saighi A_k inhibition: the
+        # re-settled trajectory is pushed off attractors that have already
+        # accumulated dominance, biasing the discovery channel toward
+        # under-used regions of the landscape. Re-fetched per iteration
+        # because candidate_handler may have grown both memory and
+        # consolidation between iterations.
+        inhibition_active = self.consolidation.config.inhibition_gain > 0.0
+
         for local_idx in sampled_local:
             trace = self.store.get(local_idx)
 
+            replay_bias = None
+            if (
+                inhibition_active
+                and self.consolidation.n_patterns == self.memory.stored_count
+            ):
+                replay_bias = self.consolidation.inhibition_bias()
+
             new_result, new_trace = self.memory.retrieve_with_trace(
                 query=trace.query, beta=beta, max_iter=max_iter,
+                score_bias=replay_bias,
             )
 
             if new_trace.final_top_score >= self.config.resolve_threshold:

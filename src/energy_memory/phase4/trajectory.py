@@ -126,7 +126,15 @@ class TracedHopfieldMemory(TorchHopfieldMemory, Generic[T]):
         beta: float = 8.0,
         max_iter: int = 10,
         tol: float = 1e-8,
+        score_bias: Optional["torch.Tensor"] = None,
     ) -> tuple[TorchRetrievalResult[T], TrajectoryTrace]:
+        """Settle the memory toward an attractor, returning state + trajectory.
+
+        ``score_bias`` (optional): a [n_patterns] tensor that is *subtracted*
+        from ``beta * scores`` per pattern before the softmax. Used to wire
+        in Saighi-style per-pattern self-inhibition (A_k). When None or
+        all-zero, retrieval behaves identically to the no-inhibition baseline.
+        """
         if not self._patterns:
             raise ValueError("cannot retrieve from an empty Hopfield memory")
         if beta <= 0.0:
@@ -134,6 +142,14 @@ class TracedHopfieldMemory(TorchHopfieldMemory, Generic[T]):
 
         patterns = self._pattern_matrix()
         state = query.to(self.substrate.device)
+        bias = None
+        if score_bias is not None:
+            bias = score_bias.to(self.substrate.device)
+            if bias.shape != (patterns.shape[0],):
+                raise ValueError(
+                    f"score_bias must have shape ({patterns.shape[0]},), "
+                    f"got {tuple(bias.shape)}"
+                )
 
         # Same deferred-sync pattern as TorchHopfieldMemory.retrieve, with
         # the converged state captured on-device via torch.where (no list of
@@ -155,7 +171,10 @@ class TracedHopfieldMemory(TorchHopfieldMemory, Generic[T]):
         for _ in range(max_iter):
             scores = self._scores(state, patterns)
             energy_t = self._energy_from_scores(scores, beta=beta, kernel="softmax")
-            weights = torch.softmax(beta * scores, dim=0)
+            logits = beta * scores
+            if bias is not None:
+                logits = logits - bias
+            weights = torch.softmax(logits, dim=0)
             next_state = self.substrate.normalize(
                 (patterns * weights[:, None]).sum(dim=0),
             )

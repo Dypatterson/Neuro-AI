@@ -37,7 +37,7 @@ Single-seed results are not "verified." Mechanism-validated runs are not
 | A9 | Benna-Fusi u-chain (Eq. 10/11) | design §4 | yes | yes | ✅ | report 026 §u_k drill-down |
 | A10 | u_1 novelty input + retrieval reinforcement | design §4 | yes | yes | ✅ | report 026 |
 | A11 | Effective strength weighted sum | design §4 | yes | yes | ✅ | mean_strength reported per checkpoint |
-| A12 | Pattern death (strength < threshold for window) | design §4 | yes | **not exercised** | ⚠️ | **mechanism is structurally vacuous at current settings (report 026 §Pattern death)** |
+| A12 | Pattern death (strength < threshold for window) | design §4 | yes | **not exercised** | ⚠️ | mechanism FEP-clean; report 033 shows it cannot fire in n_cues=1500 at canonical config, and >99.9% of vocab atoms are never reinforced — naive tuning produces mass-death of unreached initial atoms, not the architecturally-intended stale-discovered-pattern purge. STATUS blocker #2 reshaped to scope decision. |
 | A13 | SQ-HN sparse-update principle | design §5 | yes | not ablated | 🟨 | code respects sparsity; no ablation showing it matters |
 | A14 | Re-encode stored patterns through current codebook | project plan exit | yes | yes (knob enabled) | 🟨 | `reencode_every=100`, contribution never ablated |
 

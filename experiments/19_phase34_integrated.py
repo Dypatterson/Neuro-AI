@@ -317,8 +317,19 @@ def stream_phase34(
 
             if phase4_units and scale in phase4_units:
                 unit = phase4_units[scale]
+                # Saighi A_k bias: subtract per-pattern inhibition from
+                # logits during settling so already-used attractors have
+                # narrower basins. When inhibition_gain=0, A is zeros and
+                # passing it is a no-op vs. no bias at all.
+                cur_bias = None
+                if (
+                    unit.consolidation.config.inhibition_gain > 0.0
+                    and unit.consolidation.n_patterns == unit.memory.stored_count
+                ):
+                    cur_bias = unit.consolidation.inhibition_bias()
                 result, trace = unit.memory.retrieve_with_trace(
                     cue_vec, beta=beta, max_iter=12,
+                    score_bias=cur_bias,
                 )
                 gate = trace.gate_signal()
                 if gate > unit.config.store_threshold:
@@ -331,6 +342,8 @@ def stream_phase34(
                         trace.final_top_index,
                         magnitude=unit.config.retrieval_gain,
                     )
+                    # Saighi A_k accumulation on successful retrieval.
+                    unit.consolidation.accumulate_inhibition(trace.final_top_index)
                 unit._retrieval_count += 1
             else:
                 result = slot.memory.retrieve(cue_vec, beta=beta, max_iter=12)
@@ -461,6 +474,64 @@ def stream_phase34(
                     initial_codebook, codebook_box[0],
                 ),
             })
+            if phase4_units:
+                death_diag: Dict[int, Dict[str, float]] = {}
+                for ds, dunit in phase4_units.items():
+                    cons = dunit.consolidation
+                    if cons.n_patterns == 0:
+                        death_diag[ds] = {"n_patterns": 0}
+                        continue
+                    strength = cons.effective_strength().abs()
+                    btsteps = cons.below_threshold_steps
+                    qs = torch.quantile(
+                        strength,
+                        torch.tensor(
+                            [0.0, 0.10, 0.50, 0.90, 1.0],
+                            device=strength.device,
+                            dtype=strength.dtype,
+                        ),
+                    ).detach().cpu().tolist()
+                    A = cons.A
+                    A_qs = torch.quantile(
+                        A,
+                        torch.tensor(
+                            [0.50, 0.90, 0.99, 1.0],
+                            device=A.device, dtype=A.dtype,
+                        ),
+                    ).detach().cpu().tolist() if cons.n_patterns > 0 else [0.0]*4
+                    death_diag[ds] = {
+                        "n_patterns": int(cons.n_patterns),
+                        "mean_strength": float(strength.mean().cpu()),
+                        "strength_min": qs[0],
+                        "strength_p10": qs[1],
+                        "strength_p50": qs[2],
+                        "strength_p90": qs[3],
+                        "strength_max": qs[4],
+                        "patterns_below_threshold": int(
+                            (strength < cons.config.death_threshold).sum().cpu()
+                        ),
+                        "below_threshold_steps_max": int(btsteps.max().cpu()),
+                        "below_threshold_steps_p90": float(
+                            torch.quantile(
+                                btsteps.to(strength.dtype),
+                                torch.tensor(0.90, device=btsteps.device, dtype=strength.dtype),
+                            ).cpu()
+                        ),
+                        "patterns_dead_ready": int(
+                            (btsteps >= cons.config.death_window).sum().cpu()
+                        ),
+                        "death_threshold": float(cons.config.death_threshold),
+                        "death_window": int(cons.config.death_window),
+                        "inhibition_mean": float(A.mean().cpu()),
+                        "inhibition_p50": A_qs[0],
+                        "inhibition_p90": A_qs[1],
+                        "inhibition_p99": A_qs[2],
+                        "inhibition_max": A_qs[3],
+                        "inhibition_nonzero": int((A > 0).sum().cpu()),
+                        "inhibition_gain": float(cons.config.inhibition_gain),
+                        "inhibition_decay": float(cons.config.inhibition_decay),
+                    }
+                eval_result["death_diag"] = death_diag
             results.append(eval_result)
 
             extra = ""
@@ -576,6 +647,26 @@ def main() -> None:
             "existing attractors, eroding the discovery-channel's R@10 "
             "advantage. Kept as opt-in for future variants (e.g. selective "
             "refresh of patterns whose query atoms have drifted)."
+        ),
+    )
+    parser.add_argument(
+        "--inhibition-gain", type=float, default=0.0,
+        help=(
+            "Saighi & Rozenberg (2025) per-pattern self-inhibition magnitude. "
+            "Each successful retrieval of attractor k increments A_k by this "
+            "amount; A_k is then subtracted from beta*score for k during "
+            "subsequent settling, locally narrowing the basin. Default 0.0 "
+            "(off — baseline behavior). Try 0.01 for an active-but-gentle "
+            "regime. See notes/notes/2026-05-15-saighi-hrr-replay-synthesis.md."
+        ),
+    )
+    parser.add_argument(
+        "--inhibition-decay", type=float, default=0.0,
+        help=(
+            "Per step_dynamics() multiplicative decay applied to A_k: "
+            "A *= (1 - decay). Default 0.0 (Saighi's basic monotonic form). "
+            "Set 0.01-0.05 to give the mechanism a 'forgiveness' window so "
+            "patterns regain dominance if they stop being retrieved."
         ),
     )
     parser.add_argument("--output-dir", default="reports/phase34_integrated")
@@ -750,6 +841,8 @@ def main() -> None:
         retrieval_gain=args.retrieval_gain,
         death_threshold=args.death_threshold,
         death_window=args.death_window,
+        inhibition_gain=args.inhibition_gain,
+        inhibition_decay=args.inhibition_decay,
     )
     phase4_units_c = {}
     for s in scales:

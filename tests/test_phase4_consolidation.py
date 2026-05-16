@@ -136,5 +136,77 @@ class TestConsolidation(unittest.TestCase):
             )
 
 
+@unittest.skipIf(torch is None, "torch required")
+class TestSaighiInhibition(unittest.TestCase):
+    """Saighi & Rozenberg (2025) per-pattern A_k self-inhibition.
+
+    See notes/notes/2026-05-15-saighi-hrr-replay-synthesis.md.
+    """
+
+    def setUp(self):
+        from energy_memory.phase4.consolidation import (
+            ConsolidationConfig, ConsolidationState,
+        )
+        self.config = ConsolidationConfig(
+            m=4, alpha=0.25, inhibition_gain=0.1, inhibition_decay=0.0,
+        )
+        self.state = ConsolidationState(self.config, device="cpu")
+
+    def test_inhibition_initializes_to_zero(self):
+        idx = self.state.add_pattern()
+        self.assertAlmostEqual(self.state.A[idx].item(), 0.0)
+
+    def test_accumulate_inhibition_uses_gain_default(self):
+        idx = self.state.add_pattern()
+        self.state.accumulate_inhibition(idx)  # uses config.inhibition_gain
+        self.assertAlmostEqual(self.state.A[idx].item(), 0.1)
+        self.state.accumulate_inhibition(idx)
+        self.assertAlmostEqual(self.state.A[idx].item(), 0.2)
+
+    def test_accumulate_inhibition_zero_gain_is_noop(self):
+        from energy_memory.phase4.consolidation import (
+            ConsolidationConfig, ConsolidationState,
+        )
+        s = ConsolidationState(
+            ConsolidationConfig(m=4, alpha=0.25, inhibition_gain=0.0),
+            device="cpu",
+        )
+        idx = s.add_pattern()
+        s.accumulate_inhibition(idx)
+        self.assertAlmostEqual(s.A[idx].item(), 0.0)
+
+    def test_inhibition_is_per_pattern(self):
+        i0 = self.state.add_pattern()
+        i1 = self.state.add_pattern()
+        self.state.accumulate_inhibition(i0)
+        self.assertAlmostEqual(self.state.A[i0].item(), 0.1)
+        self.assertAlmostEqual(self.state.A[i1].item(), 0.0)
+
+    def test_inhibition_decay_applied_in_step_dynamics(self):
+        from energy_memory.phase4.consolidation import (
+            ConsolidationConfig, ConsolidationState,
+        )
+        s = ConsolidationState(
+            ConsolidationConfig(
+                m=4, alpha=0.25, inhibition_gain=1.0, inhibition_decay=0.1,
+            ),
+            device="cpu",
+        )
+        idx = s.add_pattern()
+        s.accumulate_inhibition(idx)
+        self.assertAlmostEqual(s.A[idx].item(), 1.0)
+        s.step_dynamics()
+        # A *= (1 - 0.1) = 0.9
+        self.assertAlmostEqual(s.A[idx].item(), 0.9, places=5)
+
+    def test_remove_pattern_drops_inhibition_row(self):
+        i0 = self.state.add_pattern()
+        i1 = self.state.add_pattern()
+        self.state.accumulate_inhibition(i1, magnitude=0.5)
+        self.state.remove_pattern(i0)
+        self.assertEqual(self.state.n_patterns, 1)
+        self.assertAlmostEqual(self.state.A[0].item(), 0.5)
+
+
 if __name__ == "__main__":
     unittest.main()

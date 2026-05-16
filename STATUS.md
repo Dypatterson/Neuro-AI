@@ -1,6 +1,6 @@
 # Project STATUS
 
-**Last updated:** 2026-05-15 (added blocker #7: Phase 3 codebook-comparison data-integrity finding from 2026-05-14 audit. Also: today's session committed perf work — `30c2319`, `27bbd6f` — that makes future n=20 verification ~24% faster on M5 Pro and Colab-CUDA-compatible.)
+**Last updated:** 2026-05-15 (report 034: prototyped Saighi & Rozenberg (2025) A_k self-inhibition as drop-in for death threshold per [2026-05-15 synthesis](notes/notes/2026-05-15-saighi-hrr-replay-synthesis.md). Seed-1 result: ALL THREE Phase 4 headlines improve simultaneously — top1 +0.009 (REVERSES blocker #6'), R@10 +0.022, cap_t05 +0.022. Telemetry matches Saighi prediction: only 3 of 4097 over-used patterns accumulate inhibition (A_max=12.5), untouched vocab atoms stay at A=0 (no mass-death). FHRR unitarity audit (Ganesan branch of blocker #6') ran clean — invariant holds within 2.4e-7 across all checkpoints; substrate-artifact branch closed. Blocker #2 reshapes from "decide death scope" to "verify A_k across 5 seeds". Earlier in session: report 033 death-mechanism diagnostic; blocker #7 added (Phase 3 codebook-comparison data integrity).)
 
 The bookmark. Read this first every session before doing anything. If something
 in this file is wrong or stale, fix this file *first*, then do the work.
@@ -100,9 +100,9 @@ report-026 JSON checkpoints (not re-run, drilling into existing data):
 | # | Item | Why | Source |
 | - | --- | --- | --- |
 | 1 | Phase 3+4 integration with active drift, ΔR@10 verified | **Open with revision.** Report 032 (n=10) shows ΔR@10 = +0.009, CI [−0.003, +0.021], includes 0. Report 029's +0.0145 was sample-lucky. Honest read: Phase 4 has small positive R@10 expectation under online drift, but effect size is not disjoint from zero at n=10. **Decision needed:** (a) accept current evidence and graduate as "small effect, design valid"; (b) run n=20+ for tighter CI; (c) reframe headline to D1 meta-stable rate (Δ=−0.51 W=3, std 0.038 — *that* result is robust). | Reports 029, 030, 032 |
-| 2 | **PROMOTED: Fix death mechanism, rerun st=0.3 5-seed** | Now load-bearing. Death never fires (`death_threshold=0.005` < equilibrium `mean_strength≈0.026`, `death_window=10000` ticks). Report 030 falsified the alternative fix (rfix) and showed top1 regression is Phase-3-driven, not Phase-4-driven — the architecturally-clean response is for stale Phase 4 patterns to *die*, not be refreshed. | Reports 026, 030 |
+| 2 | **PROMOTED → RESHAPED → IN VERIFICATION: A_k self-inhibition (Saighi & Rozenberg 2025) verified on seed 1; needs 5-seed sweep** | Reports 030 + 033 showed the threshold-based death cannot be the right mechanism (rfix erodes ΔR@10, threshold tuning produces 0 deaths or mass-death of unreached vocab atoms). Report 034 prototyped A_k as drop-in replacement per [2026-05-15 synthesis](notes/notes/2026-05-15-saighi-hrr-replay-synthesis.md). Seed-1 result: top1 +0.009, R@10 +0.022, cap_t05 +0.022 — all positive. Only 3/4097 over-used patterns accumulated inhibition; untouched vocab atoms at A=0. Anti-homunculus filter passed. Threshold death deprecated (kept as opt-in). **Action: 5-seed sweep at `--inhibition-gain 0.01` on seeds {17, 11, 23, 1, 2}; if 4/5+ confirm direction and seed-23 doesn't regress, blocker closes.** | Reports 026, 030, 033, 034 |
 | 6 | ~~Fix stale-discovered-patterns reencoding gap~~ | **CLOSED wrong-shaped** by report 030: the rfix variant erodes ΔR@10 (+0.0145 → +0.0109) and flips Δcapt5 negative (+0.006 → −0.004). Code kept as opt-in (default off); not the right primitive. | Report 030 |
-| 6′ | **Top1 regression is Phase 3 not Phase 4** | Report 030 §re-frame: condition B (phase3-only, no Phase 4) also shows top1 collapse under drift. The regression is a Hebbian-codebook-reshaping property, not a Phase 4 architectural gap. Action: characterize whether the top1 regression is an inherent online-Hebbian tradeoff (decide accept) or a fixable issue (decide investigate). | Report 030 |
+| 6′ | **Top1 regression is Phase 3 not Phase 4** | Report 030 §re-frame: condition B (phase3-only, no Phase 4) also shows top1 collapse under drift. The regression is a Hebbian-codebook-reshaping property, not a Phase 4 architectural gap. Action: characterize whether the top1 regression is an inherent online-Hebbian tradeoff (decide accept) or a fixable issue (decide investigate). **2026-05-15 update:** Ganesan-style FHRR unitarity audit run end-to-end on all 10 codebook checkpoints + 1000-update stress test — invariant holds within 2.4e-7. The substrate-numerical-artifact branch is closed; the regression is a real mechanism property. See [notes 2026-05-15](../notes/notes/2026-05-15-saighi-hrr-replay-synthesis.md) §"Audit result". | Reports 030 + 2026-05-15 notes |
 | 3 | Δcap-coverage second headline | One of two design-spec headlines; not verified in 026, 028, or 029; per-seed variance 5–10× larger than ΔR@K | Reports 026, 028, 029 |
 | 4 | Diagnostic-actuator dynamic-form session | Named "next major architectural threshold" 2026-05-09, never held | [2026-05-09 paper synthesis](notes/notes/2026-05-09-papers-diagnostics-and-actuator-dynamics.md) |
 | 5 | Seed-23 diagnostic | **Three** independent runs (026, 028, 029) all identify seed 23 as the cap_t05 / R@10 outlier. Idiosyncratic geometry, not noise. Discipline problem — continued tolerance without diagnosis is the bottleneck on tightening CIs. | Reports 026, 028, 029 |
@@ -118,7 +118,7 @@ report-026 JSON checkpoints (not re-run, drilling into existing data):
 | Random-codebook control | Passed | Report 026 |
 | Multi-seed Phase 3+4 integration (drift-effective) | **Conditionally passed** — report 029 (st=0.3) produces real drift; ΔR@10 4/5 positive, mean +0.014; top1 regresses due to stale-discovered-patterns gap (blocker #6) | Report 029 |
 | Shuffled-token control | Not run (Phase 3 discipline; Phase 4 design doesn't require) | — |
-| Pattern death (architectural component) | **Not exercised** in any session run | Report 026 §Pattern death |
+| Pattern death (architectural component) | **Not exercised** in any session run; report 033 mechanism diagnostic explains why and reshapes blocker #2 | Reports 026, 033 |
 | Entropy exit criterion ("repeated paths lower entropy") | **Failed** at W=4 | Report 026 §Engagement / entropy |
 
 ---
@@ -146,7 +146,10 @@ If you graduate Phase 4 without these, document why.
 ## Reading order for someone catching up
 
 1. This file (STATUS.md).
-2. [reports/032_phase34_n10_verification.md](reports/032_phase34_n10_verification.md) — latest, n=10 verification, sober result.
+2. [reports/034_saighi_ak_seed1_prototype.md](reports/034_saighi_ak_seed1_prototype.md) — latest, A_k prototype; seed-1 shows all three Phase 4 headlines improving; needs 5-seed verification.
+3. [notes/notes/2026-05-15-saighi-hrr-replay-synthesis.md](notes/notes/2026-05-15-saighi-hrr-replay-synthesis.md) — paper synthesis that proposed A_k + FHRR audit; the architectural reframe of blocker #2.
+4. [reports/033_phase4_death_mechanism_diagnostic.md](reports/033_phase4_death_mechanism_diagnostic.md) — blocker #2 mechanism diagnostic; explains why `st03_death_*` runs produced zero deaths.
+5. [reports/032_phase34_n10_verification.md](reports/032_phase34_n10_verification.md) — n=10 verification, sober result.
 3. [reports/030_phase34_rfix_5seed.md](reports/030_phase34_rfix_5seed.md) — rfix did not work; hypothesis revised; death mechanism now load-bearing.
 3. [reports/029_phase34_integration_st03.md](reports/029_phase34_integration_st03.md) — ΔR@10 conditionally verified under real drift via st=0.3.
 4. [reports/028_phase34_integration_5seed.md](reports/028_phase34_integration_5seed.md) — st=0.5 run; drift didn't fire; superseded by 029.
