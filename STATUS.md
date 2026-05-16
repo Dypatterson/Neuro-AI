@@ -1,6 +1,6 @@
 # Project STATUS
 
-**Last updated:** 2026-05-14 (post-report-032 — n=10 verification: report 029 was sample-lucky; true ΔR@10 effect is small ~+0.009 with CI still including 0)
+**Last updated:** 2026-05-15 (added blocker #7: Phase 3 codebook-comparison data-integrity finding from 2026-05-14 audit. Also: today's session committed perf work — `30c2319`, `27bbd6f` — that makes future n=20 verification ~24% faster on M5 Pro and Colab-CUDA-compatible.)
 
 The bookmark. Read this first every session before doing anything. If something
 in this file is wrong or stale, fix this file *first*, then do the work.
@@ -106,6 +106,7 @@ report-026 JSON checkpoints (not re-run, drilling into existing data):
 | 3 | Δcap-coverage second headline | One of two design-spec headlines; not verified in 026, 028, or 029; per-seed variance 5–10× larger than ΔR@K | Reports 026, 028, 029 |
 | 4 | Diagnostic-actuator dynamic-form session | Named "next major architectural threshold" 2026-05-09, never held | [2026-05-09 paper synthesis](notes/notes/2026-05-09-papers-diagnostics-and-actuator-dynamics.md) |
 | 5 | Seed-23 diagnostic | **Three** independent runs (026, 028, 029) all identify seed 23 as the cap_t05 / R@10 outlier. Idiosyncratic geometry, not noise. Discipline problem — continued tolerance without diagnosis is the bottleneck on tightening CIs. | Reports 026, 028, 029 |
+| 7 | **Phase 3 codebook-comparison data integrity** | 2026-05-14 audit flagged HIGH severity: in both `phase3_comparison.json` and the 6-seed repeat, pairs of codebooks (random_baseline/random_phase3c, hebbian_phase3c/hebbian_phase3b, reconstruction/error_driven) produce byte-identical per-seed results. Likely shared RNG or codebook artifact reuse. Phase 3c was adopted as canonical for Phase 4 partly on this comparison — if it's an artifact, downstream interpretation of effect sizes inherits uncertainty. The Phase 4 random-codebook control is independent and unaffected. Investigation brief: [notes/notes/2026-05-15-phase3-codebook-comparison-data-integrity.md](notes/notes/2026-05-15-phase3-codebook-comparison-data-integrity.md). | audit-report-2026-05-14.md §2.3, §Appendix A; report 017 flagged but did not resolve |
 
 ---
 
