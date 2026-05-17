@@ -60,6 +60,14 @@ class ConsolidationConfig:
     # See notes/notes/2026-05-15-saighi-hrr-replay-synthesis.md.
     inhibition_gain: float = 0.0
     inhibition_decay: float = 0.0
+    # Retrieval-frequency-weighted α (brainstorm idea 5).
+    # α_eff(k) = alpha × (1 + alpha_freq_lambda × count_k / max_count).
+    # At lambda=0 the cascade is identical to fixed-α Benna-Fusi. At
+    # lambda>0 frequently-retrieved patterns transfer faster through
+    # u_1 → ... → u_m, producing an under-capacity slow store that
+    # filters for retrieval frequency. See plan at
+    # notes/notes/2026-05-16-freq-weighted-alpha-experiment-plan.md.
+    alpha_freq_lambda: float = 0.0
 
 
 class ConsolidationState:
@@ -91,6 +99,10 @@ class ConsolidationState:
         # Per-pattern inhibition accumulator (Saighi & Rozenberg 2025). Grows
         # on each successful retrieval; subtracted from score during settling.
         self.A = torch.zeros(0, dtype=torch.float32, device=self.device)
+        # Per-pattern retrieval count (brainstorm idea 5). Increments on
+        # reinforce(); used by step_dynamics() to scale α_eff per row when
+        # config.alpha_freq_lambda > 0. Kept as int32; no decay.
+        self.retrieval_count = torch.zeros(0, dtype=torch.int32, device=self.device)
         self._step_count = 0
 
         if config.strength_weights is not None:
@@ -131,6 +143,10 @@ class ConsolidationState:
             self.A,
             torch.zeros(1, dtype=torch.float32, device=self.device),
         ])
+        self.retrieval_count = torch.cat([
+            self.retrieval_count,
+            torch.zeros(1, dtype=torch.int32, device=self.device),
+        ])
         return self.n_patterns - 1
 
     def initialize_existing(self, idx: int, novelty_strength: Optional[float] = None) -> None:
@@ -151,7 +167,12 @@ class ConsolidationState:
         self.below_threshold_steps[idx] = 0
 
     def reinforce(self, idx: int, magnitude: Optional[float] = None) -> None:
-        """Add to u_1 of a single pattern (retrieval reinforcement)."""
+        """Add to u_1 of a single pattern (retrieval reinforcement).
+
+        Also increments retrieval_count[idx]; this counter is consumed
+        by step_dynamics() when config.alpha_freq_lambda > 0 to scale
+        the per-pattern coupling coefficient.
+        """
         if not 0 <= idx < self.n_patterns:
             raise IndexError(f"pattern index {idx} out of range")
         m = (
@@ -160,6 +181,7 @@ class ConsolidationState:
             else float(magnitude)
         )
         self.u[idx, 0] += m
+        self.retrieval_count[idx] += 1
 
     def accumulate_inhibition(self, idx: int, magnitude: Optional[float] = None) -> None:
         """Increment per-pattern self-inhibition A_k (Saighi & Rozenberg 2025).
@@ -217,7 +239,20 @@ class ConsolidationState:
         laplacian[:, 0] = -2.0 * u[:, 0] + u[:, 1]
         laplacian[:, m - 1] = -2.0 * u[:, m - 1] + u[:, m - 2]
 
-        new_u = u + alpha * laplacian
+        # Per-pattern α scaling (brainstorm idea 5). At lambda=0 alpha_eff
+        # collapses to the scalar alpha and the math is identical to the
+        # original Eq.10/11 implementation.
+        lam = self.config.alpha_freq_lambda
+        if lam > 0.0:
+            max_count = self.retrieval_count.max()
+            if max_count > 0:
+                norm_count = self.retrieval_count.to(torch.float32) / max_count.to(torch.float32)
+            else:
+                norm_count = torch.zeros_like(self.retrieval_count, dtype=torch.float32)
+            alpha_eff = alpha * (1.0 + lam * norm_count)
+            new_u = u + alpha_eff.unsqueeze(1) * laplacian
+        else:
+            new_u = u + alpha * laplacian
 
         if input_vector is not None:
             if input_vector.shape != (self.n_patterns,):
@@ -266,6 +301,7 @@ class ConsolidationState:
         self.u = self.u[keep]
         self.below_threshold_steps = self.below_threshold_steps[keep]
         self.A = self.A[keep]
+        self.retrieval_count = self.retrieval_count[keep]
 
     def stats(self) -> dict:
         if self.n_patterns == 0:
@@ -279,8 +315,12 @@ class ConsolidationState:
                 "inhibition_mean": 0.0,
                 "inhibition_max": 0.0,
                 "inhibition_nonzero": 0,
+                "retrieval_count_max": 0,
+                "retrieval_count_mean": 0.0,
+                "retrieval_count_nonzero": 0,
             }
         strength = self.effective_strength().abs()
+        rc = self.retrieval_count
         return {
             "n_patterns": self.n_patterns,
             "mean_strength": float(strength.mean().detach().cpu()),
@@ -294,4 +334,7 @@ class ConsolidationState:
             "inhibition_mean": float(self.A.mean().detach().cpu()),
             "inhibition_max": float(self.A.max().detach().cpu()),
             "inhibition_nonzero": int((self.A > 0).sum().detach().cpu()),
+            "retrieval_count_max": int(rc.max().detach().cpu()),
+            "retrieval_count_mean": float(rc.to(torch.float32).mean().detach().cpu()),
+            "retrieval_count_nonzero": int((rc > 0).sum().detach().cpu()),
         }

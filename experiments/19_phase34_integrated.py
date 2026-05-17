@@ -503,6 +503,30 @@ def stream_phase34(
                             device=A.device, dtype=A.dtype,
                         ),
                     ).detach().cpu().tolist() if cons.n_patterns > 0 else [0.0]*4
+                    # Headline drill-down for the freq-weighted-α experiment:
+                    # Pearson correlation between final u_m and retrieval_count
+                    # across patterns. Predicted to rise with alpha_freq_lambda.
+                    rc = cons.retrieval_count.to(torch.float32)
+                    u_m = cons.u[:, cons.config.m - 1]
+                    if cons.n_patterns >= 2 and rc.std() > 0 and u_m.std() > 0:
+                        corr_u_m_rc = float(
+                            ((rc - rc.mean()) * (u_m - u_m.mean())).sum().cpu()
+                            / ((rc.std(unbiased=False) * u_m.std(unbiased=False)) * cons.n_patterns).cpu()
+                        )
+                    else:
+                        corr_u_m_rc = 0.0
+                    # |u_m| concentration: Gini coefficient. Predicted to rise with lambda.
+                    abs_u_m = u_m.abs()
+                    if cons.n_patterns >= 2 and abs_u_m.sum() > 0:
+                        sorted_u, _ = torch.sort(abs_u_m)
+                        n = float(cons.n_patterns)
+                        cumulative = torch.cumsum(sorted_u, dim=0)
+                        gini_u_m = float(
+                            ((n + 1 - 2 * cumulative.sum() / sorted_u.sum()) / n).cpu()
+                        )
+                    else:
+                        gini_u_m = 0.0
+
                     death_diag[ds] = {
                         "n_patterns": int(cons.n_patterns),
                         "mean_strength": float(strength.mean().cpu()),
@@ -534,6 +558,13 @@ def stream_phase34(
                         "inhibition_nonzero": int((A > 0).sum().cpu()),
                         "inhibition_gain": float(cons.config.inhibition_gain),
                         "inhibition_decay": float(cons.config.inhibition_decay),
+                        # Freq-weighted-α experiment fields (brainstorm idea 5):
+                        "alpha_freq_lambda": float(cons.config.alpha_freq_lambda),
+                        "retrieval_count_max": int(cons.retrieval_count.max().cpu()),
+                        "retrieval_count_mean": float(rc.mean().cpu()),
+                        "retrieval_count_nonzero": int((cons.retrieval_count > 0).sum().cpu()),
+                        "corr_u_m_retrieval_count": corr_u_m_rc,
+                        "gini_u_m": gini_u_m,
                     }
                 eval_result["death_diag"] = death_diag
             results.append(eval_result)
@@ -617,6 +648,15 @@ def main() -> None:
     parser.add_argument("--store-capacity", type=int, default=500)
     parser.add_argument("--consolidation-m", type=int, default=6)
     parser.add_argument("--consolidation-alpha", type=float, default=0.25)
+    parser.add_argument(
+        "--alpha-freq-lambda", type=float, default=0.0,
+        help=(
+            "Retrieval-frequency-weighted alpha (brainstorm idea 5). "
+            "alpha_eff(k) = alpha * (1 + lambda * retrieval_count(k) / max_count). "
+            "Default 0.0 = identical to fixed-alpha Benna-Fusi. Plan at "
+            "notes/notes/2026-05-16-freq-weighted-alpha-experiment-plan.md."
+        ),
+    )
     parser.add_argument("--novelty-strength", type=float, default=1.0)
     parser.add_argument("--retrieval-gain", type=float, default=0.1)
     parser.add_argument("--reencode-every", type=int, default=100)
@@ -847,6 +887,7 @@ def main() -> None:
         death_window=args.death_window,
         inhibition_gain=args.inhibition_gain,
         inhibition_decay=args.inhibition_decay,
+        alpha_freq_lambda=args.alpha_freq_lambda,
     )
     phase4_units_c = {}
     for s in scales:
