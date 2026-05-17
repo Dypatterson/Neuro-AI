@@ -43,11 +43,12 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import statistics
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import torch
 
@@ -91,6 +92,18 @@ CODEBOOKS = [
     ("hebbian_phase3b",       "reports/phase3b_error_driven/phase3b_codebook_hebbian.pt"),
     ("error_driven",          "reports/phase3b_error_driven/phase3b_codebook_error_driven.pt"),
 ]
+
+
+def _tensor_md5(path: Path) -> str:
+    """Hash the bytes of the loaded codebook tensor (not the .pt wrapper).
+
+    Two ``.pt`` files saved at different times produce different file md5s even
+    when the underlying tensor is identical (torch.save metadata differs). The
+    only honest equivalence check is on the tensor content. See report 039 for
+    why this matters here.
+    """
+    tensor = load_codebook(path, device="cpu")
+    return hashlib.md5(tensor.detach().cpu().numpy().tobytes()).hexdigest()
 
 
 def _evaluate(
@@ -229,12 +242,31 @@ def main() -> None:
     parser.add_argument("--out-csv", type=Path, default=Path("reports/phase3_comparison.csv"))
     args = parser.parse_args()
 
-    rows: List[Eval] = []
+    # Pre-pass: hash each codebook tensor (not the .pt file). Phase3b and
+    # phase3c both load phase3a's random and learned codebooks and save them
+    # back unchanged for per-directory self-containment, so multiple labels
+    # can point at the same tensor. Without this dedup pass the comparison
+    # silently double-counts those tensors as if they were independent
+    # conditions (report 039 documents the historical bug).
+    canonical_for_hash: Dict[str, str] = {}
+    aliases: Dict[str, List[str]] = {}
+    paths_to_eval: List[tuple[str, Path]] = []
     for label, rel_path in CODEBOOKS:
         codebook_path = args.repo_root / rel_path
         if not codebook_path.exists():
             print(f"[skip] {label}: missing {codebook_path}")
             continue
+        h = _tensor_md5(codebook_path)
+        if h in canonical_for_hash:
+            canonical = canonical_for_hash[h]
+            aliases.setdefault(canonical, []).append(label)
+            print(f"[alias] {label} is the same tensor as {canonical} (md5={h[:8]}…); evaluated once under {canonical}")
+            continue
+        canonical_for_hash[h] = label
+        paths_to_eval.append((label, codebook_path))
+
+    rows: List[Eval] = []
+    for label, codebook_path in paths_to_eval:
         for seed in args.seeds:
             res = _evaluate(
                 label=label,
@@ -260,8 +292,15 @@ def main() -> None:
             )
 
     # Per-label aggregate over seeds: pooled Wilson CI on the combined
-    # numerator/denominator.
+    # numerator/denominator. Aliases (labels deduplicated above) are surfaced
+    # alongside their canonical label so the comparison output is honest
+    # about how many distinct tensors back the table.
     print()
+    if aliases:
+        print("Aliases collapsed in this run:")
+        for canonical, alias_list in aliases.items():
+            print(f"  {canonical} = {', '.join(alias_list)}")
+        print()
     print(f"{'label':<24} {'mean_acc':>9} {'pooled_CI':>20} {'seeds':>6}")
     print("-" * 65)
     aggregates = {}
@@ -281,6 +320,7 @@ def main() -> None:
             "n_seeds": len(group),
             "total_correct": total_correct,
             "total_eval": total_eval,
+            "aliases": aliases.get(label, []),
         }
         print(f"{label:<24} {mean_acc:>9.3f} [{lo:>6.3f}, {hi:>6.3f}]      {len(group):>6}")
 
@@ -312,6 +352,8 @@ def main() -> None:
             "config": vars(args) | {"repo_root": str(args.repo_root), "out_csv": str(args.out_csv)},
             "rows": [r.__dict__ for r in rows],
             "aggregates": aggregates,
+            "aliases": aliases,
+            "unique_tensor_count": len(canonical_for_hash),
         }, f, indent=2, default=str)
     print(f"\nWrote {args.out_csv} and {args.out_csv.with_suffix('.json')}")
 
