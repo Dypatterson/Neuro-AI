@@ -1,6 +1,6 @@
 # Project STATUS
 
-**Last updated:** 2026-05-16 (**Phase 4 GRADUATES on D1.** [Report 038](reports/038_phase4_d1_graduation.md): n=10 at the architecturally-intended Phase 3+4 integration regime (online Hebbian, n_cues=3000, A_k off) produces Δ meta_stable_w3 = −0.7920, 95% CI [−0.9376, −0.6463], 10/10 seeds drop to floor (0.000). C−B (Phase 4 above phase3-only) = −0.720, also CI-disjoint. Trajectory analysis (seeds 17, 3): some seeds reach floor via replay+consolidation alone by step 500 (substrate intact); others need death to complete the reduction at step 2000. The Phase 4 mechanism set as a whole produces the effect. R@10 small-positive signal replicates (+0.0089, mirrors report 026's +0.010). Closes blockers #1 and F1. Earlier today: report 037 closed option 1 (seed-3 collapse is corpus-order under binary death); pivot decision made; instrumentation patch + Colab notebook landed (commit 3347bc8); skeleton report 038 pre-staged; Colab run completed in ~30 min on H100 NVL.)
+**Last updated:** 2026-05-17 (**Phase 5 implementation unblocked.** [Report 040](reports/040_freq_weighted_alpha_sweep.md): freq-weighted Benna-Fusi α (brainstorm idea 5) sweep at n=10 × 4 λ values produces no measurable change in Phase 4 production metrics for λ ∈ {0, 0.5, 1.0}; λ=2.0 is supercritical (cascade strengths explode to 10⁹, W=2 corr inverts to −0.52). Mass death already does the filtering work freq-α was designed for, so the additional graded filter is redundant at production scale. Phase 5 design decision #1 RESOLVED: schema source = post-death substrate (5–30 surviving atoms per seed at W=2). Working tree has: Phase 5 unified design doc, exp 40 skeleton (signatures + dataclasses + atom-split signal + surprise prior), test scaffold (11 real tests + 28 skipped-with-reason). Earlier session: Phase 4 graduated on D1 ([report 038](reports/038_phase4_d1_graduation.md)) at Δ meta_stable_w3 = −0.7920, CI [−0.9376, −0.6463]; report 037 closed seed-3 collapse as corpus-order under binary death.)
 
 The bookmark. Read this first every session before doing anything. If something
 in this file is wrong or stale, fix this file *first*, then do the work.
@@ -9,13 +9,19 @@ in this file is wrong or stale, fix this file *first*, then do the work.
 
 ## Active phase
 
-**Phase 4 — GRADUATED on D1** ([report 038](reports/038_phase4_d1_graduation.md)).
-Headline Δ meta_stable_w3 = −0.7920, 95% CI [−0.9376, −0.6463],
-10/10 seeds at the integration regime. R@10 drill-down replicates +0.010
-isolation signal. Top1 / cap-coverage remain variance-bound drill-downs
-per discipline note. Open next-step questions are now Phase-5 / Phase-4-
-revision work (binary-death shape, top1 regression mechanism, generalization
-beyond wikitext).
+**Phase 5 — implementation unblocked** ([phase-5-unified-design.md](notes/emergent-codebook/phase-5-unified-design.md)).
+HAM × energy-guided structural branching wrapped around the post-death
+substrate. Schema source resolved by [report 040](reports/040_freq_weighted_alpha_sweep.md):
+the 5–30 surviving atoms per seed at W=2 (post mass-death) are already
+filtered by retrieval frequency through the binary death mechanism, so no
+freq-α layer is needed. Branching seeds K_main schemas + 1 surprise branch;
+combines via energy-weighted bundle + re-settle; atom-splitting diagnostic
+on joint criterion (similar low energies AND substantial state divergence).
+
+**Phase 4** remains graduated on D1 ([report 038](reports/038_phase4_d1_graduation.md));
+no regression. Open next-step questions for Phase-4-revision (gradient
+death, top1 regression mechanism, cross-corpus generalization) are parked
+behind Phase 5 implementation.
 
 ---
 
@@ -160,7 +166,9 @@ If you graduate Phase 4 without these, document why.
 ## Reading order for someone catching up
 
 1. This file (STATUS.md).
-2. [reports/038_phase4_d1_graduation.md](reports/038_phase4_d1_graduation.md) — **Phase 4 graduation result**. n=10 integration regime, Δms_w3 = −0.7920 CI-disjoint; 10/10 seeds. Trajectory analysis (seeds 17, 3) shows mechanism heterogeneity.
+2. [notes/emergent-codebook/phase-5-unified-design.md](notes/emergent-codebook/phase-5-unified-design.md) — **Phase 5 design**. HAM × energy-guided structural branching; decision #1 closed (schema source = post-death substrate).
+3. [reports/040_freq_weighted_alpha_sweep.md](reports/040_freq_weighted_alpha_sweep.md) — **closes the freq-α bridge experiment**; resolves Phase 5 decision #1; documents the supercritical λ ceiling.
+4. [reports/038_phase4_d1_graduation.md](reports/038_phase4_d1_graduation.md) — **Phase 4 graduation result**. n=10 integration regime, Δms_w3 = −0.7920 CI-disjoint; 10/10 seeds. Trajectory analysis (seeds 17, 3) shows mechanism heterogeneity.
 3. [reports/037_seed3_collapse_diagnostic.md](reports/037_seed3_collapse_diagnostic.md) — **closes option 1**: seed 3 collapse is same death-survivor mechanism as seed 17; corpus-order variance under binary death. Establishes the rationale for the D1 pivot.
 4. [reports/036_decay_sweep_and_mass_death_finding.md](reports/036_decay_sweep_and_mass_death_finding.md) — A_k decay sweep + seed-17 trajectory; identifies death as the dominant substrate-shaping force.
 5. [notes/notes/2026-05-16-substrate-vs-readout-metric-discipline.md](notes/notes/2026-05-16-substrate-vs-readout-metric-discipline.md) — **binding standing discipline**: top1 demoted to drill-down; substrate-pure metrics (D1) preferred when readout × substrate variance is large.
