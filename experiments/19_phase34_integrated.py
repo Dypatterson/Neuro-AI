@@ -52,6 +52,7 @@ from energy_memory.phase2.encoding import (
     mask_positions as compute_mask_positions,
     masked_window,
 )
+from energy_memory.phase2.metrics import meta_stable_rate
 from energy_memory.phase2.persistence import load_codebook
 from energy_memory.phase34.hebbian_online import (
     HebbianOnlineCodebookUpdater,
@@ -234,7 +235,7 @@ def evaluate_combined(
 
     if total == 0:
         return {"n": 0}
-    return {
+    payload: Dict = {
         "top1": correct_top1 / total,
         "topk": correct_topk / total,
         "cap_t_03": correct_cap_t03 / total,
@@ -244,6 +245,9 @@ def evaluate_combined(
             mean(per_scale_top_scores[2]) if 2 in per_scale_top_scores and per_scale_top_scores[2] else 0.0
         ),
     }
+    for scale, scores in per_scale_top_scores.items():
+        payload[f"meta_stable_w{scale}"] = meta_stable_rate(scores) if scores else 0.0
+    return payload
 
 
 def stream_phase34(
