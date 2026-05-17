@@ -6,6 +6,21 @@
 - `reports/phase3_comparison.csv` (6 seeds × 6 codebooks)
 - `reports/phase3_comparison.json`
 
+> **Correction (2026-05-16):** §3 of this report claimed the two random-codebook
+> artifacts (`random_baseline_matrix` and `random_phase3c`) are "different random
+> codebooks but produce the same Recall@1 because both encode the same windows
+> with algebraically equivalent role-filler bundles." This explanation is wrong.
+> [Report 039](039_phase3_codebook_comparison_integrity.md) shows that the two
+> artifacts are *literally the same tensor* — phase3b and phase3c each load
+> phase3a's outputs and re-save them into their own output dirs for self-
+> containment. The duplicate result is artifact reuse, not random-codebook
+> content-blindness. The same applies to the `hebbian_phase3c` ≡ `hebbian_phase3b`
+> pair. The 6-condition table in this report should be read as **4 unique
+> codebook tensors evaluated under 6 labels**, not 6 independent conditions.
+> The headline conclusions of this report (multi-seed pooled random baseline at
+> 0.089 [0.060, 0.125]; no Phase 3 learning objective reliably beats baseline
+> at this envelope) are unaffected.
+
 ## Motivation
 
 Per [reports/016_phase2_audit_and_phase3_objective.md](016_phase2_audit_and_phase3_objective.md),
