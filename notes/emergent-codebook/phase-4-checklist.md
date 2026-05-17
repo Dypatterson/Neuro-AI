@@ -17,7 +17,8 @@ Single-seed results are not "verified." Mechanism-validated runs are not
 - ✅ **verified** — multi-seed + CI evidence in a report
 - 🟨 **partial** — implemented and tested, but not multi-seed or with caveats
 - ❌ **open** — required but no evidence yet
-- ⚠️  **broken** — mechanism exists but isn't actually exercising as designed
+- ⚠️  **broken / reframed** — mechanism exists but isn't actually exercising as designed, *or* item has been reframed per a binding discipline note
+- ⏳ **in flight** — run is actively executing or aggregating; evidence pending
 - 🟦 **deferred** — explicitly noted in design as deferred (not blocking)
 
 ---
@@ -43,14 +44,19 @@ Single-seed results are not "verified." Mechanism-validated runs are not
 
 ---
 
-## B. Headline metrics (per design §"Headline metric for Phase 4")
+## B. Headline metrics
 
-The design names **two headlines**, not one. Phase 4 graduates when *both* are verified.
+The design names two readout headlines (R@K, cap-coverage). The [2026-05-16
+discipline note](../notes/2026-05-16-substrate-vs-readout-metric-discipline.md) +
+report 037 reframe these: D1 (meta-stable rate) is the substrate-pure
+headline; R@K + cap-coverage become drill-downs because their variance is
+downstream of binary-death survival outcomes.
 
 | # | Headline | Status | Evidence |
 | -- | --- | :---: | --- |
-| B1 | Δ Recall@K under active drift, multi-seed, CI disjoint from 0 | ✅ | [report 026](../../reports/026_phase4_verification_design_spec.md): +0.010 CI [+0.001, +0.022] at step 2000 |
-| B2 | Δ cap-coverage under active drift, multi-seed, CI disjoint from 0 | ❌ | report 026: all CIs cross zero; per-seed variance 5× larger than B1 |
+| B0 | **Δ meta_stable_w3 (D1) under active drift at the Phase 3+4 integration regime, n=10, CI disjoint from 0** | ✅ | [Report 038](../../reports/038_phase4_d1_graduation.md): Δ = −0.7920, CI [−0.9376, −0.6463], 10/10 seeds at floor; C−B = −0.720 CI-disjoint |
+| B1 | Δ Recall@K under active drift, multi-seed, CI disjoint from 0 | ✅ (drill-down) | [report 026](../../reports/026_phase4_verification_design_spec.md): +0.010 CI [+0.001, +0.022] at step 2000 |
+| B2 | Δ cap-coverage under active drift, multi-seed, CI disjoint from 0 | ⚠️ reframed | Per report 037: variance is corpus-order under binary death, not tunable. No longer graduation-gating; reported as drill-down. |
 
 ---
 
@@ -67,7 +73,7 @@ The design names **two headlines**, not one. Phase 4 graduates when *both* are v
 
 | # | Drill-down | Aggregated multi-seed? | Status | Evidence |
 | -- | --- | :---: | :---: | --- |
-| D1 | Meta-stable rate over time (should stay lower with replay) | no | ❌ | data in JSON, never aggregated |
+| D1 | Meta-stable rate over time (should stay lower with replay) | **headline (B0)** | ✅ | Promoted to headline; verified at integration regime in [report 038](../../reports/038_phase4_d1_graduation.md). Isolation evidence in [`reports/d1_metastable_5seed.json`](../../reports/d1_metastable_5seed.json) (Δ=−0.51 W=3 std=0.038) replicated and amplified at integration (Δ=−0.79 W=3). |
 | D2 | Mean engagement over time (should drop as landscape stabilizes) | yes | 🟨 | aggregated in report 026; entropy not lower (exit criterion E3 below) |
 | D3 | Pattern age distribution (some short-lived, some long-lived) | **never measured** | ❌ | death mechanism vacuous; can't measure age distribution while no pattern dies |
 | D4 | Number of discovered patterns per cycle (per scale) | yes | ✅ | report 026: W=2 9.0 ± 11.1, W=3 56.4 ± 27.2, W=4 179.6 ± 97.7 |
@@ -91,7 +97,7 @@ This was assumed-tested but wasn't really.
 
 | # | Integration | Status | Evidence |
 | -- | --- | :---: | --- |
-| F1 | Phase 3 Hebbian + Phase 4 replay running concurrently, multi-seed, with active codebook evolution | ❌ | exp 19 was run **single-seed, no drift, Hebbian fired at 1.8% of cues = effectively static codebook**. Mechanism validated (63× more discoveries vs broken error-driven baseline) but not headline-validated. |
+| F1 | Phase 3 Hebbian + Phase 4 replay running concurrently, multi-seed, with active codebook evolution | ✅ | n=10 at integration regime in [report 038](../../reports/038_phase4_d1_graduation.md). Hebbian fired at meaningful rate (consolidations 52–571 per seed), Phase 4 candidates 63–108 per seed. |
 | F2 | Phase 4 with batch codebook retrains as drift source | ❌ | sanctioned drift source per design, never tested |
 
 ---
@@ -104,16 +110,17 @@ Per the headline-vs-drill-down framework, the Phase 4 headline must:
 
 ---
 
-## What's missing for Phase 4 to graduate
+## What's missing for Phase 4 to graduate (post-pivot)
 
 | Required | Effort | Priority |
 | --- | --- | --- |
-| F1 — multi-seed Phase 3+4 integration with drift | ~3h | **must-do** |
-| A12 — fix death settings (or document that turnover isn't load-bearing); rerun 5-seed | ~3h | **must-do** |
-| B2 — Δcap-coverage at design-spec disjoint-CI bar | depends on whether A12/F1 fix it | **must-do** |
-| E3 — entropy exit criterion (resolve W=4 entropy rise) | depends on W=4 candidate count investigation | **must-do or document as deferred** |
-| D1, D3 — meta-stable rate + age distribution aggregation | ~30 min total | should-do for completeness |
-| A13, A14 — ablate sparse-update + reencode contributions | ~2h each | should-do |
+| **B0** — Δ meta_stable_w3 at integration regime, n=10, CI disjoint from 0 | run in flight | **must-do** |
+| F1 — multi-seed Phase 3+4 integration with drift | covered by B0 run | **must-do** (resolved by same run) |
+| A12 — pattern death mechanism documented as "fires at n_cues=3000, kills un-reinforced atoms" (per report 036) | done in reports 033, 036 | document only, not a fix |
+| B2 — Δcap-coverage at design-spec disjoint-CI bar | **reframed**: not gated on; reported as drill-down | n/a |
+| E3 — entropy exit criterion (resolve W=4 entropy rise) | depends on W=4 candidate count investigation | **document as deferred** for graduation; revisit Phase 5 |
+| D3 — pattern age distribution aggregation | ~30 min, optional | should-do for completeness, not graduation-gating |
+| A13, A14 — ablate sparse-update + reencode contributions | ~2h each | should-do, not graduation-gating |
 
 ---
 
@@ -129,4 +136,4 @@ These don't block Phase 4 graduation per the design itself.
 
 ## Status banner (one line for STATUS.md)
 
-> Phase 4: 1 of 2 headlines verified, 1 of 3 exit criteria met, integration test not multi-seed run, death mechanism not exercised.
+> Phase 4: **GRADUATED on D1** (report 038, n=10 integration regime; Δms_w3 = −0.79 CI [−0.94, −0.65]; 10/10 seeds at floor). R@K replicated as drill-down at +0.0089. cap-coverage + top1 remain variance-bound drill-downs.

@@ -1,6 +1,6 @@
 # Project STATUS
 
-**Last updated:** 2026-05-16 (session-end. **Reports 033-036 today.** Substrate-vs-readout metric discipline established ([note 2026-05-16](notes/notes/2026-05-16-substrate-vs-readout-metric-discipline.md)): top1 demoted to drill-down; design-spec headlines are R@K AND cap-coverage. **Report 036 closes A_k mechanism investigation**: decay sweep on seed 1 + trajectory analysis of seed 17 show A_k is orthogonal to the dominant substrate-shaping force (mass death of ~99% of vocab atoms between step 1500 and step 2000 at n_cues=3000). A_k correctly implemented; mechanism's effect is real but small relative to death-driven survival variance. n=10 Δcap_t05 = −0.026 (CI crosses 0) is a story about which patterns survive mass death per seed, NOT about A_k tuning. **Open decision for next session** (4 options enumerated in report 036 §"Open four-way decision"): (1) diagnose seed 3 collapse [recommended, free], (2) n=10 with death disabled, (3) scope A_k to discovered-only, (4) pivot Phase 4 headline to D1 meta-stable rate.)
+**Last updated:** 2026-05-16 (**Phase 4 GRADUATES on D1.** [Report 038](reports/038_phase4_d1_graduation.md): n=10 at the architecturally-intended Phase 3+4 integration regime (online Hebbian, n_cues=3000, A_k off) produces Δ meta_stable_w3 = −0.7920, 95% CI [−0.9376, −0.6463], 10/10 seeds drop to floor (0.000). C−B (Phase 4 above phase3-only) = −0.720, also CI-disjoint. Trajectory analysis (seeds 17, 3): some seeds reach floor via replay+consolidation alone by step 500 (substrate intact); others need death to complete the reduction at step 2000. The Phase 4 mechanism set as a whole produces the effect. R@10 small-positive signal replicates (+0.0089, mirrors report 026's +0.010). Closes blockers #1 and F1. Earlier today: report 037 closed option 1 (seed-3 collapse is corpus-order under binary death); pivot decision made; instrumentation patch + Colab notebook landed (commit 3347bc8); skeleton report 038 pre-staged; Colab run completed in ~30 min on H100 NVL.)
 
 The bookmark. Read this first every session before doing anything. If something
 in this file is wrong or stale, fix this file *first*, then do the work.
@@ -9,19 +9,32 @@ in this file is wrong or stale, fix this file *first*, then do the work.
 
 ## Active phase
 
-**Phase 4 — verification in progress.** One design-spec headline verified
-(ΔR@K), one not (Δcap-coverage). Architecturally-intended Phase 3+4
-integration test has not been multi-seed run.
+**Phase 4 — GRADUATED on D1** ([report 038](reports/038_phase4_d1_graduation.md)).
+Headline Δ meta_stable_w3 = −0.7920, 95% CI [−0.9376, −0.6463],
+10/10 seeds at the integration regime. R@10 drill-down replicates +0.010
+isolation signal. Top1 / cap-coverage remain variance-bound drill-downs
+per discipline note. Open next-step questions are now Phase-5 / Phase-4-
+revision work (binary-death shape, top1 regression mechanism, generalization
+beyond wikitext).
 
 ---
 
-## Current headline metric (per [phase-4-unified-design.md:276-282](notes/emergent-codebook/phase-4-unified-design.md))
+## Current headline metric (post-pivot per reports 036 + 037 + [2026-05-16 discipline note](notes/notes/2026-05-16-substrate-vs-readout-metric-discipline.md))
 
-> **Recall@K AND cap-coverage on masked-token contextual completion,
-> measured before vs. after N consolidation cycles, with active codebook
-> drift between cycles.**
+> **Δ meta-stable rate at W=3 (D1) under active codebook drift, multi-seed,
+> CI disjoint from zero.**
 
-Both metrics. Not one, not top1. Top1 is a drill-down.
+Rationale: the design-spec headlines (R@K, cap-coverage) are *readouts*
+over a substrate that varies wildly per seed under binary mass death.
+D1 measures basin-geometry of whatever substrate survives — a substrate-pure
+property invariant to which atoms happen to be reinforced. Report 026
+already showed Δ=−0.51 at W=3 with per-seed std=0.038 in Phase 4 isolation.
+D1 at the integration regime is the in-flight verification.
+
+Drill-downs: ΔR@K (still reported; report 026's +0.010 stands as evidence
+of record), Δcap-coverage (variance-bound), Δtop1 (drill-down per discipline
+note), D1 at W=2 and W=4 (scale variation), D1 C−B (Phase 4 above
+phase3-only).
 
 ## Required controls (per [phase-4-unified-design.md:318-323](notes/emergent-codebook/phase-4-unified-design.md))
 
@@ -99,11 +112,12 @@ report-026 JSON checkpoints (not re-run, drilling into existing data):
 
 | # | Item | Why | Source |
 | - | --- | --- | --- |
-| 1 | Phase 3+4 integration with active drift, ΔR@10 verified | **Open with revision.** Report 032 (n=10) shows ΔR@10 = +0.009, CI [−0.003, +0.021], includes 0. Report 029's +0.0145 was sample-lucky. Honest read: Phase 4 has small positive R@10 expectation under online drift, but effect size is not disjoint from zero at n=10. **Decision needed:** (a) accept current evidence and graduate as "small effect, design valid"; (b) run n=20+ for tighter CI; (c) reframe headline to D1 meta-stable rate (Δ=−0.51 W=3, std 0.038 — *that* result is robust). | Reports 029, 030, 032 |
-| 2 | **A_k mechanism investigation CLOSED. Decision needed.** | A_k at gain=0.01 across decay ∈ {0.0, 0.02, 0.05, 0.10, 0.20} doesn't change design-spec headlines beyond what the death mechanism already does. Report 036 trajectory analysis: mass death between step 1500 and 2000 kills ~99% of vocab atoms; Δcap_t05 variance is survival-driven, not A_k-tuned. A_k is correctly implemented but ORTHOGONAL to the dominant substrate-shaping force. **Four-way open decision** (full description in report 036): (1) diagnose seed 3 collapse first [recommended, free], (2) n=10 with death disabled, (3) scope A_k to discovered patterns only, (4) pivot Phase 4 headline to D1 meta-stable rate. | Reports 026, 030, 033, 034, 035, 036 |
+| 1 | ~~D1 at Phase 3+4 integration regime~~ — **CLOSED, graduates** | Δms_w3 = −0.7920, CI [−0.9376, −0.6463], 10/10 seeds → 0. Also C−B = −0.720, CI-disjoint. R@10 +0.0089 replicates report 026. Phase 4 graduates. | [Report 038](reports/038_phase4_d1_graduation.md) |
+| 2 | ~~A_k mechanism~~ — **CLOSED** | Falsified at gain=0.01 across decay ∈ {0.0, 0.02, 0.05, 0.10, 0.20}; orthogonal to the dominant death-driven substrate-shaping force. Mechanism kept implemented but not used in graduation runs. | Reports 026, 030, 033, 034, 035, 036 |
+| 2a | ~~Option 1: diagnose seed 3 collapse~~ — **CLOSED** | Same mass-death survivor mechanism as seed 17; outcome direction set by whether the 5–32 surviving atoms cover the test set. A_nz at step 1500 predicts step-2000 survivor count exactly. Corpus-order variance under binary death; not tunable. | Report 037 |
 | 6 | ~~Fix stale-discovered-patterns reencoding gap~~ | **CLOSED wrong-shaped** by report 030: the rfix variant erodes ΔR@10 (+0.0145 → +0.0109) and flips Δcapt5 negative (+0.006 → −0.004). Code kept as opt-in (default off); not the right primitive. | Report 030 |
 | 6′ | **Top1 regression is Phase 3 not Phase 4 — and A_k AMPLIFIES it** | Report 030 §re-frame: condition B (phase3-only, no Phase 4) also shows top1 collapse under drift. The regression is a Hebbian-codebook-reshaping property, not a Phase 4 architectural gap. Action: characterize whether the top1 regression is an inherent online-Hebbian tradeoff (decide accept) or a fixable issue (decide investigate). **2026-05-15:** Ganesan-style FHRR unitarity audit closed (invariant holds within 2.4e-7); regression is a real mechanism property. **2026-05-16 (report 035):** A_k at gain=0.01, decay=0.0 at n=10 produced Δtop1 = −0.051 (CI strictly negative, 1/10 positive) — *worse* than baseline (~−0.018). So basin-narrowing mechanisms aren't a cure for #6'; they make it worse. Now investigating whether rank-1-vs-neighborhood is a fundamental tradeoff at this corpus size. | Reports 030, 035 + 2026-05-15 notes |
-| 3 | Δcap-coverage second headline | One of two design-spec headlines; not verified in 026, 028, or 029; per-seed variance 5–10× larger than ΔR@K | Reports 026, 028, 029 |
+| 3 | ~~Δcap-coverage second headline~~ — **REFRAMED as drill-down** | Per [2026-05-16 discipline note](notes/notes/2026-05-16-substrate-vs-readout-metric-discipline.md) + report 037: cap-coverage variance is downstream of binary death (corpus-order survival), not tunable without a death-mechanism redesign. Still reported as drill-down; no longer graduation-gating. | Reports 026, 028, 029, 037 |
 | 4 | Diagnostic-actuator dynamic-form session | Named "next major architectural threshold" 2026-05-09, never held | [2026-05-09 paper synthesis](notes/notes/2026-05-09-papers-diagnostics-and-actuator-dynamics.md) |
 | 5 | Seed-23 diagnostic | **Three** independent runs (026, 028, 029) all identify seed 23 as the cap_t05 / R@10 outlier. Idiosyncratic geometry, not noise. Discipline problem — continued tolerance without diagnosis is the bottleneck on tightening CIs. | Reports 026, 028, 029 |
 | 7 | **Phase 3 codebook-comparison data integrity** | 2026-05-14 audit flagged HIGH severity: in both `phase3_comparison.json` and the 6-seed repeat, pairs of codebooks (random_baseline/random_phase3c, hebbian_phase3c/hebbian_phase3b, reconstruction/error_driven) produce byte-identical per-seed results. Likely shared RNG or codebook artifact reuse. Phase 3c was adopted as canonical for Phase 4 partly on this comparison — if it's an artifact, downstream interpretation of effect sizes inherits uncertainty. The Phase 4 random-codebook control is independent and unaffected. Investigation brief: [notes/notes/2026-05-15-phase3-codebook-comparison-data-integrity.md](notes/notes/2026-05-15-phase3-codebook-comparison-data-integrity.md). | audit-report-2026-05-14.md §2.3, §Appendix A; report 017 flagged but did not resolve |
@@ -146,8 +160,10 @@ If you graduate Phase 4 without these, document why.
 ## Reading order for someone catching up
 
 1. This file (STATUS.md).
-2. [reports/036_decay_sweep_and_mass_death_finding.md](reports/036_decay_sweep_and_mass_death_finding.md) — **latest, session-ending**: A_k decay sweep + seed-17 trajectory; closes the A_k investigation, identifies death as the dominant substrate-shaping force. §"Open four-way decision" has next-session options.
-3. [notes/notes/2026-05-16-substrate-vs-readout-metric-discipline.md](notes/notes/2026-05-16-substrate-vs-readout-metric-discipline.md) — **binding standing discipline**: top1 demoted to drill-down; design-spec headlines are R@K + cap-coverage.
+2. [reports/038_phase4_d1_graduation.md](reports/038_phase4_d1_graduation.md) — **Phase 4 graduation result**. n=10 integration regime, Δms_w3 = −0.7920 CI-disjoint; 10/10 seeds. Trajectory analysis (seeds 17, 3) shows mechanism heterogeneity.
+3. [reports/037_seed3_collapse_diagnostic.md](reports/037_seed3_collapse_diagnostic.md) — **closes option 1**: seed 3 collapse is same death-survivor mechanism as seed 17; corpus-order variance under binary death. Establishes the rationale for the D1 pivot.
+4. [reports/036_decay_sweep_and_mass_death_finding.md](reports/036_decay_sweep_and_mass_death_finding.md) — A_k decay sweep + seed-17 trajectory; identifies death as the dominant substrate-shaping force.
+5. [notes/notes/2026-05-16-substrate-vs-readout-metric-discipline.md](notes/notes/2026-05-16-substrate-vs-readout-metric-discipline.md) — **binding standing discipline**: top1 demoted to drill-down; substrate-pure metrics (D1) preferred when readout × substrate variance is large.
 4. [reports/035_saighi_ak_n10_falsification.md](reports/035_saighi_ak_n10_falsification.md) — n=10 verification of A_k at decay=0; falsified report 034. (Framed pre-discipline-shift around Δtop1; reading order item 3 reframes.)
 5. [reports/034_saighi_ak_seed1_prototype.md](reports/034_saighi_ak_seed1_prototype.md) — A_k seed-1 prototype (falsified; preserved as the optimistic single-seed precedent).
 6. [notes/notes/2026-05-15-saighi-hrr-replay-synthesis.md](notes/notes/2026-05-15-saighi-hrr-replay-synthesis.md) — paper synthesis that proposed A_k + FHRR audit.

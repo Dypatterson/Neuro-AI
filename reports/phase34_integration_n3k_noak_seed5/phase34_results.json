@@ -1,0 +1,57 @@
+{
+  "config": {
+    "seed": 5,
+    "n_cues": 3000,
+    "inhibition_gain": 0.0,
+    "success_threshold": 0.3,
+    "death_threshold": 0.05
+  },
+  "results": {
+    "baseline_static": [
+      {
+        "cues_seen": 2000,
+        "condition": "baseline_static",
+        "n": 214,
+        "top1": 0.1262,
+        "topk": 0.285,
+        "cap_t_05": 0.243,
+        "meta_stable_w2": 0.467,
+        "meta_stable_w3": 0.799,
+        "meta_stable_w4": 0.949,
+        "cap_t_03": 0.293
+      }
+    ],
+    "phase3_reencode": [
+      {
+        "cues_seen": 2000,
+        "condition": "phase3_reencode",
+        "n": 214,
+        "top1": 0.0935,
+        "topk": 0.2757,
+        "cap_t_05": 0.2336,
+        "meta_stable_w2": 0.481,
+        "meta_stable_w3": 0.907,
+        "meta_stable_w4": 0.986,
+        "cap_t_03": 0.2836
+      }
+    ],
+    "phase3_phase4": [
+      {
+        "cues_seen": 2000,
+        "condition": "phase3_phase4",
+        "n": 214,
+        "top1": 0.1121,
+        "topk": 0.2757,
+        "cap_t_05": 0.215,
+        "meta_stable_w2": 0.0,
+        "meta_stable_w3": 0.0,
+        "meta_stable_w4": 0.0,
+        "candidates_total": 108,
+        "consolidations": 122,
+        "deaths_total": 7214,
+        "cap_t_03": 0.265
+      }
+    ]
+  },
+  "note": "Stub built from cell-7 final-checkpoint values (Dylan's notebook output). Full per-checkpoint JSONs on Drive at integration_n3k_noak_seed{N}/."
+}
