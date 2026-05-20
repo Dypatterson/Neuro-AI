@@ -18,6 +18,31 @@ freq-α layer is needed. Branching seeds K_main schemas + 1 surprise branch;
 combines via energy-weighted bundle + re-settle; atom-splitting diagnostic
 on joint criterion (similar low energies AND substantial state divergence).
 
+### Next session entry point (2026-05-20)
+
+Decision-5 closed (per-pattern formulation wins). Three options presented;
+my recommendation was **C then B**.
+
+- **A. §C robustness run, seed 17 alone** — 5 schema sources (post_death_top_k,
+  pre_death_top_k, pre_death_random_k, step_1500_top_k, step_1500_random_k)
+  on the local seed 17 W=4 snapshots. ~10 min local CPU. Already have
+  `reports/phase5_snapshots_local/seed17/phase3_phase4_w{2,4}_step1800.pt`;
+  would need `step_1500` pulled from Drive (one file, ~32 MB).
+- **B. n=10 graduation prep (script-level)** — build multi-seed aggregator:
+  paired ΔE + binomial CI + LOSO seed sensitivity. No new runs required;
+  reads seed-17 spike JSON now and scales when other seeds land.
+- **C. Pull all 5 W=4 post-death snapshots locally** (`step_1800/w4` for
+  seeds {17, 11, 23, 1, 2} from Drive — ~160 MB total) **then run B** against
+  real n=5 data. Gets us to a first multi-seed headline result quickest.
+
+Snapshots on Drive: `Neuro-AI-Snapshots/phase5_substrate_snapshots/seed_{N}/`
+for N ∈ {17, 11, 23, 1, 2}, each with step ∈ {500, 1500, 1700, 1800} ×
+scale ∈ {2, 3, 4}. 60 snapshots total, all captured via Colab notebook
+`scripts/colab_phase5_snapshots.ipynb`.
+
+77 tests passing; 0 skipped. Working tree clean, all commits pushed through
+`a9c576f`.
+
 **Phase 4** remains graduated on D1 ([report 038](reports/038_phase4_d1_graduation.md));
 no regression. Open next-step questions for Phase-4-revision (gradient
 death, top1 regression mechanism, cross-corpus generalization) are parked
