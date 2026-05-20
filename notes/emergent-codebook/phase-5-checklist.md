@@ -222,7 +222,8 @@ which failure mode and Phase 5 is re-scoped.
 These remain open from Phase 4 and earlier phases but do not gate Phase 5
 graduation. Listed so they are not lost:
 
-- STATUS blocker #4 — diagnostic-actuator dynamic-form session: **held 2026-05-20** ([note](../notes/2026-05-20-diagnostic-actuator-death-dynamic-form.md)); A+B combined candidate passed anti-homunculus audit. Implementation commitment pending.
+- STATUS blocker #4 — diagnostic-actuator dynamic-form session: **closed 2026-05-20** at design + implementation ([note](../notes/2026-05-20-diagnostic-actuator-death-dynamic-form.md)); A+B combined candidate passed anti-homunculus audit and library implementation landed same session.
+- **Path 3 design pre-commitment** (the cue-regime / role-prior bimodality from [report 043](../../reports/043_phase5_substrate_scale_diagnostic.md)): **closed 2026-05-20** at design ([note](../notes/2026-05-20-cue-regime-role-prior-dynamic-form.md)); Candidate β (per-schema role-fidelity continuous weighting) + γ (cue-regime distribution averaging) recommended; anti-homunculus reviewer PASS. **Contingent on A+B pilot outcome** — implementation only if A+B passes mechanism-validity gate.
 - STATUS blocker #5 — seed-23 idiosyncratic geometry diagnostic (3 runs
   identified it, never investigated). Phase 5 surfaces seed 23 via D3
   but does not diagnose it.

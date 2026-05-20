@@ -90,11 +90,18 @@ design note §"Pre-committed falsification criteria"):
    considerations; not tuned to land d_eff in target range.
 
 Still open / not addressed by this session:
-- The bimodal-ΔE-across-seeds issue (report 043). Death-mechanism
-  redesign is necessary but not sufficient for Phase 5 graduation;
-  the cue-regime / role-prior asymmetry is a separate axis. Path 3
-  design note (cue-regime sensitivity hypotheses) still to write
-  before any cue-regime sweep is committed (H1 pre-commitment).
+- ~~The bimodal-ΔE-across-seeds issue (report 043)~~ — **path-3 design
+  pre-commitment closed 2026-05-20** ([cue-regime / role-prior note]
+  (notes/notes/2026-05-20-cue-regime-role-prior-dynamic-form.md));
+  anti-homunculus reviewer PASS; Candidate β (per-schema role-fidelity
+  continuous weighting via `prior = Σ_i (cue·s_i)^p · f_i^q · s_i`)
+  + γ (cue-regime distribution averaging at evaluation) recommended.
+  **Contingent on A+B pilot outcome.** Implementation only after A+B
+  pilot passes mechanism-validity AND a separate decision. Pre-committed
+  falsification criteria: (1) per-seed `mean(f_i)` spread within 30%
+  cross-seed; (2) fidelity-weighted ΔE > 0 CI-disjoint at n_seeds ≥
+  10; (3) ΔE(q) monotonic per-seed; (4) cue distribution + q pre-committed
+  before observation (H1).
 - θ′(β) calibration spike (pre-phase commitment) — would inform the
   tight/spread regime classifier, but A+B doesn't strictly require
   it.
