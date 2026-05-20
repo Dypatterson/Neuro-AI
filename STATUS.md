@@ -20,13 +20,24 @@ on joint criterion (similar low energies AND substantial state divergence).
 
 ### Next session entry point (2026-05-20, late session)
 
-**A+B library implementation done. Anti-homunculus reviewer PASS.**
-[2026-05-20 diagnostic-actuator note](notes/notes/2026-05-20-diagnostic-actuator-death-dynamic-form.md)
-re-expressed in code; 235 tests pass; `garbage_collect()` no-ops when
-`coverage_lambda > 0` so existing experiment scripts (exp 18, exp 19)
-won't silently run binary death alongside A+B. **Next session: 1-seed
-pilot retrain on Colab to verify mechanism-validity criteria before
-committing to n=10.**
+**A+B 1-seed pilot PASSES mechanism-validity gate** ([report 045](reports/045_phase5_ab_pilot_seed17.md)):
+W=4 step 1800 d_eff = **35.23** (≥ 25 target, vs baseline 5.36). The
+substrate retains 1064 atoms (vs baseline's 12 post-mass-death); A+B's
+`garbage_collect()` guard correctly suppressed binary death; A's
+`r_ema_mean` rose 0.017 → 0.090 monotonically; `mean_strength` decayed
+5× (0.221 → 0.043); 1035 atoms are at `dead_ready` (would have been
+binary-culled). Death-as-asymptotic-limit is correctly expressed in
+the consolidation dynamics.
+
+**Implementation gap surfaced by the pilot:** the design's
+[step 3 (E_i-weighted retrieval contribution)](notes/notes/2026-05-20-diagnostic-actuator-death-dynamic-form.md)
+is NOT yet implemented. Atoms with near-zero `effective_strength`
+still contribute equally in retrieval softmax; the "asymptotic death"
+property is computed in consolidation but unexpressed at retrieval.
+Three options for next session per [report 045 §"Updated next-step
+recommendation"](reports/045_phase5_ab_pilot_seed17.md):
+(1) implement step 3 + re-pilot (recommended); (2) ship n=10 as-is
+with the gap documented; (3) pause and redesign step 3 from scratch.
 
 The 1-seed pilot script (ready to run):
 
