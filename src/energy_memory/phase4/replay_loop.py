@@ -309,14 +309,7 @@ class UnifiedReplayMemory(Generic[T]):
         max_iter: int = 12,
         tol: float = 1e-8,
     ) -> Tuple[TorchRetrievalResult[T], TrajectoryTrace]:
-        # Saighi A_k: bias retrieval scores away from already-used attractors.
-        # When inhibition_gain=0, A is all-zero and bias has no effect.
-        bias = None
-        if (
-            self.consolidation.config.inhibition_gain > 0.0
-            and self.consolidation.n_patterns == self.memory.stored_count
-        ):
-            bias = self.consolidation.inhibition_bias()
+        bias = self._score_bias()
         result, trace = self.memory.retrieve_with_trace(
             query=query, beta=beta, max_iter=max_iter, tol=tol,
             score_bias=bias,
@@ -377,23 +370,17 @@ class UnifiedReplayMemory(Generic[T]):
         candidates = 0
         decayed = 0
 
-        # Replay re-settling also respects Saighi A_k inhibition: the
-        # re-settled trajectory is pushed off attractors that have already
-        # accumulated dominance, biasing the discovery channel toward
-        # under-used regions of the landscape. Re-fetched per iteration
-        # because candidate_handler may have grown both memory and
-        # consolidation between iterations.
-        inhibition_active = self.consolidation.config.inhibition_gain > 0.0
+        # Replay re-settling respects the same bias stack as the main
+        # retrieval path: Saighi A_k inhibition (basin-narrowing toward
+        # under-used attractors) plus the step-3 E_i-weighted retrieval
+        # contribution (asymptotic-death visible at retrieval). Bias is
+        # re-fetched per iteration because candidate_handler may have
+        # grown both memory and consolidation between iterations.
 
         for local_idx in sampled_local:
             trace = self.store.get(local_idx)
 
-            replay_bias = None
-            if (
-                inhibition_active
-                and self.consolidation.n_patterns == self.memory.stored_count
-            ):
-                replay_bias = self.consolidation.inhibition_bias()
+            replay_bias = self._score_bias()
 
             new_result, new_trace = self.memory.retrieve_with_trace(
                 query=trace.query, beta=beta, max_iter=max_iter,
@@ -428,6 +415,39 @@ class UnifiedReplayMemory(Generic[T]):
             "decayed": decayed,
             "store_after": len(self.store),
         }
+
+    def _score_bias(self) -> Optional["torch.Tensor"]:
+        """Build the retrieval score_bias for both main and replay paths.
+
+        Sums two independent biases when their respective mechanisms are
+        configured on:
+
+        - **Saighi A_k inhibition** (``inhibition_gain > 0``): basin
+          narrowing toward under-used attractors. ``inhibition_bias()``
+          is the per-pattern A_k accumulator.
+        - **Step 3 E_i-weighted retrieval contribution**
+          (``coverage_lambda > 0``): atoms whose ``|E_i|`` decays toward
+          zero contribute infinitesimally to retrieval. The bias is
+          ``softplus((ε − |E_i|) / τ)`` per atom, equivalent to
+          ``-log(σ((|E_i| − ε) / τ))``.
+
+        Both are valid when ``consolidation.n_patterns ==
+        memory.stored_count`` (the legacy alignment guard). Returns
+        ``None`` when neither mechanism is active so the existing
+        retrieval path is bit-identical to baseline.
+        """
+        if self.consolidation.n_patterns != self.memory.stored_count:
+            return None
+        components: List["torch.Tensor"] = []
+        if self.consolidation.config.inhibition_gain > 0.0:
+            components.append(self.consolidation.inhibition_bias())
+        if self.consolidation.config.coverage_lambda > 0.0:
+            components.append(self.consolidation.retrieval_weight_bias())
+        if not components:
+            return None
+        if len(components) == 1:
+            return components[0]
+        return sum(components[1:], components[0])
 
     def _step_substrate_dynamics(self) -> None:
         """One slow-timescale substrate step: A's r_ema update + B's repulsion flow.

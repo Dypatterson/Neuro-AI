@@ -93,6 +93,23 @@ class ConsolidationConfig:
     # Both default off; values pre-committed for Phase 5 retrain.
     coverage_lambda: float = 0.0
     coverage_ema_rate: float = 0.01
+    # Step 3 of A+B: E_i-weighted retrieval contribution.
+    # Each atom's retrieval-softmax weight is multiplied by
+    # w_i = σ((E_i - retrieval_weight_epsilon) / retrieval_weight_tau),
+    # implemented as score_bias = softplus((ε - E_i) / τ) added to the
+    # log-domain score. Atoms whose E_i decays toward zero contribute
+    # infinitesimally to retrieval by construction (no membership flag,
+    # no threshold). Per the anti-homunculus precondition (design note
+    # §"Combining candidates"): ε and τ are FIXED substrate parameters,
+    # NOT adapted from observation. Active only when coverage_lambda > 0
+    # (the same gate as A's reinforcement modulation). Pre-committed for
+    # the next pilot: ε=0.05 (matches legacy death_threshold so the
+    # sigmoid centers on the same scale), τ=0.02 (gives a 2.5σ
+    # transition width around ε — smooth enough to remain continuous,
+    # sharp enough to separate dead-strength atoms from alive ones by
+    # ~12× in softmax weight at the population's median).
+    retrieval_weight_epsilon: float = 0.05
+    retrieval_weight_tau: float = 0.02
 
 
 class ConsolidationState:
@@ -252,6 +269,34 @@ class ConsolidationState:
         identically to the no-inhibition baseline.
         """
         return self.A
+
+    def retrieval_weight_bias(self) -> "torch.Tensor":
+        """Per-atom score bias for step 3: E_i-weighted retrieval contribution.
+
+        Returns ``softplus((ε − |E_i|) / τ)`` per atom, equivalent to
+        ``-log(σ((|E_i| − ε) / τ))``. Subtracted from ``beta · scores``
+        before softmax (the existing ``score_bias`` mechanism), this
+        produces:
+
+            weight_i ∝ σ((|E_i| − ε) / τ) · exp(β · score_i)
+
+        At ``|E_i| >> ε``: bias → 0, w_i → 1 (full contribution).
+        At ``|E_i| << ε``: bias → (ε − |E_i|) / τ, w_i → 0
+        (atoms with near-zero effective strength contribute
+        infinitesimally to retrieval — the design's asymptotic-death
+        property at the retrieval surface, not just in consolidation).
+
+        Per the design note's anti-homunculus precondition (§"Combining
+        candidates"): ``ε`` and ``τ`` are read from ``self.config`` and
+        are fixed-at-construction substrate parameters; they are NOT
+        adapted from observation. This method is a measurement — the
+        bias values depend only on the substrate's current state, not
+        on any controller decision.
+        """
+        e = self.effective_strength().abs()
+        eps = self.config.retrieval_weight_epsilon
+        tau = self.config.retrieval_weight_tau
+        return torch.nn.functional.softplus((eps - e) / tau)
 
     def step_dynamics(
         self,

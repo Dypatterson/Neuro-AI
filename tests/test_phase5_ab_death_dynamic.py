@@ -337,6 +337,156 @@ class TestUnifiedReplayMemoryWiring(unittest.TestCase):
         self.assertEqual(removed, [0])
         self.assertEqual(memory.stored_count, 7)
 
+    def test_step3_bias_is_zero_for_high_strength_atoms(self):
+        """At E_i >> ε, the sigmoid saturates near 1 → bias ≈ 0."""
+        from energy_memory.phase4.consolidation import (
+            ConsolidationConfig, ConsolidationState,
+        )
+        cfg = ConsolidationConfig(
+            m=4, alpha=0.25, coverage_lambda=1.0,
+            retrieval_weight_epsilon=0.05, retrieval_weight_tau=0.02,
+        )
+        state = ConsolidationState(cfg, device="cpu")
+        state.add_pattern(novelty_strength=1.0)  # strong atom
+        bias = state.retrieval_weight_bias()
+        # |E_i| ≈ 1.0 >> ε=0.05; (ε - |E|)/τ = -47.5 → softplus ≈ 0
+        self.assertLess(float(bias[0]), 1e-10)
+
+    def test_step3_bias_grows_for_low_strength_atoms(self):
+        """At E_i << ε, bias = (ε − E)/τ (linear regime of softplus)."""
+        from energy_memory.phase4.consolidation import (
+            ConsolidationConfig, ConsolidationState,
+        )
+        cfg = ConsolidationConfig(
+            m=4, alpha=0.25, coverage_lambda=1.0,
+            retrieval_weight_epsilon=0.05, retrieval_weight_tau=0.02,
+        )
+        state = ConsolidationState(cfg, device="cpu")
+        state.add_pattern(novelty_strength=0.0)  # dead atom (E=0)
+        bias = state.retrieval_weight_bias()
+        # (ε - 0)/τ = 2.5 → softplus(2.5) ≈ 2.578
+        self.assertAlmostEqual(float(bias[0]), 2.578, places=2)
+
+    def test_step3_bias_at_epsilon_equals_log2(self):
+        """At E_i = ε exactly, sigmoid = 0.5 → bias = log(2) ≈ 0.693."""
+        from energy_memory.phase4.consolidation import (
+            ConsolidationConfig, ConsolidationState,
+        )
+        cfg = ConsolidationConfig(
+            m=4, alpha=0.25, coverage_lambda=1.0,
+            retrieval_weight_epsilon=0.05, retrieval_weight_tau=0.02,
+        )
+        state = ConsolidationState(cfg, device="cpu")
+        # u-chain weights: 2^(1-k) starting at 1.0 for k=1. With m=4:
+        # effective_strength = u_1·1 + u_2·0.5 + u_3·0.25 + u_4·0.125
+        # Setting u_1 = 0.05 (and others 0) gives effective_strength = 0.05.
+        state.add_pattern(novelty_strength=0.0)
+        state.u[0, 0] = 0.05
+        bias = state.retrieval_weight_bias()
+        self.assertAlmostEqual(float(bias[0]), math.log(2.0), places=4)
+
+    def test_step3_softmax_weight_ratio(self):
+        """Dead atom vs alive atom: softmax weight ratio after applying
+        step-3 bias should be ≈ 12× (the design's target separation for
+        ε=0.05, τ=0.02 at population median).
+        """
+        from energy_memory.phase4.consolidation import (
+            ConsolidationConfig, ConsolidationState,
+        )
+        cfg = ConsolidationConfig(
+            m=4, alpha=0.25, coverage_lambda=1.0,
+            retrieval_weight_epsilon=0.05, retrieval_weight_tau=0.02,
+        )
+        state = ConsolidationState(cfg, device="cpu")
+        state.add_pattern(novelty_strength=0.0)
+        state.add_pattern(novelty_strength=0.0)
+        state.u[0, 0] = 0.0      # dead
+        state.u[1, 0] = 0.1      # alive (2× epsilon)
+        bias = state.retrieval_weight_bias()
+        # Equal-similarity baseline: pretend both atoms have score = 0.
+        # Effective log-prob differs by bias[1] − bias[0]; softmax ratio is
+        # exp(bias[0] − bias[1]) (the dead atom is HEAVILY downweighted).
+        log_ratio_alive_to_dead = float(bias[0] - bias[1])
+        ratio = math.exp(log_ratio_alive_to_dead)
+        # σ(2.5) / σ(-2.5) = 0.924 / 0.076 ≈ 12.2 → log ratio ≈ 2.5
+        self.assertGreater(ratio, 8.0)
+        self.assertLess(ratio, 20.0)
+
+    def test_step3_replay_loop_passes_bias_when_coverage_on(self):
+        """End-to-end: with coverage_lambda > 0, retrieve_and_observe()
+        consults retrieval_weight_bias and a low-strength atom is
+        suppressed in the retrieval result.
+        """
+        from energy_memory.phase4.consolidation import (
+            ConsolidationConfig, ConsolidationState,
+        )
+        from energy_memory.phase4.replay_loop import (
+            ReplayConfig, UnifiedReplayMemory,
+        )
+        from energy_memory.phase4.trajectory import TracedHopfieldMemory
+        from energy_memory.substrate.torch_fhrr import TorchFHRR
+
+        substrate = TorchFHRR(dim=512, seed=17, device="cpu")
+        memory = TracedHopfieldMemory(substrate)
+        # Two orthogonal patterns
+        gen = torch.Generator(device="cpu").manual_seed(3)
+        for _ in range(2):
+            phase = torch.rand((512,), generator=gen) * (2.0 * math.pi)
+            memory.store(torch.polar(torch.ones((512,)), phase))
+        cfg = ConsolidationConfig(
+            m=4, alpha=0.25, coverage_lambda=1.0,
+            retrieval_weight_epsilon=0.05, retrieval_weight_tau=0.02,
+        )
+        cons = ConsolidationState(cfg, device="cpu")
+        replay = UnifiedReplayMemory(
+            substrate=substrate, memory=memory, consolidation=cons,
+            config=ReplayConfig(),
+        )
+        replay.attach_initial_patterns()
+        # Make atom 0 alive (E=0.5) and atom 1 dead (E=0)
+        cons.u[0, 0] = 0.5
+        cons.u[1, 0] = 0.0
+
+        # Query equally similar to both (the mean) → without step-3 the
+        # retrieval would split; with step-3 it should heavily prefer
+        # atom 0.
+        avg = substrate.normalize(
+            memory._patterns[0] + memory._patterns[1]
+        )
+        result, _ = replay.retrieve_and_observe(avg, beta=10.0)
+        # weights[0] should dominate weights[1] by an order of magnitude
+        # after step-3 biasing.
+        self.assertGreater(result.weights[0], 5.0 * result.weights[1])
+
+    def test_step3_off_when_coverage_lambda_zero(self):
+        """coverage_lambda=0 → no step-3 bias even if E_i are small."""
+        from energy_memory.phase4.consolidation import (
+            ConsolidationConfig, ConsolidationState,
+        )
+        from energy_memory.phase4.replay_loop import (
+            ReplayConfig, UnifiedReplayMemory,
+        )
+        from energy_memory.phase4.trajectory import TracedHopfieldMemory
+        from energy_memory.substrate.torch_fhrr import TorchFHRR
+
+        substrate = TorchFHRR(dim=512, seed=17, device="cpu")
+        memory = TracedHopfieldMemory(substrate)
+        gen = torch.Generator(device="cpu").manual_seed(3)
+        for _ in range(2):
+            phase = torch.rand((512,), generator=gen) * (2.0 * math.pi)
+            memory.store(torch.polar(torch.ones((512,)), phase))
+        cfg = ConsolidationConfig(m=4, alpha=0.25, coverage_lambda=0.0)
+        cons = ConsolidationState(cfg, device="cpu")
+        replay = UnifiedReplayMemory(
+            substrate=substrate, memory=memory, consolidation=cons,
+            config=ReplayConfig(),
+        )
+        replay.attach_initial_patterns()
+        cons.u[0, 0] = 0.0  # dead atom — would be suppressed if step 3 fired
+
+        # _score_bias should return None
+        self.assertIsNone(replay._score_bias())
+
     def test_a_active_updates_r_ema_through_replay_cycle(self):
         substrate, memory, replay = self._build(
             alpha_anti=0.0, coverage_lambda=1.0, repulsion_step=0.0,
