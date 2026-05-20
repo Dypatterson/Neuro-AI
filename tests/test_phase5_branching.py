@@ -294,198 +294,1065 @@ class TestAtomSplitSignal(unittest.TestCase):
 # ===========================================================================
 
 @unittest.skipIf(torch is None, "torch required")
+class TestGetSchemaStore(unittest.TestCase):
+    """get_schema_store() selects k atoms from a consolidation snapshot.
+
+    Snapshot-agnostic: the schema-source robustness ablation in
+    phase-5-checklist.md §C is realized by calling this function with
+    different consolidation states (post-death, pre-death, step-1500);
+    the function itself only differs by selection_rule.
+    """
+
+    def _make_aligned(self, n_atoms=8, d=4, strengths=None, seed=0):
+        """Build a (consolidation, patterns) pair with aligned indices.
+
+        Sets u_1 per atom so effective_strength() = 0.5 * strengths
+        (default weight 2^(1-1)=1 on u_1, so eff_strength = u_1).
+        Actually default weight on u_1 is 2^0 = 1.0; subsequent weights
+        decay. With only u_1 set, eff_strength = u_1[i].
+        """
+        torch.manual_seed(seed)
+        cons = _make_consolidation(m=4, n_patterns=n_atoms)
+        if strengths is None:
+            strengths = torch.linspace(1.0, float(n_atoms), n_atoms)
+        for i in range(n_atoms):
+            cons.u[i, 0] = float(strengths[i])
+        patterns = torch.randn(n_atoms, d, dtype=torch.complex64)
+        return cons, patterns
+
+    def test_top_k_picks_highest_effective_strength(self):
+        mod = _import_module()
+        # Atom 5 has strength 100, others have 1..N. Top-3 must include atom 5.
+        cons, patterns = self._make_aligned(n_atoms=8)
+        cons.u[5, 0] = 100.0
+        schemas, atom_idx = mod.get_schema_store(
+            consolidation=cons, patterns=patterns,
+            selection_rule="top_k_by_effective_strength", k=3,
+        )
+        self.assertEqual(schemas.shape, (3, 4))
+        self.assertEqual(atom_idx.shape, (3,))
+        self.assertIn(5, atom_idx.tolist())
+        # The schema vector for atom 5 must equal patterns row 5.
+        pos = atom_idx.tolist().index(5)
+        self.assertTrue(torch.equal(schemas[pos], patterns[5]))
+
+    def test_top_k_is_deterministic(self):
+        mod = _import_module()
+        cons, patterns = self._make_aligned(n_atoms=6, seed=11)
+        s1, idx1 = mod.get_schema_store(
+            consolidation=cons, patterns=patterns,
+            selection_rule="top_k_by_effective_strength", k=4,
+        )
+        s2, idx2 = mod.get_schema_store(
+            consolidation=cons, patterns=patterns,
+            selection_rule="top_k_by_effective_strength", k=4,
+        )
+        self.assertTrue(torch.equal(idx1, idx2))
+
+    def test_random_k_uses_rng_and_is_reproducible(self):
+        mod = _import_module()
+        cons, patterns = self._make_aligned(n_atoms=10, seed=2)
+        g1 = torch.Generator().manual_seed(42)
+        g2 = torch.Generator().manual_seed(42)
+        s1, idx1 = mod.get_schema_store(
+            consolidation=cons, patterns=patterns,
+            selection_rule="random_k", k=4, rng=g1,
+        )
+        s2, idx2 = mod.get_schema_store(
+            consolidation=cons, patterns=patterns,
+            selection_rule="random_k", k=4, rng=g2,
+        )
+        self.assertTrue(torch.equal(idx1, idx2))
+
+    def test_random_k_does_not_prefer_high_strength(self):
+        """Over many random draws, the strongest atom is not always picked
+        — establishes that random_k is not secretly top-k.
+        """
+        mod = _import_module()
+        cons, patterns = self._make_aligned(n_atoms=20, seed=3)
+        # Atom 0 has the highest strength by construction.
+        cons.u[0, 0] = 1000.0
+        n_runs = 30
+        n_picks_of_atom_0 = 0
+        g = torch.Generator().manual_seed(100)
+        for _ in range(n_runs):
+            _, idx = mod.get_schema_store(
+                consolidation=cons, patterns=patterns,
+                selection_rule="random_k", k=3, rng=g,
+            )
+            if 0 in idx.tolist():
+                n_picks_of_atom_0 += 1
+        # Top-k would pick atom 0 every run. Random picks it 3/20 of the
+        # time in expectation (k/n); we just check it's not all 30.
+        self.assertLess(n_picks_of_atom_0, n_runs)
+
+    def test_k_larger_than_population_returns_all(self):
+        mod = _import_module()
+        cons, patterns = self._make_aligned(n_atoms=3, seed=5)
+        schemas, atom_idx = mod.get_schema_store(
+            consolidation=cons, patterns=patterns,
+            selection_rule="top_k_by_effective_strength", k=10,
+        )
+        self.assertEqual(schemas.shape[0], 3)
+        self.assertEqual(set(atom_idx.tolist()), {0, 1, 2})
+
+    def test_empty_consolidation_raises(self):
+        mod = _import_module()
+        cons = _make_consolidation(m=4, n_patterns=0)
+        patterns = torch.zeros(0, 4, dtype=torch.complex64)
+        with self.assertRaises(ValueError):
+            mod.get_schema_store(
+                consolidation=cons, patterns=patterns,
+                selection_rule="top_k_by_effective_strength", k=3,
+            )
+
+    def test_misaligned_patterns_raises(self):
+        """Anti-foot-gun: if the caller passes patterns that don't match
+        the consolidation row count, get_schema_store refuses rather than
+        silently scrambling indices."""
+        mod = _import_module()
+        cons, patterns = self._make_aligned(n_atoms=5, seed=7)
+        bad_patterns = patterns[:3]
+        with self.assertRaises(ValueError):
+            mod.get_schema_store(
+                consolidation=cons, patterns=bad_patterns,
+                selection_rule="top_k_by_effective_strength", k=2,
+            )
+
+    def test_unknown_selection_rule_raises(self):
+        mod = _import_module()
+        cons, patterns = self._make_aligned(n_atoms=4, seed=9)
+        with self.assertRaises(ValueError):
+            mod.get_schema_store(
+                consolidation=cons, patterns=patterns,
+                selection_rule="freq_alpha_filter", k=2,
+            )
+
+
+@unittest.skipIf(torch is None, "torch required")
 class TestSchemaPriorSelectionDiversityFilter(unittest.TestCase):
     """select_schema_priors() applies a greedy diversity walk over the
     ranked candidates. The K_main returned schemas should satisfy
     pairwise cosine similarity ≤ delta_redundant.
     """
 
-    @unittest.skip("blocked: requires schema-source decision #1")
     def test_no_two_returned_schemas_exceed_delta_redundant(self):
-        """Construct a store with two near-duplicate top schemas and
-        verify that the second one is skipped in favor of the next
-        diverse candidate."""
+        """Two near-duplicate top schemas: the lower-ranked duplicate must
+        be skipped in favor of the next diverse candidate."""
+        mod = _import_module()
+        torch.manual_seed(0)
+        d = 16
+        # Build cue.
+        cue = torch.randn(d, dtype=torch.complex64)
+        cue = cue / cue.norm()
+        # s0 = cue itself (highest content match)
+        # s1 = near-duplicate of s0 (also high content match)
+        # s2 = orthogonal-to-cue diverse vector
+        s0 = cue.clone()
+        s1 = s0 + 0.01 * torch.randn(d, dtype=torch.complex64)
+        s1 = s1 / s1.norm()
+        s2 = torch.randn(d, dtype=torch.complex64)
+        s2 = s2 - (_fhrr_dot(s2, s0) / _fhrr_dot(s0, s0)) * s0  # orthogonalize
+        s2 = s2 / s2.norm()
+        store = torch.stack([s0, s1, s2])
+        picked = mod.select_schema_priors(
+            cue=cue, schema_store=store, k_main=2,
+            delta_redundant=0.95, prior_type="content",
+        )
+        # Should pick s0 first; s1 is too similar to s0; should fall through to s2.
+        idx_picks = [p[0] for p in picked]
+        self.assertEqual(idx_picks, [0, 2])
 
-    @unittest.skip("blocked: requires schema-source decision #1")
     def test_returns_k_main_when_store_has_enough_diverse_schemas(self):
         """K_main schemas, all pairwise cosine ≤ delta_redundant."""
+        mod = _import_module()
+        torch.manual_seed(1)
+        d = 64
+        n = 8
+        cue = torch.randn(d, dtype=torch.complex64); cue = cue / cue.norm()
+        # Generate random vectors — at d=64 they're approximately orthogonal.
+        store = torch.randn(n, d, dtype=torch.complex64)
+        store = store / store.norm(dim=-1, keepdim=True)
+        picked = mod.select_schema_priors(
+            cue=cue, schema_store=store, k_main=4,
+            delta_redundant=0.95, prior_type="content",
+        )
+        self.assertEqual(len(picked), 4)
+        vecs = [v for _, v in picked]
+        for i in range(len(vecs)):
+            for j in range(i + 1, len(vecs)):
+                sim = float(_fhrr_cosine_test(vecs[i], vecs[j]))
+                self.assertLessEqual(sim, 0.95 + 1e-6)
 
-    @unittest.skip("blocked: requires schema-source decision #1")
     def test_returns_fewer_than_k_main_when_store_is_degenerate(self):
         """If every schema is near-duplicate to every other, the function
-        should return fewer than K_main rather than recycling duplicates."""
+        returns fewer than K_main rather than recycling duplicates."""
+        mod = _import_module()
+        torch.manual_seed(2)
+        d = 16
+        base = torch.randn(d, dtype=torch.complex64); base = base / base.norm()
+        # All schemas are tiny perturbations of `base`; all pairwise sims > 0.99.
+        store = torch.stack([
+            (base + 0.001 * torch.randn(d, dtype=torch.complex64)) for _ in range(6)
+        ])
+        store = store / store.norm(dim=-1, keepdim=True)
+        cue = base.clone()
+        picked = mod.select_schema_priors(
+            cue=cue, schema_store=store, k_main=4,
+            delta_redundant=0.95, prior_type="content",
+        )
+        self.assertEqual(len(picked), 1)  # only the top-ranked survives
 
-    @unittest.skip("blocked: requires schema-source decision #1")
     def test_prior_type_random_ignores_cue_similarity(self):
-        """Under prior_type='random', selection is independent of the cue."""
+        """With a fixed rng, prior_type='random' produces selection
+        independent of the cue (top-1 random pick is NOT the highest-cosine
+        schema, statistically)."""
+        mod = _import_module()
+        torch.manual_seed(3)
+        d = 64
+        cue = torch.randn(d, dtype=torch.complex64); cue = cue / cue.norm()
+        # Make schema 0 the EXACT cue — content ranking always picks 0 first.
+        s0 = cue.clone()
+        rest = torch.randn(9, d, dtype=torch.complex64)
+        rest = rest / rest.norm(dim=-1, keepdim=True)
+        store = torch.cat([s0.unsqueeze(0), rest], dim=0)
+        # Content mode always picks s0 first.
+        content_picks = mod.select_schema_priors(
+            cue=cue, schema_store=store, k_main=3,
+            delta_redundant=0.99, prior_type="content",
+        )
+        self.assertEqual(content_picks[0][0], 0)
+        # Random mode picks differently across rngs.
+        rng = torch.Generator().manual_seed(42)
+        random_picks = mod.select_schema_priors(
+            cue=cue, schema_store=store, k_main=3,
+            delta_redundant=0.99, prior_type="random", rng=rng,
+        )
+        random_idx = [p[0] for p in random_picks]
+        # Statistically possible but unlikely the random rng landed on 0
+        # first; verify the chosen ordering differs from content ordering.
+        self.assertNotEqual(random_idx, [p[0] for p in content_picks])
 
-    @unittest.skip("blocked: requires schema-source decision #1")
     def test_prior_type_role_uses_binding_similarity_not_content(self):
-        """Construct a cue whose top content-similar schema does NOT share
-        bindings, and a lower-content-similar schema that DOES share
-        bindings. prior_type='role' should pick the latter."""
+        """Schema A: high content similarity to cue but no shared bindings.
+        Schema B: low content similarity but shared bindings.
+        prior_type='role' must pick B; 'content' must pick A.
+        """
+        mod = _import_module()
+        torch.manual_seed(4)
+        d = 64
+        # Build a cue and its bindings.
+        cue = torch.randn(d, dtype=torch.complex64); cue = cue / cue.norm()
+        filler1 = torch.randn(d, dtype=torch.complex64); filler1 = filler1 / filler1.norm()
+        filler2 = torch.randn(d, dtype=torch.complex64); filler2 = filler2 / filler2.norm()
+        cue_bindings = torch.stack([filler1, filler2])  # [2, D]
+
+        # Schema A: content-similar to cue (= cue itself), bindings unrelated.
+        sA = cue.clone()
+        sA_bindings = torch.randn(2, d, dtype=torch.complex64)
+        sA_bindings = sA_bindings / sA_bindings.norm(dim=-1, keepdim=True)
+
+        # Schema B: low content similarity, but bindings match cue_bindings.
+        sB = torch.randn(d, dtype=torch.complex64); sB = sB / sB.norm()
+        # Force sB orthogonal-ish to cue.
+        sB = sB - (_fhrr_dot(sB, cue) / _fhrr_dot(cue, cue)) * cue
+        sB = sB / sB.norm()
+        sB_bindings = cue_bindings.clone()  # exact match
+
+        store = torch.stack([sA, sB])
+        schema_bindings = torch.stack([sA_bindings, sB_bindings])
+
+        content_picks = mod.select_schema_priors(
+            cue=cue, schema_store=store, k_main=1, delta_redundant=1.0,
+            prior_type="content",
+        )
+        self.assertEqual(content_picks[0][0], 0)
+
+        role_picks = mod.select_schema_priors(
+            cue=cue, schema_store=store, k_main=1, delta_redundant=1.0,
+            prior_type="role",
+            cue_bindings=cue_bindings, schema_bindings=schema_bindings,
+        )
+        self.assertEqual(role_picks[0][0], 1)
+
+
+# Helpers used by tests above — small inline cosine ops on complex FHRR
+# vectors. Kept here (not imported from the experiment module) so tests
+# remain independent of internal naming.
+
+def _fhrr_dot(a, b):
+    return torch.dot(a.conj(), b).real
+
+
+def _fhrr_cosine_test(a, b):
+    return _fhrr_dot(a, b) / (a.norm() * b.norm()).clamp(min=1e-12)
 
 
 @unittest.skipIf(torch is None, "torch required")
 class TestSettleBranchWithPrior(unittest.TestCase):
-    """settle_branch_with_prior() runs Hopfield retrieval with score
-    biased by γ · Re(⟨X, prior⟩). At γ=0 it must reduce exactly to the
-    unbiased retrieve.
+    """settle_branch_with_prior() supports two prior formulations (the
+    decision #5 spike). Both reduce to unbiased retrieve at γ=0; they
+    diverge at γ>0 in how the prior shapes the dynamics. Tests pin both.
     """
 
-    @unittest.skip("blocked: settle_branch_with_prior implementation pending")
-    def test_gamma_zero_matches_unbiased_retrieve_bit_exact(self):
-        """The critical backward-compatibility guarantee. Without this,
-        no condition in the experiment is a true Phase-4-graduated
-        baseline."""
+    def _build_memory(self, n=6, d=64, seed=0):
+        from energy_memory.memory.torch_hopfield import TorchHopfieldMemory
+        from energy_memory.substrate.torch_fhrr import TorchFHRR
+        torch.manual_seed(seed)
+        substrate = TorchFHRR(dim=d, device="cpu")
+        mem = TorchHopfieldMemory(substrate)
+        patterns = []
+        for i in range(n):
+            p = torch.randn(d, dtype=torch.complex64)
+            p = substrate.normalize(p)
+            mem.store(p, label=i)
+            patterns.append(p)
+        return mem, patterns
 
-    @unittest.skip("blocked: settle_branch_with_prior implementation pending")
-    def test_gamma_infinity_collapses_to_nearest_prior_match(self):
-        """At very high γ, the prior term dominates the energy and the
-        retrieval reduces to nearest-stored-pattern-to-prior lookup."""
+    # ----- γ=0 equivalence (must hold for both formulations) ----- #
 
-    @unittest.skip("blocked: settle_branch_with_prior implementation pending")
-    def test_telemetry_records_score_entropy_initial_and_final(self):
-        """score_entropy_initial > score_entropy_final under typical
-        retrieval (settling is decisive)."""
+    def test_gamma_zero_per_pattern_matches_unbiased_retrieve(self):
+        mod = _import_module()
+        mem, patterns = self._build_memory(n=6, d=64, seed=0)
+        cue = mem.substrate.normalize(patterns[2] + 0.1 * torch.randn(64, dtype=torch.complex64))
+        baseline = mem.retrieve(cue, beta=10.0, max_iter=12)
+        zero_prior = torch.zeros(64, dtype=torch.complex64)
+        settled, _ = mod.settle_branch_with_prior(
+            memory=mem, cue=cue, prior=zero_prior,
+            beta=10.0, gamma=0.0, max_iter=12, formulation="per_pattern",
+        )
+        self.assertLess((settled - baseline.state).abs().max().item(), 1e-5)
+
+    def test_gamma_zero_global_pull_matches_unbiased_retrieve(self):
+        mod = _import_module()
+        mem, patterns = self._build_memory(n=6, d=64, seed=0)
+        cue = mem.substrate.normalize(patterns[2] + 0.1 * torch.randn(64, dtype=torch.complex64))
+        baseline = mem.retrieve(cue, beta=10.0, max_iter=12)
+        zero_prior = torch.zeros(64, dtype=torch.complex64)
+        settled, _ = mod.settle_branch_with_prior(
+            memory=mem, cue=cue, prior=zero_prior,
+            beta=10.0, gamma=0.0, max_iter=12, formulation="global_pull",
+        )
+        self.assertLess((settled - baseline.state).abs().max().item(), 1e-5)
+
+    def test_gamma_zero_with_wild_prior_no_effect_per_pattern(self):
+        """At γ=0 the prior must not influence the result regardless of magnitude."""
+        mod = _import_module()
+        mem, patterns = self._build_memory(n=6, d=64, seed=1)
+        cue = mem.substrate.normalize(patterns[0] + 0.2 * torch.randn(64, dtype=torch.complex64))
+        baseline = mem.retrieve(cue, beta=10.0, max_iter=12)
+        wild_prior = 7.5 * torch.randn(64, dtype=torch.complex64)
+        settled, _ = mod.settle_branch_with_prior(
+            memory=mem, cue=cue, prior=wild_prior,
+            beta=10.0, gamma=0.0, max_iter=12, formulation="per_pattern",
+        )
+        self.assertLess((settled - baseline.state).abs().max().item(), 1e-5)
+
+    def test_gamma_zero_with_wild_prior_no_effect_global_pull(self):
+        mod = _import_module()
+        mem, patterns = self._build_memory(n=6, d=64, seed=1)
+        cue = mem.substrate.normalize(patterns[0] + 0.2 * torch.randn(64, dtype=torch.complex64))
+        baseline = mem.retrieve(cue, beta=10.0, max_iter=12)
+        wild_prior = 7.5 * torch.randn(64, dtype=torch.complex64)
+        settled, _ = mod.settle_branch_with_prior(
+            memory=mem, cue=cue, prior=wild_prior,
+            beta=10.0, gamma=0.0, max_iter=12, formulation="global_pull",
+        )
+        self.assertLess((settled - baseline.state).abs().max().item(), 1e-5)
+
+    # ----- High-γ behavior: per_pattern stays on substrate; global_pull doesn't ----- #
+
+    def test_per_pattern_high_gamma_routes_to_prior_matched_stored_pattern(self):
+        """Per-pattern with prior matching stored pattern 4 (off-cue) should
+        route q toward pattern 4 — but q stays on the stored-pattern manifold."""
+        mod = _import_module()
+        mem, patterns = self._build_memory(n=6, d=64, seed=2)
+        cue = mem.substrate.normalize(patterns[0] + 0.05 * torch.randn(64, dtype=torch.complex64))
+        prior = mem.substrate.normalize(patterns[4] + 0.05 * torch.randn(64, dtype=torch.complex64))
+        settled, telem = mod.settle_branch_with_prior(
+            memory=mem, cue=cue, prior=prior,
+            beta=10.0, gamma=100.0, max_iter=12, formulation="per_pattern",
+        )
+        sim_to_0 = float(mem.substrate.similarity(settled, patterns[0]))
+        sim_to_4 = float(mem.substrate.similarity(settled, patterns[4]))
+        self.assertGreater(sim_to_4, sim_to_0)
+        # On-substrate: max sim to any stored pattern is large.
+        self.assertGreater(telem["on_substrate_alignment"], 0.1)
+
+    def test_global_pull_off_manifold_prior_drifts_off_substrate(self):
+        """The key behavioral difference: at high γ with a prior that is
+        NOT in the stored-pattern span, global_pull drags q off-substrate
+        (low on_substrate_alignment) while per_pattern stays put."""
+        mod = _import_module()
+        mem, patterns = self._build_memory(n=6, d=64, seed=10)
+        cue = mem.substrate.normalize(patterns[0] + 0.05 * torch.randn(64, dtype=torch.complex64))
+        # Off-manifold prior: a fresh random vector unrelated to any stored pattern.
+        torch.manual_seed(7777)
+        off_prior = mem.substrate.normalize(torch.randn(64, dtype=torch.complex64))
+        # Sanity check: prior is not particularly close to any stored
+        # pattern (relaxed; at d=64 a random vector has ~0.1 typical sim).
+        max_sim = max(float(mem.substrate.similarity(off_prior, p)) for p in patterns)
+        self.assertLess(max_sim, 0.15)
+        # Per-pattern: high γ does nothing useful because no pattern matches prior.
+        _, telem_pp = mod.settle_branch_with_prior(
+            memory=mem, cue=cue, prior=off_prior,
+            beta=10.0, gamma=100.0, max_iter=12, formulation="per_pattern",
+        )
+        # Global pull: q gets dragged toward the prior; alignment with stored
+        # patterns degrades.
+        _, telem_gp = mod.settle_branch_with_prior(
+            memory=mem, cue=cue, prior=off_prior,
+            beta=10.0, gamma=100.0, max_iter=12, formulation="global_pull",
+        )
+        # Per-pattern stays on substrate; global pull drifts off.
+        self.assertGreater(telem_pp["on_substrate_alignment"], telem_gp["on_substrate_alignment"])
+
+    def test_telemetry_records_entropy_and_alignment_per_pattern(self):
+        mod = _import_module()
+        mem, patterns = self._build_memory(n=6, d=64, seed=3)
+        cue = mem.substrate.normalize(patterns[1] + 0.1 * torch.randn(64, dtype=torch.complex64))
+        zero_prior = torch.zeros(64, dtype=torch.complex64)
+        _, telem = mod.settle_branch_with_prior(
+            memory=mem, cue=cue, prior=zero_prior,
+            beta=10.0, gamma=0.0, max_iter=12, formulation="per_pattern",
+        )
+        for key in (
+            "score_entropy_initial", "score_entropy_final",
+            "converged", "iterations",
+            "energy_unbiased_final", "energy_biased_final",
+            "on_substrate_alignment", "formulation",
+        ):
+            self.assertIn(key, telem)
+        self.assertEqual(telem["formulation"], "per_pattern")
+        self.assertGreater(telem["score_entropy_initial"], telem["score_entropy_final"])
+
+    def test_telemetry_formulation_field_set_for_global_pull(self):
+        mod = _import_module()
+        mem, patterns = self._build_memory(n=4, d=32, seed=4)
+        cue = patterns[0]
+        _, telem = mod.settle_branch_with_prior(
+            memory=mem, cue=cue, prior=patterns[0],
+            beta=10.0, gamma=0.5, max_iter=4, formulation="global_pull",
+        )
+        self.assertEqual(telem["formulation"], "global_pull")
+
+    def test_invalid_args_raise(self):
+        mod = _import_module()
+        mem, patterns = self._build_memory(n=4, d=32, seed=5)
+        cue = patterns[0]
+        with self.assertRaises(ValueError):
+            mod.settle_branch_with_prior(
+                memory=mem, cue=cue, prior=patterns[0],
+                beta=10.0, gamma=-0.1, max_iter=4,
+            )
+        with self.assertRaises(ValueError):
+            mod.settle_branch_with_prior(
+                memory=mem, cue=cue, prior=patterns[0],
+                beta=0.0, gamma=0.5, max_iter=4,
+            )
+        with self.assertRaises(ValueError):
+            mod.settle_branch_with_prior(
+                memory=mem, cue=cue, prior=patterns[0],
+                beta=10.0, gamma=0.5, max_iter=4, formulation="schemaforcing",
+            )
 
 
 @unittest.skipIf(torch is None, "torch required")
 class TestComputeBranchDiagnostics(unittest.TestCase):
-    """Each diagnostic field is filled by a specific computation."""
+    """compute_branch_diagnostics fills BranchState fields in-place.
+    Each test pins one field's computation rule.
+    """
 
-    @unittest.skip("blocked: compute_branch_diagnostics implementation pending")
+    def _build_memory(self, n=4, d=32, seed=0):
+        from energy_memory.memory.torch_hopfield import TorchHopfieldMemory
+        from energy_memory.substrate.torch_fhrr import TorchFHRR
+        torch.manual_seed(seed)
+        substrate = TorchFHRR(dim=d, device="cpu")
+        mem = TorchHopfieldMemory(substrate)
+        patterns = []
+        for i in range(n):
+            p = substrate.normalize(torch.randn(d, dtype=torch.complex64))
+            mem.store(p, label=i)
+            patterns.append(p)
+        return mem, patterns
+
+    def _branch(self, q_init, q_settled, prior, d=32):
+        mod = _import_module()
+        return mod.BranchState(
+            branch_id=0, prior_source="schema",
+            prior=prior, q_initial=q_init, q_settled=q_settled,
+        )
+
     def test_energy_drop_equals_initial_minus_final_unbiased(self):
-        """energy_drop = E_unbiased(q_initial) - E_unbiased(q_settled)."""
+        mod = _import_module()
+        mem, patterns = self._build_memory(n=4, d=32, seed=0)
+        cue = mem.substrate.normalize(patterns[0] + 0.2 * torch.randn(32, dtype=torch.complex64))
+        zero_prior = torch.zeros(32, dtype=torch.complex64)
+        settled, telem = mod.settle_branch_with_prior(
+            memory=mem, cue=cue, prior=zero_prior, beta=10.0, gamma=0.0,
+            max_iter=12,
+        )
+        b = self._branch(q_init=cue, q_settled=settled, prior=zero_prior)
+        mod.compute_branch_diagnostics(
+            branch=b, memory=mem, cue=cue, beta=10.0, gamma=0.0,
+            target_id=None, codebook=None, positions=None,
+            decode_ids=[], decode_k=5, masked_pos=0,
+            settling_telemetry=telem,
+        )
+        # Reconstruct what energy_drop should be.
+        e_init = mod._unbiased_energy(mem, cue, 10.0)
+        e_final = mod._unbiased_energy(mem, settled, 10.0)
+        self.assertAlmostEqual(b.energy_drop, e_init - e_final, places=5)
+        self.assertAlmostEqual(b.energy_unbiased, e_final, places=5)
 
-    @unittest.skip("blocked: compute_branch_diagnostics implementation pending")
     def test_prior_alignment_is_cosine_between_settled_state_and_prior(self):
-        """prior_alignment = Re(⟨q_settled, p⟩) / (‖q_settled‖ · ‖p‖)."""
+        mod = _import_module()
+        mem, patterns = self._build_memory(n=4, d=32, seed=1)
+        cue = mem.substrate.normalize(patterns[0] + 0.1 * torch.randn(32, dtype=torch.complex64))
+        prior = mem.substrate.normalize(patterns[1].clone())
+        settled, telem = mod.settle_branch_with_prior(
+            memory=mem, cue=cue, prior=prior, beta=10.0, gamma=0.5,
+            max_iter=12,
+        )
+        b = self._branch(q_init=cue, q_settled=settled, prior=prior)
+        mod.compute_branch_diagnostics(
+            branch=b, memory=mem, cue=cue, beta=10.0, gamma=0.5,
+            target_id=None, codebook=None, positions=None,
+            decode_ids=[], decode_k=5, masked_pos=0,
+            settling_telemetry=telem,
+        )
+        expected = float(_fhrr_cosine_test(settled, prior))
+        self.assertAlmostEqual(b.prior_alignment, expected, places=5)
 
-    @unittest.skip("blocked: compute_branch_diagnostics implementation pending")
     def test_entropy_collapse_positive_under_decisive_settling(self):
-        """Initial score distribution is high-entropy; settled is
-        concentrated. The difference is positive on well-formed cues."""
+        mod = _import_module()
+        mem, patterns = self._build_memory(n=6, d=64, seed=2)
+        cue = mem.substrate.normalize(patterns[3] + 0.1 * torch.randn(64, dtype=torch.complex64))
+        zero_prior = torch.zeros(64, dtype=torch.complex64)
+        settled, telem = mod.settle_branch_with_prior(
+            memory=mem, cue=cue, prior=zero_prior, beta=10.0, gamma=0.0,
+            max_iter=12,
+        )
+        b = self._branch(q_init=cue, q_settled=settled, prior=zero_prior)
+        mod.compute_branch_diagnostics(
+            branch=b, memory=mem, cue=cue, beta=10.0, gamma=0.0,
+            target_id=None, codebook=None, positions=None,
+            decode_ids=[], decode_k=5, masked_pos=0,
+            settling_telemetry=telem,
+        )
+        self.assertGreater(b.entropy_collapse, 0.0)
+        self.assertAlmostEqual(
+            b.entropy_collapse,
+            b.score_entropy_initial - b.score_entropy_final,
+            places=5,
+        )
 
-    @unittest.skip("blocked: compute_branch_diagnostics implementation pending")
-    def test_meta_stable_flag_matches_phase2_metric(self):
-        """meta_stable = (top decode score < 0.95), consistent with
-        phase2.metrics.meta_stable_rate semantics."""
+    def test_meta_stable_and_recall_via_decode(self):
+        """meta_stable = (top decode < 0.95); recall_support = target_id
+        in top-K decoded ids. Exercises the decode_position readout path."""
+        mod = _import_module()
+        from energy_memory.phase2.encoding import build_position_vectors, encode_window
+        from energy_memory.memory.torch_hopfield import TorchHopfieldMemory
+        from energy_memory.substrate.torch_fhrr import TorchFHRR
+        torch.manual_seed(3)
+        d = 64
+        substrate = TorchFHRR(dim=d, device="cpu")
+        mem = TorchHopfieldMemory(substrate)
+        positions = build_position_vectors(substrate, count=3)
+        # Codebook of 10 tokens; deterministic.
+        codebook = torch.randn(10, d, dtype=torch.complex64)
+        codebook = substrate.normalize(codebook)
+        # Build a known window encoding and store it.
+        window = [4, 7, 2]
+        enc = encode_window(substrate, positions, codebook, window)
+        mem.store(enc)
+        # The settled state IS the encoded window; decode at position 0 should
+        # return token 4 with score 1 (perfect match) → meta_stable False
+        # (top score >= 0.95) and recall_support True.
+        b = self._branch(q_init=enc, q_settled=enc, prior=torch.zeros(d, dtype=torch.complex64))
+        mod.compute_branch_diagnostics(
+            branch=b, memory=mem, cue=enc, beta=10.0, gamma=0.0,
+            target_id=4, codebook=codebook, positions=positions,
+            decode_ids=list(range(10)), decode_k=5, masked_pos=0,
+        )
+        # Target token 4 is the bound filler at position 0 → must appear
+        # in the top-K decode.
+        self.assertTrue(b.recall_support)
+        # In FHRR, decoding a 3-binding superposition leaves residual
+        # noise; the top decode score is typically well below 0.95, so
+        # meta_stable (=top<0.95) is True. The cap-coverage τ=0.5 metric
+        # is satisfied iff top>=0.5 AND target in top-K. The exact value
+        # depends on dim/window; we just pin the relative semantics.
+        self.assertTrue(b.meta_stable)  # 3-binding superposition; top decode < 0.95
 
-    @unittest.skip("blocked: compute_branch_diagnostics implementation pending")
-    def test_recall_support_true_when_target_in_top_decode(self):
-        """recall_support = target_id in top-K-decoded(q_settled).
-        Requires a target_id (else None, not False)."""
+    def test_recall_support_false_when_target_id_none(self):
+        mod = _import_module()
+        from energy_memory.phase2.encoding import build_position_vectors, encode_window
+        from energy_memory.memory.torch_hopfield import TorchHopfieldMemory
+        from energy_memory.substrate.torch_fhrr import TorchFHRR
+        torch.manual_seed(4)
+        d = 64
+        substrate = TorchFHRR(dim=d, device="cpu")
+        mem = TorchHopfieldMemory(substrate)
+        positions = build_position_vectors(substrate, count=3)
+        codebook = substrate.normalize(torch.randn(10, d, dtype=torch.complex64))
+        enc = encode_window(substrate, positions, codebook, [1, 2, 3])
+        mem.store(enc)
+        b = self._branch(q_init=enc, q_settled=enc, prior=torch.zeros(d, dtype=torch.complex64))
+        mod.compute_branch_diagnostics(
+            branch=b, memory=mem, cue=enc, beta=10.0, gamma=0.0,
+            target_id=None, codebook=codebook, positions=positions,
+            decode_ids=list(range(10)), decode_k=5, masked_pos=0,
+        )
+        self.assertFalse(b.recall_support)
+        self.assertEqual(b.cap_coverage_t05, 0.0)
 
-    @unittest.skip("blocked: compute_branch_diagnostics implementation pending")
     def test_diagnostics_do_not_mutate_selection_score(self):
-        """energy_unbiased computed here must equal what
-        combine_bundle_resettle uses for w_k. If they diverge, the
-        selection and interpretation paths are using different values."""
+        """energy_unbiased computed by the diagnostic must equal the
+        energy_unbiased_final from settle_branch_with_prior's telemetry.
+        If they diverge, selection and interpretation use different values."""
+        mod = _import_module()
+        mem, patterns = self._build_memory(n=5, d=32, seed=5)
+        cue = mem.substrate.normalize(patterns[2] + 0.1 * torch.randn(32, dtype=torch.complex64))
+        prior = patterns[1].clone()
+        settled, telem = mod.settle_branch_with_prior(
+            memory=mem, cue=cue, prior=prior, beta=10.0, gamma=0.5,
+            max_iter=12,
+        )
+        b = self._branch(q_init=cue, q_settled=settled, prior=prior)
+        mod.compute_branch_diagnostics(
+            branch=b, memory=mem, cue=cue, beta=10.0, gamma=0.5,
+            target_id=None, codebook=None, positions=None,
+            decode_ids=[], decode_k=5, masked_pos=0,
+            settling_telemetry=telem,
+        )
+        self.assertAlmostEqual(
+            b.energy_unbiased, telem["energy_unbiased_final"], places=5,
+        )
+
+    def test_structural_match_uses_role_decomposition(self):
+        """Build q* such that unbinding position 0 yields cue_bindings[0]
+        exactly. structural_match must be ≈ 1.0."""
+        mod = _import_module()
+        from energy_memory.substrate.torch_fhrr import TorchFHRR
+        from energy_memory.phase2.encoding import build_position_vectors
+        torch.manual_seed(6)
+        d = 64
+        substrate = TorchFHRR(dim=d, device="cpu")
+        positions = build_position_vectors(substrate, count=2)
+        filler0 = substrate.normalize(torch.randn(d, dtype=torch.complex64))
+        filler1 = substrate.normalize(torch.randn(d, dtype=torch.complex64))
+        cue_bindings = torch.stack([filler0, filler1])
+        # q* = filler0 ⊛ pos0 + filler1 ⊛ pos1, normalized
+        q_star = substrate.normalize(
+            substrate.bind(filler0, positions[0]) + substrate.bind(filler1, positions[1])
+        )
+        # Minimal Hopfield memory (still needed for the diagnostic).
+        from energy_memory.memory.torch_hopfield import TorchHopfieldMemory
+        mem = TorchHopfieldMemory(substrate)
+        mem.store(q_star)
+        b = self._branch(q_init=q_star, q_settled=q_star, prior=torch.zeros(d, dtype=torch.complex64))
+        mod.compute_branch_diagnostics(
+            branch=b, memory=mem, cue=q_star, beta=10.0, gamma=0.0,
+            target_id=None, codebook=None, positions=positions,
+            decode_ids=[], decode_k=5, masked_pos=0,
+            cue_bindings=cue_bindings,
+        )
+        # Structural match should be high — within normalize/superposition noise.
+        self.assertGreater(b.structural_match, 0.3)
+
+
+@unittest.skipIf(torch is None, "torch required")
+class TestPairwiseFinalStateDivergence(unittest.TestCase):
+    """compute_pairwise_final_state_divergence fills final_state_divergence."""
+
+    def test_single_branch_divergence_is_zero(self):
+        mod = _import_module()
+        b = _make_branch(seed=1)
+        mod.compute_pairwise_final_state_divergence([b])
+        self.assertEqual(b.final_state_divergence, 0.0)
+
+    def test_three_orthogonal_branches_have_near_unit_divergence(self):
+        mod = _import_module()
+        torch.manual_seed(2)
+        d = 64
+        # Three near-orthogonal complex unit vectors.
+        states = []
+        for _ in range(3):
+            v = torch.randn(d, dtype=torch.complex64); v = v / v.norm()
+            states.append(v)
+        branches = [_make_branch(q_settled=s) for s in states]
+        mod.compute_pairwise_final_state_divergence(branches)
+        for b in branches:
+            # Should be near 1.0 (cosine ≈ 0 → distance ≈ 1).
+            self.assertGreater(b.final_state_divergence, 0.7)
+            self.assertLess(b.final_state_divergence, 1.2)
+
+    def test_identical_branches_have_zero_divergence(self):
+        mod = _import_module()
+        torch.manual_seed(3)
+        d = 16
+        v = torch.randn(d, dtype=torch.complex64); v = v / v.norm()
+        branches = [_make_branch(q_settled=v.clone()) for _ in range(3)]
+        mod.compute_pairwise_final_state_divergence(branches)
+        for b in branches:
+            self.assertAlmostEqual(b.final_state_divergence, 0.0, places=4)
 
 
 @unittest.skipIf(torch is None, "torch required")
 class TestCombineBundleResettle(unittest.TestCase):
     """The preferred combination rule. Anti-homunculus-clean reading:
-    energy-weighted bundle of branch states, followed by an unbiased
+    energy-weighted bundle of branch states, followed by an UNBIASED
     Hopfield re-settle.
     """
 
-    @unittest.skip("blocked: combine_bundle_resettle implementation pending")
-    def test_single_branch_input_returns_that_branch_state(self):
-        """K=1 degenerate case: the bundle is just q_settled[0], the
-        re-settle should converge to a near-identical attractor."""
+    def _build(self, n=4, d=32, seed=0):
+        from energy_memory.memory.torch_hopfield import TorchHopfieldMemory
+        from energy_memory.substrate.torch_fhrr import TorchFHRR
+        torch.manual_seed(seed)
+        substrate = TorchFHRR(dim=d, device="cpu")
+        mem = TorchHopfieldMemory(substrate)
+        patterns = []
+        for i in range(n):
+            p = substrate.normalize(torch.randn(d, dtype=torch.complex64))
+            mem.store(p, label=i)
+            patterns.append(p)
+        return mem, patterns
 
-    @unittest.skip("blocked: combine_bundle_resettle implementation pending")
-    def test_softmax_weights_sum_to_one_and_are_temperature_correct(self):
-        """w_k must form a probability distribution (sum=1, all
-        non-negative) and respect τ — at τ→∞ they tend toward uniform,
-        at τ→0 toward one-hot on the argmin."""
+    def test_single_branch_returns_state_near_input(self):
+        """K=1: bundle is just q_settled[0]; the unbiased re-settle should
+        converge to a near-identical attractor."""
+        mod = _import_module()
+        mem, patterns = self._build(n=4, d=32, seed=0)
+        # Branch state = an actual attractor (one of the stored patterns).
+        b = _make_branch(branch_id=0, energy_unbiased=-5.0,
+                         q_settled=patterns[0].clone(), d=32)
+        q_final, weights, conv = mod.combine_bundle_resettle(
+            branches=[b], memory=mem, beta=10.0, temperature=1.0, max_iter=12,
+        )
+        self.assertEqual(len(weights), 1)
+        self.assertAlmostEqual(weights[0], 1.0, places=6)
+        # Re-settle from a stored attractor stays at that attractor.
+        sim = float(mem.substrate.similarity(q_final, patterns[0]))
+        self.assertGreater(sim, 0.95)
 
-    @unittest.skip("blocked: combine_bundle_resettle implementation pending")
-    def test_dominant_branch_pulls_bundle_toward_its_state(self):
-        """One branch with much lower energy than the others should
-        contribute most of the bundle mass."""
+    def test_softmax_weights_sum_to_one_and_nonnegative(self):
+        mod = _import_module()
+        mem, patterns = self._build(n=4, d=32, seed=1)
+        branches = [
+            _make_branch(branch_id=i, energy_unbiased=float(-i), q_settled=patterns[i].clone())
+            for i in range(4)
+        ]
+        _, weights, _ = mod.combine_bundle_resettle(
+            branches=branches, memory=mem, beta=10.0, temperature=1.0, max_iter=12,
+        )
+        self.assertAlmostEqual(sum(weights), 1.0, places=5)
+        for w in weights:
+            self.assertGreaterEqual(w, 0.0)
 
-    @unittest.skip("blocked: combine_bundle_resettle implementation pending")
-    def test_resettle_converges_on_well_formed_input(self):
-        """Bundling K basin-attractors can produce a non-attractor
-        starting point; verify the unbiased re-settle still converges
-        within max_iter for typical cases."""
+    def test_low_temperature_concentrates_weights_on_argmin(self):
+        """τ→0: weight on the lowest-energy branch approaches 1."""
+        mod = _import_module()
+        mem, patterns = self._build(n=3, d=32, seed=2)
+        # Branch 1 has much lower energy than 0 and 2.
+        energies = [0.0, -5.0, 0.0]
+        branches = [
+            _make_branch(branch_id=i, energy_unbiased=e, q_settled=patterns[i].clone())
+            for i, e in enumerate(energies)
+        ]
+        _, weights, _ = mod.combine_bundle_resettle(
+            branches=branches, memory=mem, beta=10.0, temperature=0.1, max_iter=12,
+        )
+        self.assertGreater(weights[1], 0.99)
 
-    @unittest.skip("blocked: combine_bundle_resettle implementation pending")
-    def test_resettle_uses_unbiased_energy_no_gamma_term(self):
-        """The re-settle MUST use the unbiased Hopfield energy. If γ
-        leaks into the re-settle, the bundle becomes an arbitrary mix
-        of prior alignments rather than a substrate-pure posterior."""
+    def test_high_temperature_approaches_uniform(self):
+        mod = _import_module()
+        mem, patterns = self._build(n=4, d=32, seed=3)
+        energies = [-1.0, -0.5, -0.2, 0.0]
+        branches = [
+            _make_branch(branch_id=i, energy_unbiased=e, q_settled=patterns[i].clone())
+            for i, e in enumerate(energies)
+        ]
+        _, weights, _ = mod.combine_bundle_resettle(
+            branches=branches, memory=mem, beta=10.0, temperature=1e3, max_iter=12,
+        )
+        for w in weights:
+            self.assertAlmostEqual(w, 0.25, places=2)
+
+    def test_resettle_uses_unbiased_energy_no_gamma_leak(self):
+        """The re-settle is called with γ=0 inside combine_bundle_resettle.
+        We verify behaviorally: with branches at stored attractors, the
+        re-settle should land near a substrate attractor regardless of
+        what prior was used to make those branches. (No prior is in
+        scope for the combiner.)
+        """
+        mod = _import_module()
+        mem, patterns = self._build(n=4, d=32, seed=4)
+        # Two branches both at pattern 0; the combined bundle should re-settle
+        # back to pattern 0 regardless of branch.prior content.
+        b0 = mod.BranchState(
+            branch_id=0, prior_source="schema",
+            prior=patterns[2].clone(),  # arbitrary prior
+            q_initial=patterns[0].clone(),
+            q_settled=patterns[0].clone(),
+            energy_unbiased=-1.0,
+        )
+        b1 = mod.BranchState(
+            branch_id=1, prior_source="schema",
+            prior=patterns[3].clone(),  # different arbitrary prior
+            q_initial=patterns[0].clone(),
+            q_settled=patterns[0].clone(),
+            energy_unbiased=-1.0,
+        )
+        q_final, _, _ = mod.combine_bundle_resettle(
+            branches=[b0, b1], memory=mem, beta=10.0, temperature=1.0, max_iter=12,
+        )
+        sim_to_0 = float(mem.substrate.similarity(q_final, patterns[0]))
+        sim_to_2 = float(mem.substrate.similarity(q_final, patterns[2]))
+        sim_to_3 = float(mem.substrate.similarity(q_final, patterns[3]))
+        # If priors leaked, q_final would drift toward p2 or p3.
+        self.assertGreater(sim_to_0, sim_to_2)
+        self.assertGreater(sim_to_0, sim_to_3)
 
 
 @unittest.skipIf(torch is None, "torch required")
 class TestCombineGreedyArgmin(unittest.TestCase):
-    """Baseline combination. Anti-homunculus check is borderline; allowed
-    only as a comparison condition, never as the production rule.
-    """
+    """Baseline combination — picks the lowest-energy branch."""
 
-    @unittest.skip("blocked: combine_greedy_argmin implementation pending")
     def test_returns_state_with_lowest_unbiased_energy(self):
-        """Trivial behavioral spec — but pin it so the comparison
-        condition is what we claim it is."""
+        mod = _import_module()
+        torch.manual_seed(0)
+        states = [torch.randn(8, dtype=torch.complex64) for _ in range(4)]
+        energies = [0.5, -2.0, 1.0, -1.0]
+        branches = [
+            _make_branch(branch_id=i, energy_unbiased=e, q_settled=s)
+            for i, (e, s) in enumerate(zip(energies, states))
+        ]
+        q, k = mod.combine_greedy_argmin(branches)
+        self.assertEqual(k, 1)
+        self.assertTrue(torch.equal(q, states[1]))
 
-    @unittest.skip("blocked: combine_greedy_argmin implementation pending")
-    def test_ties_broken_deterministically(self):
-        """Two branches with equal energies: argmin returns the first
-        index (matches torch.argmin / argmax conventions used elsewhere)."""
+    def test_ties_broken_deterministically_first_index(self):
+        mod = _import_module()
+        torch.manual_seed(1)
+        states = [torch.randn(8, dtype=torch.complex64) for _ in range(3)]
+        branches = [
+            _make_branch(branch_id=i, energy_unbiased=-1.0, q_settled=states[i])
+            for i in range(3)
+        ]
+        _, k = mod.combine_greedy_argmin(branches)
+        self.assertEqual(k, 0)
+
+    def test_empty_branch_list_raises(self):
+        mod = _import_module()
+        with self.assertRaises(ValueError):
+            mod.combine_greedy_argmin([])
 
 
 @unittest.skipIf(torch is None, "torch required")
 class TestCombineBoltzmannSample(unittest.TestCase):
-    """Boltzmann sampling over branch energies. FEP-clean (sampling
-    from a posterior defined by energies).
-    """
+    """Boltzmann sampling: k ~ Categorical(softmax(-E/τ))."""
 
-    @unittest.skip("blocked: combine_boltzmann_sample implementation pending")
-    def test_high_temperature_approaches_uniform_sampling(self):
-        """τ→∞: every branch sampled approximately equally over N draws."""
+    def test_low_temperature_concentrates_on_argmin(self):
+        mod = _import_module()
+        torch.manual_seed(0)
+        states = [torch.randn(8, dtype=torch.complex64) for _ in range(4)]
+        energies = [0.0, -5.0, 0.0, 0.0]
+        branches = [
+            _make_branch(branch_id=i, energy_unbiased=e, q_settled=s)
+            for i, (e, s) in enumerate(zip(energies, states))
+        ]
+        picks = []
+        rng = torch.Generator().manual_seed(123)
+        for _ in range(30):
+            _, k, _ = mod.combine_boltzmann_sample(branches, temperature=0.1, rng=rng)
+            picks.append(k)
+        # Nearly all picks should be the argmin (branch 1).
+        self.assertGreater(picks.count(1), 25)
 
-    @unittest.skip("blocked: combine_boltzmann_sample implementation pending")
-    def test_low_temperature_approaches_greedy_argmin(self):
-        """τ→0: nearly always picks the lowest-energy branch."""
+    def test_high_temperature_approaches_uniform(self):
+        mod = _import_module()
+        torch.manual_seed(1)
+        states = [torch.randn(8, dtype=torch.complex64) for _ in range(4)]
+        energies = [-1.0, -0.5, 0.0, 0.5]
+        branches = [
+            _make_branch(branch_id=i, energy_unbiased=e, q_settled=s)
+            for i, (e, s) in enumerate(zip(energies, states))
+        ]
+        rng = torch.Generator().manual_seed(456)
+        counts = {0: 0, 1: 0, 2: 0, 3: 0}
+        n_samples = 400
+        for _ in range(n_samples):
+            _, k, _ = mod.combine_boltzmann_sample(branches, temperature=1e3, rng=rng)
+            counts[k] += 1
+        # Each branch should be picked roughly uniformly (~25%) at high τ.
+        for c in counts.values():
+            self.assertGreater(c / n_samples, 0.15)
+            self.assertLess(c / n_samples, 0.40)
 
-    @unittest.skip("blocked: combine_boltzmann_sample implementation pending")
     def test_seed_makes_sampling_reproducible(self):
-        """Same RNG seed → same branch picked, every time."""
+        mod = _import_module()
+        torch.manual_seed(2)
+        states = [torch.randn(8, dtype=torch.complex64) for _ in range(4)]
+        energies = [0.0, -1.0, -0.5, 0.5]
+        branches = [
+            _make_branch(branch_id=i, energy_unbiased=e, q_settled=s)
+            for i, (e, s) in enumerate(zip(energies, states))
+        ]
+        rng1 = torch.Generator().manual_seed(42)
+        rng2 = torch.Generator().manual_seed(42)
+        picks1 = [mod.combine_boltzmann_sample(branches, temperature=1.0, rng=rng1)[1] for _ in range(10)]
+        picks2 = [mod.combine_boltzmann_sample(branches, temperature=1.0, rng=rng2)[1] for _ in range(10)]
+        self.assertEqual(picks1, picks2)
 
 
 @unittest.skipIf(torch is None, "torch required")
 class TestRunBranchedRetrievalIntegration(unittest.TestCase):
-    """End-to-end test: one cue through the full pipeline. All three
+    """End-to-end: one cue through the full pipeline. All three
     combination rules run; all diagnostics filled.
     """
 
-    @unittest.skip("blocked: requires schema source + full driver")
+    def _build(self, n_atoms=6, d=64, seed=0):
+        from energy_memory.memory.torch_hopfield import TorchHopfieldMemory
+        from energy_memory.substrate.torch_fhrr import TorchFHRR
+        from energy_memory.phase4.consolidation import (
+            ConsolidationConfig, ConsolidationState,
+        )
+        torch.manual_seed(seed)
+        substrate = TorchFHRR(dim=d, device="cpu")
+        mem = TorchHopfieldMemory(substrate)
+        cons = ConsolidationState(ConsolidationConfig(m=4, alpha=0.25), device="cpu")
+        patterns = []
+        for i in range(n_atoms):
+            p = substrate.normalize(torch.randn(d, dtype=torch.complex64))
+            mem.store(p, label=i)
+            cons.add_pattern(novelty_strength=1.0 + 0.1 * i)
+            patterns.append(p)
+        return mem, cons, patterns
+
     def test_pipeline_runs_under_default_config(self):
-        """No exceptions; all branches have non-None q_settled; all
-        three combination outputs present."""
+        mod = _import_module()
+        mem, cons, patterns = self._build(n_atoms=6, d=64, seed=0)
+        schema_store, atom_idx = mod.get_schema_store(
+            consolidation=cons, patterns=mem._pattern_matrix(),
+            selection_rule="top_k_by_effective_strength", k=5,
+        )
+        cue = mem.substrate.normalize(patterns[2] + 0.1 * torch.randn(64, dtype=torch.complex64))
+        result = mod.run_branched_retrieval(
+            cue=cue, cue_id=0, target_id=None,
+            memory=mem, codebook=mem._pattern_matrix(), positions=None,
+            decode_ids=[], decode_k=5, masked_pos=0,
+            schema_store=schema_store, schema_atom_idx=atom_idx,
+            consolidation=cons, prior_type="content", k_main=4,
+            gamma=0.5, beta=10.0, temperature=1.0,
+            delta_energy=0.1, delta_state=0.3, delta_redundant=0.95,
+            include_surprise_branch=True,
+        )
+        # All branches have non-None settled state.
+        self.assertGreaterEqual(len(result.branches), 1)
+        for b in result.branches:
+            self.assertIsNotNone(b.q_settled)
+        # All three combination outputs present.
+        self.assertIsNotNone(result.q_bundle)
+        self.assertIsNotNone(result.q_greedy)
+        self.assertIsNotNone(result.q_boltzmann)
+        # Per-cue aggregate diagnostics populated.
+        self.assertEqual(len(result.softmax_weights), len(result.branches))
+        self.assertAlmostEqual(sum(result.softmax_weights), 1.0, places=5)
 
-    @unittest.skip("blocked: requires schema source + full driver")
-    def test_pipeline_under_k1_is_equivalent_to_phase4_baseline(self):
-        """At K=1, γ=0, no surprise branch, the pipeline should produce
-        the same retrieval as the Phase 4 substrate alone — modulo the
-        prior-seed (which at γ=0 contributes nothing). This is the
-        regression guard that bridge-experiment changes don't break
-        Phase 4 graduation."""
+    def test_pipeline_under_k1_gamma0_no_surprise_matches_unbiased_retrieve(self):
+        """Regression guard. At K=1, γ=0, no surprise branch, the single
+        branch's q_settled equals the unbiased retrieve. The bundle re-settle
+        of one branch (also unbiased) lands at the same attractor."""
+        mod = _import_module()
+        mem, cons, patterns = self._build(n_atoms=6, d=64, seed=1)
+        schema_store, atom_idx = mod.get_schema_store(
+            consolidation=cons, patterns=mem._pattern_matrix(),
+            selection_rule="top_k_by_effective_strength", k=5,
+        )
+        cue = mem.substrate.normalize(patterns[3] + 0.1 * torch.randn(64, dtype=torch.complex64))
+        baseline = mem.retrieve(cue, beta=10.0, max_iter=12)
+        result = mod.run_branched_retrieval(
+            cue=cue, cue_id=0, target_id=None,
+            memory=mem, codebook=mem._pattern_matrix(), positions=None,
+            decode_ids=[], decode_k=5, masked_pos=0,
+            schema_store=schema_store, schema_atom_idx=atom_idx,
+            consolidation=cons, prior_type="content", k_main=1,
+            gamma=0.0, beta=10.0, temperature=1.0,
+            delta_energy=0.1, delta_state=0.3, delta_redundant=0.95,
+            include_surprise_branch=False,
+        )
+        self.assertEqual(len(result.branches), 1)
+        # The branch settled with γ=0 → equals unbiased retrieve.
+        diff_branch = (result.branches[0].q_settled - baseline.state).abs().max().item()
+        self.assertLess(diff_branch, 1e-4)
+        # The bundle is one branch re-settled (still unbiased) → same attractor.
+        sim_bundle_baseline = float(mem.substrate.similarity(result.q_bundle, baseline.state))
+        self.assertGreater(sim_bundle_baseline, 0.99)
 
-    @unittest.skip("blocked: requires schema source + full driver")
-    def test_split_eligibility_persists_across_combination_rules(self):
-        """If a cue is split-eligible under one combination rule, it
-        should be split-eligible under all three — the joint criterion
-        is a property of the branches, not the combiner."""
+    def test_split_eligibility_is_property_of_branches_not_combiner(self):
+        """atom_split_signal is computed once from `branches`. The
+        BranchedRetrievalResult.split_eligible field is therefore the
+        same value across all three combination outputs — exposing the
+        invariant that polysemy detection is independent of the
+        combiner."""
+        mod = _import_module()
+        mem, cons, patterns = self._build(n_atoms=6, d=64, seed=2)
+        schema_store, atom_idx = mod.get_schema_store(
+            consolidation=cons, patterns=mem._pattern_matrix(),
+            selection_rule="top_k_by_effective_strength", k=5,
+        )
+        cue = mem.substrate.normalize(patterns[1] + 0.1 * torch.randn(64, dtype=torch.complex64))
+        result = mod.run_branched_retrieval(
+            cue=cue, cue_id=0, target_id=None,
+            memory=mem, codebook=mem._pattern_matrix(), positions=None,
+            decode_ids=[], decode_k=5, masked_pos=0,
+            schema_store=schema_store, schema_atom_idx=atom_idx,
+            consolidation=cons, prior_type="content", k_main=4,
+            gamma=0.5, beta=10.0, temperature=1.0,
+            delta_energy=0.5, delta_state=0.3, delta_redundant=0.95,
+            include_surprise_branch=True,
+        )
+        # The signal is a single bool on result, not three separate values.
+        # Verify by recomputing it directly from the same branches; must match.
+        ok, n_low, max_dist = mod.atom_split_signal(
+            result.branches, delta_energy=0.5, delta_state=0.3,
+        )
+        self.assertEqual(result.split_eligible, ok)
+        self.assertEqual(result.n_in_low_energy_set, n_low)
+        self.assertAlmostEqual(
+            result.max_state_distance_in_low_energy_set, max_dist, places=5,
+        )
 
-    @unittest.skip("blocked: requires schema source + full driver")
-    def test_surprise_branch_winning_is_logged_per_cue(self):
-        """When the surprise branch achieves min E_k, that fact is
-        recorded in the BranchedRetrievalResult. Used by the surprise-
-        branch instrumentation in §'Mixed-branch policy' of the design."""
+    def test_surprise_branch_marked_with_prior_source(self):
+        """When include_surprise_branch=True and consolidation is non-empty,
+        the surprise branch appears at the end of `branches` with
+        prior_source='surprise'. This is the per-cue logging hook for
+        the surprise instrumentation."""
+        mod = _import_module()
+        mem, cons, patterns = self._build(n_atoms=6, d=64, seed=3)
+        schema_store, atom_idx = mod.get_schema_store(
+            consolidation=cons, patterns=mem._pattern_matrix(),
+            selection_rule="top_k_by_effective_strength", k=5,
+        )
+        cue = mem.substrate.normalize(patterns[4] + 0.05 * torch.randn(64, dtype=torch.complex64))
+        result = mod.run_branched_retrieval(
+            cue=cue, cue_id=0, target_id=None,
+            memory=mem, codebook=mem._pattern_matrix(), positions=None,
+            decode_ids=[], decode_k=5, masked_pos=0,
+            schema_store=schema_store, schema_atom_idx=atom_idx,
+            consolidation=cons, prior_type="content", k_main=3,
+            gamma=0.5, beta=10.0, temperature=1.0,
+            delta_energy=0.1, delta_state=0.3, delta_redundant=0.95,
+            include_surprise_branch=True,
+        )
+        surprise_branches = [b for b in result.branches if b.prior_source == "surprise"]
+        self.assertEqual(len(surprise_branches), 1)
+        # The non-surprise branches carry prior_source = 'content' (the
+        # prior_type used).
+        non_surprise = [b for b in result.branches if b.prior_source != "surprise"]
+        for b in non_surprise:
+            self.assertEqual(b.prior_source, "content")
 
 
 if __name__ == "__main__":

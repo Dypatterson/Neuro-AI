@@ -444,10 +444,59 @@ descent; greedy reads as an if-X-then-Y rule even if X is a measurement.
 | 2 | γ (prior weight in per-branch energy). Default 0.5; sweep `{0.0, 0.25, 0.5, 1.0, 2.0}`. | Settled at first experimental run; CPU spike. |
 | 3 | K_main (branches per cue). Default 4; sweep `{2, 4, 8}`. | Settled at first experimental run; compute-cost question, not architectural. |
 | 4 | Bundle re-settle convergence. Verify numerically that the bundled state lands cleanly on an attractor (no oscillation, no high-energy outcome). | Settled at implementation start; ~30-min CPU spike on synthetic cues. |
+| 5 | **Prior formulation: per-pattern bias vs global pull.** The design has internal tension between line 158 (`E_k(q) = -logsumexp(β · X q*) - γ · Re(⟨q, p_k⟩)`, the *global pull* form) and line 164 ("prior term added to the score," the *per-pattern bias* form). These are NOT mathematically equivalent at γ > 0: per-pattern reweights stored-pattern attractors so q stays in their span; global pull drags q toward the prior in FHRR space regardless of substrate support. Both reduce to the unbiased retrieve at γ = 0. | **Decision spike.** Both forms implemented in `experiments/40_phase5_branching.py:settle_branch_with_prior` behind a `formulation` kwarg. Decided by a synthetic-cue spike before the n=10 graduation run. **One form is chosen, documented, and the kwarg is removed; the losing form lives only in the spike report.** |
 
 Decision 1 was the architectural blocker. With it closed, decisions 2–4 are
-all addressable during implementation as numerical hyperparameters.
-**Phase 5 implementation is unblocked.**
+all addressable during implementation as numerical hyperparameters; decision
+5 is an architectural commitment that needs evidence before the graduation
+run. **Phase 5 implementation is unblocked.**
+
+### Decision 5 spike — falsifier specification (set in advance)
+
+The two formulations encode different theories of structural retrieval:
+
+- **Per-pattern bias** says structural retrieval lives *inside* existing
+  attractor basins. The schema reweights which stored patterns the
+  dynamics favor; q stays in the convex hull of stored patterns.
+  Off-manifold priors do almost nothing.
+- **Global pull** says structural retrieval can drag q to states *between
+  or outside* existing basins. The prior is a force imposed on q in FHRR
+  space, independent of whether any stored pattern matches it.
+
+Spike protocol (~30-min CPU on synthetic cues):
+
+- ~50 synthetic role-binding cues against a small Phase-4-style substrate
+  (n_atoms = 20–30, d = 4096).
+- Conditions: cross of formulation × γ ∈ {0.25, 0.5, 1.0} (6 runs).
+- Per condition, report:
+  - **ΔE** (role-prior vs content-prior) — the headline analog.
+  - **`on_substrate_alignment`** = max similarity of q* to any stored
+    pattern. Per-pattern stays high; global pull's behavior is the
+    question.
+  - **Meta-stable rate at the substrate level** — does the formulation
+    destabilize basins (rate rises) or stay decisive (rate stays low)?
+
+Decision rule (committed before the spike runs):
+
+1. If only per-pattern produces ΔE > 0 AND keeps `on_substrate_alignment`
+   high → commit to **per-pattern**.
+2. If only global pull produces ΔE > 0 AND `on_substrate_alignment`
+   stays in a defensible range (>some threshold to be set from
+   per-pattern's distribution) → commit to **global pull** with a
+   documented rationale for the off-substrate component.
+3. If both produce ΔE > 0 → prefer **per-pattern** as the more
+   substrate-respectful (anti-homunculus) form. Global pull is reserved
+   as a fallback only if per-pattern's `on_substrate_alignment` is
+   pathologically high (>0.95 across all branches) suggesting the
+   substrate is too rigid for any structural movement.
+4. If neither produces ΔE > 0 → Phase 5 architectural assumption is in
+   doubt; do not run the n=10 graduation. Re-scope.
+
+Decision 5 sits on the schema-source robustness axis explicitly as a
+**separate** axis: §C of the checklist ablates the schema source as a
+diagnostic; decision 5 picks the dynamics. Once decided, the chosen
+formulation is fixed across all §C conditions — we are NOT going to
+sweep formulation × schema-source in the graduation run.
 
 ---
 

@@ -1,0 +1,64 @@
+{
+  "mode": "smoke",
+  "seed": 17,
+  "dim": 256,
+  "n_atoms": 12,
+  "n_cues": 20,
+  "k": 8,
+  "beta": 10.0,
+  "temperature": 1.0,
+  "conditions": [
+    {
+      "name": "content_K4_g0p5",
+      "prior_type": "content",
+      "gamma": 0.5,
+      "k_main": 4,
+      "formulation": "per_pattern",
+      "n_cues": 20,
+      "mean_energy_unbiased_min": -1.000058364868164,
+      "mean_branch_count": 5.0,
+      "split_eligibility_rate": 0.0,
+      "mean_on_substrate_alignment": 1.0,
+      "mean_branch_softmax_entropy": 1.6094379425048828
+    },
+    {
+      "name": "random_K4_g0p5",
+      "prior_type": "random",
+      "gamma": 0.5,
+      "k_main": 4,
+      "formulation": "per_pattern",
+      "n_cues": 20,
+      "mean_energy_unbiased_min": -1.0000583708286286,
+      "mean_branch_count": 5.0,
+      "split_eligibility_rate": 0.0,
+      "mean_on_substrate_alignment": 1.0,
+      "mean_branch_softmax_entropy": 1.6094379425048828
+    },
+    {
+      "name": "content_K1_g0p5",
+      "prior_type": "content",
+      "gamma": 0.5,
+      "k_main": 1,
+      "formulation": "per_pattern",
+      "n_cues": 20,
+      "mean_energy_unbiased_min": -1.000058364868164,
+      "mean_branch_count": 2.0,
+      "split_eligibility_rate": 0.0,
+      "mean_on_substrate_alignment": 1.0,
+      "mean_branch_softmax_entropy": 0.6931471824645996
+    },
+    {
+      "name": "content_K4_g0",
+      "prior_type": "content",
+      "gamma": 0.0,
+      "k_main": 4,
+      "formulation": "per_pattern",
+      "n_cues": 20,
+      "mean_energy_unbiased_min": -1.000058364868164,
+      "mean_branch_count": 5.0,
+      "split_eligibility_rate": 0.0,
+      "mean_on_substrate_alignment": 1.0,
+      "mean_branch_softmax_entropy": 1.6094379425048828
+    }
+  ]
+}
