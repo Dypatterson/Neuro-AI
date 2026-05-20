@@ -573,47 +573,6 @@ def stream_phase34(
                 eval_result["death_diag"] = death_diag
             results.append(eval_result)
 
-            # Phase 5 substrate snapshot capture (per phase-5-checklist.md §C).
-            # Saves (memory, consolidation) per requested scale at requested
-            # cues_seen counts so Phase 5's get_schema_store can read the
-            # exact substrate state without re-running Phase 4.
-            if (
-                snapshot_steps
-                and snapshot_dir is not None
-                and phase4_units
-                and cues_seen in snapshot_steps
-            ):
-                from energy_memory.phase4.snapshot import save_substrate_snapshot
-                snap_scales = snapshot_scales or list(phase4_units.keys())
-                for s in snap_scales:
-                    if s not in phase4_units:
-                        continue
-                    unit = phase4_units[s]
-                    snap_path = (
-                        snapshot_dir
-                        / f"{condition}_w{s}_step{cues_seen}.pt"
-                    )
-                    # Positions come from the slot — same encoding the
-                    # patterns were built from. Required by Phase 5's
-                    # role-binding cue generator.
-                    slot_positions = (
-                        slots[s].positions if s in slots else None
-                    )
-                    save_substrate_snapshot(
-                        memory=unit.memory,
-                        consolidation=unit.consolidation,
-                        path=snap_path,
-                        label=f"{condition}_w{s}_step{cues_seen}",
-                        metadata={
-                            "condition": condition,
-                            "scale": s,
-                            "cues_seen": cues_seen,
-                            "seed": snapshot_seed,
-                            "n_patterns": unit.consolidation.n_patterns,
-                        },
-                        positions=slot_positions,
-                    )
-
             extra = ""
             if updaters and 2 in updaters:
                 s = updaters[2].stats()
@@ -640,6 +599,46 @@ def stream_phase34(
                 f"drift={eval_result['codebook_drift_from_initial']:.4f}{extra}",
                 flush=True,
             )
+
+        # Phase 5 substrate snapshot capture (per phase-5-checklist.md §C).
+        # Gated by exact cues_seen match, NOT by checkpoint_every — otherwise
+        # snapshot_steps that don't align with checkpoint_every are silently
+        # dropped (e.g., step=500 with default checkpoint_every=300).
+        if (
+            snapshot_steps
+            and snapshot_dir is not None
+            and phase4_units
+            and cues_seen in snapshot_steps
+        ):
+            from energy_memory.phase4.snapshot import save_substrate_snapshot
+            snap_scales = snapshot_scales or list(phase4_units.keys())
+            for s in snap_scales:
+                if s not in phase4_units:
+                    continue
+                unit = phase4_units[s]
+                snap_path = (
+                    snapshot_dir / f"{condition}_w{s}_step{cues_seen}.pt"
+                )
+                slot_positions = slots[s].positions if s in slots else None
+                save_substrate_snapshot(
+                    memory=unit.memory,
+                    consolidation=unit.consolidation,
+                    path=snap_path,
+                    label=f"{condition}_w{s}_step{cues_seen}",
+                    metadata={
+                        "condition": condition,
+                        "scale": s,
+                        "cues_seen": cues_seen,
+                        "seed": snapshot_seed,
+                        "n_patterns": unit.consolidation.n_patterns,
+                    },
+                    positions=slot_positions,
+                )
+                print(
+                    f"  [snapshot] w={s} step={cues_seen} "
+                    f"n_patterns={unit.consolidation.n_patterns} -> {snap_path.name}",
+                    flush=True,
+                )
 
     return results
 
