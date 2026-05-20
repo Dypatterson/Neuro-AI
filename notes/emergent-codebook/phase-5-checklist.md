@@ -36,7 +36,7 @@ energy, not readout.
 
 | # | Headline | Status | Evidence |
 | -- | --- | :---: | --- |
-| A1 | **Δ final-state energy E_A − E_B (content-prior minus role-prior) > 0 with 95% CI disjoint from zero**, on a held-out cue set designed for structural retrieval, n_seeds ≥ 10 | ❌ | not yet run |
+| A1 | **Δ final-state energy E_A − E_B (content-prior minus role-prior) > 0 with 95% CI disjoint from zero**, on a held-out cue set designed for structural retrieval, n_seeds ≥ 10 | 🟨 | partial, n=5: ΔE = −1.5e-4, CI [−5.2e-4, +2.1e-4] (includes 0); 3/5 seeds positive; LOSO never excludes zero ([report 041](../../reports/041_phase5_de_n5_partial.md)) |
 
 Positive ΔE means role-prior branches settle into lower-energy joint
 states than content-prior branches — the test of structural retrieval.
@@ -51,9 +51,9 @@ removes the mechanism under test.
 
 | # | Control | What it falsifies if it fails | Status | Evidence |
 | -- | --- | --- | :---: | --- |
-| B1 | **Random-schema branches** | If random schemas as priors produce the same ΔE as role-binding schemas, no structural retrieval is happening | ❌ | not yet run |
-| B2 | **K=1 (single-branch, no branching)** | If single-branch with role-prior matches K-branch with role-prior, branching is gratuitous | ❌ | not yet run |
-| B3 | **No-prior (γ=0)** | If ΔE survives with no prior weight, the prior is not doing the work | ❌ | not yet run |
+| B1 | **Random-schema branches** | If random schemas as priors produce the same ΔE as role-binding schemas, no structural retrieval is happening | 🟨 | random_K4 logged in exp 40 output, not paired against role_K4 in [report 041](../../reports/041_phase5_de_n5_partial.md) |
+| B2 | **K=1 (single-branch, no branching)** | If single-branch with role-prior matches K-branch with role-prior, branching is gratuitous | ⚠️ | **fires at n=5**: K1 ΔE = +1.3e-4 (5/5 seeds positive, pooled bootstrap CI [+3.5e-5, +2.8e-4] excludes 0) ≥ K4 ΔE = −1.5e-4. Branching is gratuitous (in fact destructive) on 6–12-atom post-death substrates. [Report 041](../../reports/041_phase5_de_n5_partial.md) |
+| B3 | **No-prior (γ=0)** | If ΔE survives with no prior weight, the prior is not doing the work | ✅ | ΔE = 0 exactly across 5 seeds × 20 cues; γ=0 makes content/role priors identical by construction. [Report 041](../../reports/041_phase5_de_n5_partial.md) |
 | B4 | **No-schema-store** (priors drawn directly from codebook, not filtered slow store) | If ΔE survives without the schema store, the store is not the right source | ❌ | not yet run |
 
 ---
@@ -81,7 +81,7 @@ to control for "smaller schema set is easier to branch over":
 
 | # | Schema source | What it tests | Status | Evidence |
 | -- | --- | --- | :---: | --- |
-| C1 | **Post-death** (the design default; surviving atoms ranked by `effective_strength`) | The Phase 5 design as specified | ❌ | not yet run |
+| C1 | **Post-death** (the design default; surviving atoms ranked by `effective_strength`) | The Phase 5 design as specified | 🟨 | partial, n=5; A1 does not yet pass at this source ([report 041](../../reports/041_phase5_de_n5_partial.md)) |
 | C2 | **Pre-death top-k** (top-k atoms by `effective_strength` from the pre-death population, k = post-death count) | Is the filter *direction* (high-strength atoms) load-bearing, independent of death? | ❌ | not yet run |
 | C3 | **Pre-death random-k** (random subset of pre-death atoms, k = post-death count) | Is *having fewer schemas* load-bearing, independent of filter direction? | ❌ | not yet run |
 | C4 | **Step-1500 top-k** (top-k by `effective_strength` at step 1500, before late-run death) | Does the effect survive at an earlier substrate snapshot? | ❌ | not yet run |
@@ -109,9 +109,9 @@ or destroyed by one seed.
 
 | # | Item | Status | Evidence |
 | -- | --- | :---: | --- |
-| D1 | **n_seeds ≥ 10** on the headline run | ❌ | matches Phase 4 graduation bar (report 038) |
-| D2 | **Leave-one-seed-out (LOSO) CI sensitivity** reported on the headline | ❌ | the headline conclusion must not flip when any single seed is removed |
-| D3 | **Seed-23-specific readout** in the headline report — ΔE for seed 23 alone, side-by-side with the n=10 mean | ❌ | seed 23 does not block graduation; it must be visible |
+| D1 | **n_seeds ≥ 10** on the headline run | 🟨 | at n=5 ([report 041](../../reports/041_phase5_de_n5_partial.md)); 5 more W=4 post-death snapshots needed |
+| D2 | **Leave-one-seed-out (LOSO) CI sensitivity** reported on the headline | 🟨 | LOSO reported at n=5; for K4 no leave-one-out subset produces CI excluding zero ([report 041](../../reports/041_phase5_de_n5_partial.md)) |
+| D3 | **Seed-23-specific readout** in the headline report — ΔE for seed 23 alone, side-by-side with the n=10 mean | 🟨 | seed 23 K4 ΔE = +1.55e-7 (weak positive, not outlier at n=5) ([report 041](../../reports/041_phase5_de_n5_partial.md)) |
 
 **Graduation rule for section D.** The headline LOSO sweep must show the
 n=9 CI excludes zero for **every** leave-one-out subset. If removing any
@@ -127,12 +127,12 @@ replace it. None of these are graduation-gating individually.
 
 | # | Drill-down | Aggregated multi-seed? | Status | Evidence |
 | -- | --- | :---: | :---: | --- |
-| E1 | Branch-energy dispersion (entropy of softmax weights `w_k`) | ❌ | ❌ | predicted: high on ambiguous cues, low on unambiguous |
+| E1 | Branch-energy dispersion (entropy of softmax weights `w_k`) | 🟨 n=5 | ⚠️ | **uniform: exactly ln(K) across 5 seeds × K∈{2..8}** — branches equi-energetic to FP precision ([report 042](../../reports/042_phase5_branching_collapse_diagnostic.md)) |
 | E2 | Split-eligibility rate (joint criterion fires) | ❌ | ❌ | predicted: rises with corpus complexity |
-| E3 | Bundle convergence rate (fraction of re-settlings that converge below energy threshold) | ❌ | ❌ | if oscillation common, bundling is broken architecturally |
+| E3 | Bundle convergence rate (fraction of re-settlings that converge below energy threshold) | 🟨 n=5 | 🟨 | uniform `energy_drop` ≈ 0.04–0.07 across all branches/seeds suggests yes (not directly measured) ([report 042](../../reports/042_phase5_branching_collapse_diagnostic.md)) |
 | E4 | Schema-store utilization (fraction of schemas ever picked as top-K) | ❌ | ❌ | <10% utilization → store needs pruning |
-| E5 | Branch-state diversity (mean pairwise FHRR distance among `{q_k*}`) | ❌ | ❌ | predicted: rises monotonically with cue complexity |
-| E6 | Prior-domination rate at δ ∈ {0.5, 0.75, 0.9} vs γ | ❌ | ❌ | detects γ regime where prior overpowers memory support |
+| E5 | Branch-state diversity (mean pairwise FHRR distance among `{q_k*}`) | 🟨 n=5 | ⚠️ | post-death collapses (6.7e-6 to 2.7e-3 across 5 seeds × K=4) ([report 042](../../reports/042_phase5_branching_collapse_diagnostic.md)); **pre-death restores 3×–4978× across all 5 seeds × both prior types** ([report 043](../../reports/043_phase5_substrate_scale_diagnostic.md)) — death implicated for branch collapse; K-branch mechanism not structurally degenerate |
+| E6 | Prior-domination rate at δ ∈ {0.5, 0.75, 0.9} vs γ | 🟨 sweep n=1 | 🟨 | γ sweep on seed 17: ΔE_K1 ≥ ΔE_K4 at every γ; γ≥1.0 flips both negative (prior overpowering substrate) ([report 042](../../reports/042_phase5_branching_collapse_diagnostic.md)) |
 
 ---
 
@@ -222,8 +222,7 @@ which failure mode and Phase 5 is re-scoped.
 These remain open from Phase 4 and earlier phases but do not gate Phase 5
 graduation. Listed so they are not lost:
 
-- STATUS blocker #4 — diagnostic-actuator dynamic-form session (named
-  2026-05-09, never held)
+- STATUS blocker #4 — diagnostic-actuator dynamic-form session: **held 2026-05-20** ([note](../notes/2026-05-20-diagnostic-actuator-death-dynamic-form.md)); A+B combined candidate passed anti-homunculus audit. Implementation commitment pending.
 - STATUS blocker #5 — seed-23 idiosyncratic geometry diagnostic (3 runs
   identified it, never investigated). Phase 5 surfaces seed 23 via D3
   but does not diagnose it.
@@ -236,7 +235,13 @@ graduation. Listed so they are not lost:
 
 ## Status banner (one line for STATUS.md)
 
-> Phase 5: **graduation criteria specified**; A1 (ΔE CI-disjoint), B1–B4
-> controls, C1 + ≥1 of {C2,C4} robustness, D1–D3 seed robustness, G1
-> meta-stable tiebreaker. Implementation in flight on
-> [experiments/40_phase5_branching.py](../../experiments/40_phase5_branching.py).
+> Phase 5: **substrate-scale diagnostic closes path 1 of report 042
+> ([report 043](../../reports/043_phase5_substrate_scale_diagnostic.md))**.
+> Pre-death (1024-atom) substrate restores branch divergence across 5/5
+> seeds (3×–4978×); K-branch mechanism is **not** structurally degenerate.
+> Death is implicated for branch collapse. BUT per-seed ΔE direction is
+> bimodal even on pre-death (K4 3/5 positive, K1 2/5 positive) — fixing
+> death alone is NOT expected to graduate Phase 5; combiner + cue regime
+> are the second axis. Next: design notes (continuous-rate death
+> candidates + cue-regime/role-prior formulations), no new compute
+> committed yet.

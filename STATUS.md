@@ -1,6 +1,6 @@
 # Project STATUS
 
-**Last updated:** 2026-05-20 (**Phase 5 decision-5 closed: per-pattern formulation wins.** Seed-17 W=4 post-death substrate (12 atoms, 4 positions, captured via `experiments/19_phase34_integrated.py --snapshot-steps`) used to falsify global-pull formulation: per-pattern produces ΔE > 0 in 49/50 cues at K=1 (mean +2.6e-5) with alignment 0.998; global pull produces ΔE = −0.027 with alignment dropping to 0.967 (off-substrate drift). Decision rule #1 of the pre-committed Decision-5 spike met by per-pattern. Production code uses per_pattern exclusively; global_pull retained for spike reproducibility. Snapshot infrastructure landed: `src/energy_memory/phase4/snapshot.py` + Colab notebook + exp 19 `--snapshot-steps/--snapshot-scales`. Headline mode + role-binding cue generation in exp 40. 77 tests pass, 0 skipped. **Earlier this session:** Phase 5 graduation checklist + full driver landed in `experiments/40_phase5_branching.py` (commits a08fef7, 5fa36ab, 16ffc04, 70364dd, 095deeb, fb49d9c). Previous: [report 040](reports/040_freq_weighted_alpha_sweep.md) closed decision-1 (schema source = post-death substrate); Phase 4 graduated on D1 ([report 038](reports/038_phase4_d1_graduation.md)).)
+**Last updated:** 2026-05-20 (**Path (a′) prerequisites both closed in this session.** Research-literature review + notes audit reframed path (a) → path (a′): continuous-rate death as slow-timescale dynamic of which d_eff is a fast-timescale snapshot. Prereq 1 ([report 044](reports/044_consolidation_geometry_diagnostic.md)): built [scripts/consolidation_geometry_diagnostic.py](scripts/consolidation_geometry_diagnostic.py), ran on n=5 pre+post-death snapshots. **Substrate d_eff collapses ~10× across all 5 seeds** (pre-death ~40, post-death ~3–6 of 4096 dims); per-atom k-NN d_eff drops modestly (3.7 → 3.0). With K=4 branches and d_eff~5 post-death, branches cannot occupy distinct subspaces — the geometric mechanism for K-branch collapse from report 042. Companion [MESH-style memory-cliff check](reports/phase5_memory_cliff/README.md) (run by subagent): no cliff exists; n_atoms=6 retrieves perfectly. Capacity is fine; substrate effective-dim is the issue. Prereq 2 ([notes/notes/2026-05-20-diagnostic-actuator-death-dynamic-form.md](notes/notes/2026-05-20-diagnostic-actuator-death-dynamic-form.md), closes STATUS blocker #4): three candidate continuous local dynamics enumerated — A (coverage-weighted reinforcement rate), B (-α log(d_eff) repulsion in substrate energy), C (redundancy-coupled inhibition, Saighi-variant). Recommended: A+B combined. Anti-homunculus reviewer audited; caught a controller-in-disguise (step-3 hysteresis-on-ε flag) and 3 other wording slips. Four fixes applied: continuous-running-estimate r_i (A), substrate-energy-everywhere α-fixed (B), n≥10 pre-registered bimodality test (C), continuous E_i-weighted retrieval (A+B step 3), α-not-tuned pre-commitment. Now PASS. Earlier this session: [report 043](reports/043_phase5_substrate_scale_diagnostic.md) (substrate-scale discrimination); [report 042](reports/042_phase5_branching_collapse_diagnostic.md) (K-branch collapse + γ/K_main sweeps); [report 041](reports/041_phase5_de_n5_partial.md) (n=5 partial headline); Phase 4 graduated on D1 ([report 038](reports/038_phase4_d1_graduation.md)). 216 tests pass.)
 
 The bookmark. Read this first every session before doing anything. If something
 in this file is wrong or stale, fix this file *first*, then do the work.
@@ -20,28 +20,66 @@ on joint criterion (similar low energies AND substantial state divergence).
 
 ### Next session entry point (2026-05-20)
 
-Decision-5 closed (per-pattern formulation wins). Three options presented;
-my recommendation was **C then B**.
+C then B executed in this session ([report 041](reports/041_phase5_de_n5_partial.md)).
+The K4 headline at n=5 does not graduate — CI includes zero, 3/5 seeds
+positive, seed 1 dominates the mean negatively. K1 (B2 control)
+outperforms K4 with 5/5 seeds positive and pooled CI excludes zero;
+B2's gratuitous-branching prediction fires at this substrate scale.
 
-- **A. §C robustness run, seed 17 alone** — 5 schema sources (post_death_top_k,
-  pre_death_top_k, pre_death_random_k, step_1500_top_k, step_1500_random_k)
-  on the local seed 17 W=4 snapshots. ~10 min local CPU. Already have
-  `reports/phase5_snapshots_local/seed17/phase3_phase4_w{2,4}_step1800.pt`;
-  would need `step_1500` pulled from Drive (one file, ~32 MB).
-- **B. n=10 graduation prep (script-level)** — build multi-seed aggregator:
-  paired ΔE + binomial CI + LOSO seed sensitivity. No new runs required;
-  reads seed-17 spike JSON now and scales when other seeds land.
-- **C. Pull all 5 W=4 post-death snapshots locally** (`step_1800/w4` for
-  seeds {17, 11, 23, 1, 2} from Drive — ~160 MB total) **then run B** against
-  real n=5 data. Gets us to a first multi-seed headline result quickest.
+Path (a′) prerequisites both closed in this session. Mechanism cause
+identified at the geometric level (d_eff ~10× collapse, [report 044](reports/044_consolidation_geometry_diagnostic.md));
+candidate continuous local dynamics enumerated and anti-homunculus
+audited ([2026-05-20 diagnostic-actuator note](notes/notes/2026-05-20-diagnostic-actuator-death-dynamic-form.md)).
 
-Snapshots on Drive: `Neuro-AI-Snapshots/phase5_substrate_snapshots/seed_{N}/`
+**Pending decision (the user's commit point):** advance the combined
+A+B (coverage-weighted reinforcement rate + -α log(d_eff) repulsion
+field) to implementation as a single design unit, OR defer.
+
+If advance: next session implements A+B in
+`src/energy_memory/phase4/consolidation.py` + `src/energy_memory/substrate/torch_fhrr.py`,
+verifies Phase 4 D1 graduation preserved on 1 seed pilot, then runs
+n=10 retrain on Colab. Pre-committed falsification criteria (per the
+design note §"Pre-committed falsification criteria"):
+
+1. **d_eff preservation:** at the substrate's stable steady state
+   (formerly step 1800), substrate d_eff ≥ 25 across 5 seeds.
+2. **K-branch state_divergence within 30% of pre-death** across 5
+   seeds (matching report 043's pre-death ratio).
+3. **Phase 4 D1 non-regression:** Δms_w3 ≤ -0.5, CI-disjoint, n=10
+   (preserves [report 038](reports/038_phase4_d1_graduation.md)).
+4. **Phase 5 A1 attempted on n=10:** the graduation criterion;
+   passes 1-3 are mechanism-validity gates, not graduation gates.
+5. **α and λ are fixed once before first retrain** from theoretical
+   considerations; not tuned to land d_eff in target range.
+
+Still open / not addressed by this session:
+- The bimodal-ΔE-across-seeds issue (report 043). Death-mechanism
+  redesign is necessary but not sufficient for Phase 5 graduation;
+  the cue-regime / role-prior asymmetry is a separate axis. Path 3
+  design note (cue-regime sensitivity hypotheses) still to write
+  before any cue-regime sweep is committed (H1 pre-commitment).
+- θ′(β) calibration spike (pre-phase commitment) — would inform the
+  tight/spread regime classifier, but A+B doesn't strictly require
+  it.
+
+**Pre-commitments still binding:**
+- No n=10 on W=4 post-death without mechanism revision.
+- No cherry-picking pre-death seeds 17, 23 as the headline set (H4).
+- No new combiner / death mechanism without a design note + anti-
+  homunculus check first (A+B has both; check passed).
+- No using cue-regime sensitivity sweep results to *select* a
+  graduation-passing cue regime (H1).
+- α not tuned to land d_eff in target range; first retrain miss = falsification.
+
+Snapshots on Drive: `Neuro-AI-Snapshots/phase5_snapshots_seed{N}/`
 for N ∈ {17, 11, 23, 1, 2}, each with step ∈ {500, 1500, 1700, 1800} ×
 scale ∈ {2, 3, 4}. 60 snapshots total, all captured via Colab notebook
-`scripts/colab_phase5_snapshots.ipynb`.
+`scripts/colab_phase5_snapshots.ipynb`. Five more seeds needed for n=10.
 
-77 tests passing; 0 skipped. Working tree clean, all commits pushed through
-`a9c576f`.
+216 tests passing; 0 skipped. Working tree dirty
+(`reports/phase5_snapshots_local/seed{1,2,11,23}/`,
+`reports/phase5_headline_n5/`, `reports/041_phase5_de_n5_partial.md`,
+`scripts/aggregate_phase5_de.py`).
 
 **Phase 4** remains graduated on D1 ([report 038](reports/038_phase4_d1_graduation.md));
 no regression. Open next-step questions for Phase-4-revision (gradient

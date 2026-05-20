@@ -1335,6 +1335,11 @@ def main():
                         "in [0, 1]; higher = more content/role disagreement")
     parser.add_argument("--gamma", type=float, default=0.5,
                         help="prior weight for headline mode")
+    parser.add_argument("--k-main", type=int, default=4,
+                        help="K_main for the main (non-K=1-control) headline "
+                        "runs. Used for the role_K{k}, content_K{k}, "
+                        "random_K{k}, role_K{k}_g0, content_K{k}_g0 "
+                        "conditions. K=1 control is always run separately.")
     parser.add_argument("--formulation", type=str, default="per_pattern",
                         choices=list(FORMULATIONS),
                         help="prior formulation for headline mode")
@@ -1434,15 +1439,20 @@ def main():
                 runs.append((name, "content", gamma, 4, formulation))
     else:  # headline
         # The headline run: role vs content vs random; controls γ=0 and K=1.
+        km = args.k_main
         runs = [
-            ("role_K4", "role", args.gamma, 4, args.formulation),
-            ("content_K4", "content", args.gamma, 4, args.formulation),
-            ("random_K4", "random", args.gamma, 4, args.formulation),
-            ("role_K1", "role", args.gamma, 1, args.formulation),
-            ("content_K1", "content", args.gamma, 1, args.formulation),
-            ("role_K4_g0", "role", 0.0, 4, args.formulation),
-            ("content_K4_g0", "content", 0.0, 4, args.formulation),
+            (f"role_K{km}", "role", args.gamma, km, args.formulation),
+            (f"content_K{km}", "content", args.gamma, km, args.formulation),
+            (f"random_K{km}", "random", args.gamma, km, args.formulation),
+            (f"role_K{km}_g0", "role", 0.0, km, args.formulation),
+            (f"content_K{km}_g0", "content", 0.0, km, args.formulation),
         ]
+        # K=1 control runs only if k_main != 1 (otherwise duplicates main).
+        if km != 1:
+            runs.extend([
+                ("role_K1", "role", args.gamma, 1, args.formulation),
+                ("content_K1", "content", args.gamma, 1, args.formulation),
+            ])
 
     results = []
     if args.mode == "headline":
@@ -1456,6 +1466,12 @@ def main():
             per_cue_e_min = []
             per_cue_e_min_unbiased = []
             per_cue_align = []
+            per_cue_softmax_entropy = []
+            per_cue_state_divergence = []
+            per_cue_prior_alignment = []
+            per_cue_prior_pairwise_dist = []
+            per_cue_energy_drop = []
+            per_cue_n_branches = []
             for cue_id, spec in enumerate(cue_specs):
                 result = run_branched_retrieval(
                     cue=spec["cue"], cue_id=cue_id, target_id=spec["role_target_idx"],
@@ -1485,6 +1501,29 @@ def main():
                 per_cue_e_min.append(e_min)
                 per_cue_e_min_unbiased.append(e_min)
                 per_cue_align.append(align)
+                nb = len(result.branches)
+                per_cue_n_branches.append(nb)
+                per_cue_softmax_entropy.append(float(result.softmax_entropy))
+                per_cue_state_divergence.append(
+                    sum(b.final_state_divergence for b in result.branches) / nb
+                )
+                per_cue_prior_alignment.append(
+                    sum(b.prior_alignment for b in result.branches) / nb
+                )
+                per_cue_energy_drop.append(
+                    sum(b.energy_drop for b in result.branches) / nb
+                )
+                # Pairwise FHRR cos-distance among the K priors used this cue.
+                if nb <= 1:
+                    per_cue_prior_pairwise_dist.append(0.0)
+                else:
+                    priors = [b.prior for b in result.branches]
+                    dists = []
+                    for i in range(nb):
+                        for j in range(i + 1, nb):
+                            c = float(_fhrr_cosine(priors[i], priors[j]))
+                            dists.append(1.0 - c)
+                    per_cue_prior_pairwise_dist.append(sum(dists) / len(dists))
             n = max(len(per_cue_e_min), 1)
             results.append({
                 "name": name,
@@ -1496,13 +1535,42 @@ def main():
                 "per_cue_energy_unbiased_min": per_cue_e_min,
                 "mean_energy_unbiased_min": sum(per_cue_e_min) / n,
                 "mean_on_substrate_alignment": sum(per_cue_align) / n,
+                "mean_n_branches": (
+                    sum(per_cue_n_branches) / n if per_cue_n_branches else 0
+                ),
+                "mean_branch_softmax_entropy": (
+                    sum(per_cue_softmax_entropy) / n
+                    if per_cue_softmax_entropy else 0.0
+                ),
+                "mean_branch_state_divergence": (
+                    sum(per_cue_state_divergence) / n
+                    if per_cue_state_divergence else 0.0
+                ),
+                "mean_prior_alignment": (
+                    sum(per_cue_prior_alignment) / n
+                    if per_cue_prior_alignment else 0.0
+                ),
+                "mean_prior_pairwise_distance": (
+                    sum(per_cue_prior_pairwise_dist) / n
+                    if per_cue_prior_pairwise_dist else 0.0
+                ),
+                "mean_energy_drop": (
+                    sum(per_cue_energy_drop) / n
+                    if per_cue_energy_drop else 0.0
+                ),
             })
         # Paired ΔE = E_content - E_role (positive = role-prior found a
         # lower-energy state, i.e. structural retrieval). Compute for
-        # matched (content_K4, role_K4) and (content_K1, role_K1) pairs.
+        # every matched (content_*, role_*) pair found in results.
         named = {r["name"]: r for r in results}
         deltas = {}
-        for tag in ("K4", "K1", "K4_g0"):
+        tag_set = []
+        for n_ in named:
+            if n_.startswith("content_"):
+                tag = n_[len("content_"):]
+                if f"role_{tag}" in named and tag not in tag_set:
+                    tag_set.append(tag)
+        for tag in tag_set:
             content_name = f"content_{tag}"
             role_name = f"role_{tag}"
             if content_name not in named or role_name not in named:
@@ -1558,6 +1626,7 @@ def main():
         payload["content_distortion"] = args.content_distortion
         payload["formulation"] = args.formulation
         payload["gamma"] = args.gamma
+        payload["k_main"] = args.k_main
     out_path.write_text(json.dumps(payload, indent=2))
     print(f"[done] wrote {out_path}")
     return payload

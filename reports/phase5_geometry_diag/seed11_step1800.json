@@ -1,0 +1,105 @@
+{
+  "snapshot": "reports/phase5_snapshots_local/seed11/phase3_phase4_w4_step1800.pt",
+  "label": "phase3_phase4_w4_step1800",
+  "metadata": {
+    "condition": "phase3_phase4",
+    "scale": 4,
+    "cues_seen": 1800,
+    "seed": 11,
+    "n_patterns": 10
+  },
+  "n_atoms": 10,
+  "dim": 4096,
+  "beta": 10.0,
+  "theta_prime": 0.1,
+  "k_nn": 5,
+  "substrate": {
+    "d_bar_mean": 0.5377194285392761,
+    "d_bar_std": 0.21474318206310272,
+    "d_eff": 3.8790781497955322,
+    "d_eff_ratio_to_dim": 0.0009470405639149249,
+    "regime": "spread",
+    "ratio_d_bar_to_theta_prime": 5.377194285392761
+  },
+  "per_atom": [
+    {
+      "atom_idx": 0,
+      "k_used": 5,
+      "d_bar": 0.56268310546875,
+      "d_eff": 2.3727564811706543
+    },
+    {
+      "atom_idx": 1,
+      "k_used": 5,
+      "d_bar": 0.5286937952041626,
+      "d_eff": 2.458331823348999
+    },
+    {
+      "atom_idx": 2,
+      "k_used": 5,
+      "d_bar": 0.5515440702438354,
+      "d_eff": 2.9015047550201416
+    },
+    {
+      "atom_idx": 3,
+      "k_used": 5,
+      "d_bar": 0.30855250358581543,
+      "d_eff": 3.3608591556549072
+    },
+    {
+      "atom_idx": 4,
+      "k_used": 5,
+      "d_bar": 0.6045494079589844,
+      "d_eff": 2.342780590057373
+    },
+    {
+      "atom_idx": 5,
+      "k_used": 5,
+      "d_bar": 0.35416099429130554,
+      "d_eff": 3.317502021789551
+    },
+    {
+      "atom_idx": 6,
+      "k_used": 5,
+      "d_bar": 0.3418712317943573,
+      "d_eff": 3.3483548164367676
+    },
+    {
+      "atom_idx": 7,
+      "k_used": 5,
+      "d_bar": 0.28750914335250854,
+      "d_eff": 3.239917516708374
+    },
+    {
+      "atom_idx": 8,
+      "k_used": 5,
+      "d_bar": 0.3398831784725189,
+      "d_eff": 3.234764575958252
+    },
+    {
+      "atom_idx": 9,
+      "k_used": 5,
+      "d_bar": 0.3336114287376404,
+      "d_eff": 3.363917350769043
+    }
+  ],
+  "per_atom_summary": {
+    "d_bar": {
+      "n": 10,
+      "mean": 0.42130588591098783,
+      "min": 0.28750914335250854,
+      "max": 0.6045494079589844,
+      "median": 0.35416099429130554
+    },
+    "d_eff": {
+      "n": 10,
+      "mean": 2.994068908691406,
+      "min": 2.342780590057373,
+      "max": 3.363917350769043,
+      "median": 3.239917516708374
+    },
+    "n_tight": 0,
+    "n_spread": 10,
+    "fraction_tight": 0.0
+  }
+}
