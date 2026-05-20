@@ -444,7 +444,7 @@ descent; greedy reads as an if-X-then-Y rule even if X is a measurement.
 | 2 | γ (prior weight in per-branch energy). Default 0.5; sweep `{0.0, 0.25, 0.5, 1.0, 2.0}`. | Settled at first experimental run; CPU spike. |
 | 3 | K_main (branches per cue). Default 4; sweep `{2, 4, 8}`. | Settled at first experimental run; compute-cost question, not architectural. |
 | 4 | Bundle re-settle convergence. Verify numerically that the bundled state lands cleanly on an attractor (no oscillation, no high-energy outcome). | Settled at implementation start; ~30-min CPU spike on synthetic cues. |
-| 5 | **Prior formulation: per-pattern bias vs global pull.** The design has internal tension between line 158 (`E_k(q) = -logsumexp(β · X q*) - γ · Re(⟨q, p_k⟩)`, the *global pull* form) and line 164 ("prior term added to the score," the *per-pattern bias* form). These are NOT mathematically equivalent at γ > 0: per-pattern reweights stored-pattern attractors so q stays in their span; global pull drags q toward the prior in FHRR space regardless of substrate support. Both reduce to the unbiased retrieve at γ = 0. | **Decision spike.** Both forms implemented in `experiments/40_phase5_branching.py:settle_branch_with_prior` behind a `formulation` kwarg. Decided by a synthetic-cue spike before the n=10 graduation run. **One form is chosen, documented, and the kwarg is removed; the losing form lives only in the spike report.** |
+| 5 | **Prior formulation: per-pattern bias vs global pull.** The design had internal tension between line 158 (`E_k(q) = -logsumexp(β · X q*) - γ · Re(⟨q, p_k⟩)`, the *global pull* form) and line 164 ("prior term added to the score," the *per-pattern bias* form). | ✅ **CLOSED 2026-05-20 by per-pattern (decision rule #1).** Seed-17 spike on real Phase 4 post-death substrate (W=4, 12 atoms): per-pattern produces ΔE > 0 in **49/50 cues at K=1** (mean +2.6e-5, microscopic but directional) while maintaining alignment 0.997–0.998 across all conditions. Global pull produces ΔE = **−0.027** with role-prior alignment dropping to 0.967 — actively disruptive, not just neutral. The kwarg `formulation` remains in code so the spike is reproducible, but production runs use `per_pattern` exclusively; the spike result lives in `reports/phase5_decision5_local/`. |
 
 Decision 1 was the architectural blocker. With it closed, decisions 2–4 are
 all addressable during implementation as numerical hyperparameters; decision
@@ -497,6 +497,41 @@ Decision 5 sits on the schema-source robustness axis explicitly as a
 diagnostic; decision 5 picks the dynamics. Once decided, the chosen
 formulation is fixed across all §C conditions — we are NOT going to
 sweep formulation × schema-source in the graduation run.
+
+### Decision 5 spike result (2026-05-20)
+
+Run: `experiments/40_phase5_branching.py --mode headline` against seed
+17's W=4 post-death snapshot (`phase3_phase4_w4_step1800.pt`, 12 atoms,
+4 positions, retrieval counts ranging 1–1174).
+
+| condition | per-pattern ΔE | per-pattern align | global-pull ΔE | global-pull align |
+|---|---:|---:|---:|---:|
+| K=4, γ=0.5 | +4e-6 (60% positive) | 0.998 | −0.028 (10% positive) | 0.970 |
+| K=1, γ=0.5 | **+2.6e-5 (98% positive)** | **0.998** | −0.027 (22% positive) | 0.967 |
+| K=4, γ=0 | 0 (control) | 0.998 | 0 (control) | 0.998 |
+
+K=1 cleanly differentiates the two formulations because it avoids the
+bundle-resettle dilution; with N_schemas=12 and K_main=4, role-prior
+and content-prior pick overlapping top-4 sets and the bundle averages
+them. At K=1 each picks a distinct schema and the directional signal
+survives.
+
+**Closure rationale.** Decision rule #1 is met for per-pattern: ΔE > 0
+(directional, 49/50 cues at K=1) AND alignment stays on-substrate
+(0.998). Global pull violates the on-substrate constraint (alignment
+0.967) AND produces negative ΔE (the prior pulls q to higher-energy
+states by dragging it off the basin manifold).
+
+**What the magnitude tells us.** The per-pattern ΔE is microscopic
+(+2.6e-5) because at β=10 with only 12 attractors, Hopfield settling
+is highly decisive — most cues land at the global minimum regardless
+of prior. The 98% directionality is the substrate-bounded signal of
+structural retrieval working. Larger N_schemas should yield larger
+magnitude. This is a substrate-capacity observation, not a Phase 5
+mechanism limitation.
+
+Production code uses `formulation='per_pattern'` exclusively. The
+`global_pull` codepath is retained for reproducibility of this spike.
 
 ---
 
