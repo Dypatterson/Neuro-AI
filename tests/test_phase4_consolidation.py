@@ -331,6 +331,39 @@ class TestFreqWeightedAlpha(unittest.TestCase):
         # halved. So u_m_lam1 < u_m_lam0 at long horizons.
         self.assertLess(u_m_lam1, u_m_lam0)
 
+    def test_cfl_clamp_holds_u_finite_at_extreme_lambda(self):
+        """Without clamping, alpha_eff > 0.5 makes the explicit Euler step
+        diverge. The CFL clamp at _CFL_MAX_ALPHA_EFF=0.5 must hold u finite
+        across long horizons even at lambda values that would otherwise
+        blow up.
+
+        This is the safety guarantee for the A+B mechanism (STATUS.md):
+        coverage-weighted reinforcement rate can push alpha_eff arbitrarily
+        high; the clamp must prevent silent NaN corruption.
+        """
+        # lambda=10 with saturated count: unclamped alpha_eff = 0.25*11 = 2.75
+        # (5.5× the CFL boundary). Highest-mode amplification |1 - 4*2.75|
+        # = 10, so without clamp u would blow up by ~10^N after N steps.
+        s = self._state(10.0)
+        for _ in range(8):
+            s.add_pattern(novelty_strength=1.0)
+        # Saturate retrieval counts so norm_count → 1.0 across the substrate.
+        s.retrieval_count[:] = 50
+        input_vec = torch.full((s.n_patterns,), 0.1, dtype=torch.float32, device=s.device)
+        for _ in range(500):
+            s.step_dynamics(input_vector=input_vec)
+        # All u_k must remain finite and bounded.
+        self.assertTrue(torch.isfinite(s.u).all().item())
+        # Constant input 0.1 with α_eff=0.5 settles to a finite steady state;
+        # check the magnitude is well-bounded (sanity, not a pinned value).
+        self.assertLess(s.u.abs().max().item(), 10.0)
+
+    def test_cfl_constant_matches_expected_boundary(self):
+        """Pin the CFL constant so downstream code (e.g., A+B mechanism)
+        can rely on the documented stability boundary."""
+        from energy_memory.phase4.consolidation import _CFL_MAX_ALPHA_EFF
+        self.assertEqual(_CFL_MAX_ALPHA_EFF, 0.5)
+
     def test_remove_pattern_drops_retrieval_count_row(self):
         s = self._state(0.0)
         i0 = s.add_pattern()

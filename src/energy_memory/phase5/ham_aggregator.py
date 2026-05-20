@@ -114,9 +114,20 @@ class HAMAggregator:
         candidate_ids = torch.tensor(list(decode_ids), device=codebook.device)
         cand_matrix = codebook[candidate_ids]
 
-        last_consensus = None
-        converged = False
-        iteration = 0
+        # Run all max_iter iterations on-device without per-iteration CPU
+        # syncs, then replay the convergence check from a single batched
+        # sync at the end. The converged state is captured on-device via
+        # torch.where against a frozen mask (per the pattern established
+        # in torch_hopfield.retrieve(); see CLAUDE.md "GPU performance rule
+        # of thumb"). Bit-identical to the prior break-on-converge behavior
+        # — the freeze mask captures the same iter at which break would
+        # have fired.
+        device = codebook.device
+        delta_tensors: List["torch.Tensor"] = []
+        frozen = torch.zeros((), dtype=torch.bool, device=device)
+        final_states: Dict[int, "torch.Tensor"] = {s: t.clone() for s, t in states.items()}
+        final_consensus: Optional["torch.Tensor"] = None
+        last_consensus: Optional["torch.Tensor"] = None
 
         for iteration in range(1, config.max_iter + 1):
             new_states: Dict[int, "torch.Tensor"] = {}
@@ -152,32 +163,84 @@ class HAMAggregator:
                 )
 
             if last_consensus is not None:
-                delta = float((consensus - last_consensus).abs().max().detach().cpu())
-                if delta < config.convergence_tol:
-                    converged = True
-                    states = new_states
-                    last_consensus = consensus
-                    break
+                delta = (consensus - last_consensus).abs().max()
+                delta_tensors.append(delta)
+                converged_now = (delta < config.convergence_tol) & (~frozen)
+                for scale in scale_inputs:
+                    final_states[scale] = torch.where(
+                        converged_now, new_states[scale], final_states[scale],
+                    )
+                if final_consensus is None:
+                    final_consensus = torch.where(
+                        converged_now, consensus, torch.zeros_like(consensus),
+                    )
+                else:
+                    final_consensus = torch.where(
+                        converged_now, consensus, final_consensus,
+                    )
+                frozen = frozen | converged_now
 
             states = new_states
             last_consensus = consensus
 
+        # If never converged, fall through to the last iteration's states /
+        # consensus (matches the original "loop completed without break"
+        # semantics).
+        for scale in scale_inputs:
+            final_states[scale] = torch.where(frozen, final_states[scale], states[scale])
+        if final_consensus is None:
+            final_consensus = (
+                last_consensus
+                if last_consensus is not None
+                else torch.zeros(len(decode_ids), device=device)
+            )
+        else:
+            final_consensus = torch.where(
+                frozen,
+                final_consensus,
+                last_consensus if last_consensus is not None else torch.zeros_like(final_consensus),
+            )
+
+        # Single batched sync: replay the convergence check on the CPU.
+        deltas = (
+            torch.stack(delta_tensors).detach().cpu().tolist()
+            if delta_tensors
+            else []
+        )
+        converged = False
+        converged_iter = config.max_iter
+        for k, d in enumerate(deltas):
+            if d < config.convergence_tol:
+                converged = True
+                # delta_tensors[0] compares iter 2's consensus to iter 1's,
+                # so the first sub-tol delta at index k corresponds to iter k+2.
+                converged_iter = k + 2
+                break
+
+        states = final_states
+
         top_indices_per_scale: Dict[int, int] = {}
         top_scores_per_scale: Dict[int, float] = {}
+        # Compute argmax/score per scale on-device, then batch-sync.
+        top_idx_tensors: Dict[int, "torch.Tensor"] = {}
+        top_score_tensors: Dict[int, "torch.Tensor"] = {}
         for scale, inp in scale_inputs.items():
             scores = self.substrate.similarity_matrix(
                 states[scale], pattern_matrices[scale],
             )
-            top_idx = int(scores.argmax().detach().cpu())
-            top_indices_per_scale[scale] = top_idx
-            top_scores_per_scale[scale] = float(scores[top_idx].detach().cpu())
+            top_idx_t = scores.argmax()
+            top_idx_tensors[scale] = top_idx_t
+            top_score_tensors[scale] = scores[top_idx_t]
+        for scale in scale_inputs:
+            top_indices_per_scale[scale] = int(top_idx_tensors[scale].detach().cpu())
+            top_scores_per_scale[scale] = float(top_score_tensors[scale].detach().cpu())
 
         return HAMResult(
             final_states=states,
-            consensus=last_consensus if last_consensus is not None else torch.zeros(len(decode_ids)),
+            consensus=final_consensus,
             top_indices_per_scale=top_indices_per_scale,
             top_scores_per_scale=top_scores_per_scale,
-            iterations=iteration,
+            iterations=converged_iter,
             converged=converged,
         )
 

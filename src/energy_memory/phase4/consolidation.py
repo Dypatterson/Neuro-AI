@@ -42,6 +42,17 @@ else:
     _IMPORT_ERROR = None
 
 
+# Maximum alpha_eff that keeps the explicit Euler step CFL-stable.
+# The 1D discrete Laplacian has eigenvalues in [-4, 0]. The amplification
+# factor for mode λ is (1 + α_eff·λ); stability requires |1 + α_eff·λ| ≤ 1
+# for all λ, which gives α_eff ≤ 0.5 (saturated by the highest-frequency
+# mode at λ=-4). Above 0.5 the explicit Euler scheme diverges; at exactly
+# 0.5 the highest mode is marginally stable. We clamp at the boundary so
+# any frequency-weighted configuration that would push α_eff > 0.5 is
+# silently held at the boundary instead of producing NaN.
+_CFL_MAX_ALPHA_EFF = 0.5
+
+
 @dataclass(frozen=True)
 class ConsolidationConfig:
     """Per-pattern multi-timescale consolidation parameters."""
@@ -242,6 +253,14 @@ class ConsolidationState:
         # Per-pattern α scaling (brainstorm idea 5). At lambda=0 alpha_eff
         # collapses to the scalar alpha and the math is identical to the
         # original Eq.10/11 implementation.
+        #
+        # CFL stability: see _CFL_MAX_ALPHA_EFF docstring. We clamp at the
+        # 0.5 boundary so configurations that would push α_eff > 0.5
+        # (e.g., alpha=0.25 with lambda > 1.0 at saturated retrieval count)
+        # are held at the marginal boundary instead of diverging into NaN.
+        # The clamp is a safety floor against numerical blow-up, not a
+        # tuning knob — choose lambda so the unclamped value stays below
+        # the bound.
         lam = self.config.alpha_freq_lambda
         if lam > 0.0:
             max_count = self.retrieval_count.max()
@@ -249,7 +268,7 @@ class ConsolidationState:
                 norm_count = self.retrieval_count.to(torch.float32) / max_count.to(torch.float32)
             else:
                 norm_count = torch.zeros_like(self.retrieval_count, dtype=torch.float32)
-            alpha_eff = alpha * (1.0 + lam * norm_count)
+            alpha_eff = (alpha * (1.0 + lam * norm_count)).clamp(max=_CFL_MAX_ALPHA_EFF)
             new_u = u + alpha_eff.unsqueeze(1) * laplacian
         else:
             new_u = u + alpha * laplacian

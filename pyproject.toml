@@ -7,8 +7,8 @@ dependencies = []
 
 [project.optional-dependencies]
 torch = [
-    "numpy",
-    "torch",
+    "numpy>=1.24,<3",
+    "torch>=2.0,<3",
 ]
 phase2 = [
     "datasets>=2.0",

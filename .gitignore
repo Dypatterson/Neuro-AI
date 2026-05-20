@@ -7,4 +7,6 @@ tmp/
 research/
 *.pt
 .claude/
+.env
+.env.*
 
