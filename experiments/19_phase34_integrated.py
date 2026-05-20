@@ -270,6 +270,10 @@ def stream_phase34(
     phase4_units: Optional[Dict[int, UnifiedReplayMemory]] = None,
     reencode_every: int = 0,
     reencode_discovered: bool = True,
+    snapshot_steps: Optional[Sequence[int]] = None,
+    snapshot_dir: Optional[Path] = None,
+    snapshot_scales: Optional[Sequence[int]] = None,
+    snapshot_seed: Optional[int] = None,
 ) -> List[Dict]:
     """Run one condition's streaming loop. Codebook lives in codebook_box[0]
     so consolidation events can update it in-place across scales."""
@@ -569,6 +573,44 @@ def stream_phase34(
                 eval_result["death_diag"] = death_diag
             results.append(eval_result)
 
+            # Phase 5 substrate snapshot capture (per phase-5-checklist.md §C).
+            # Saves (memory, consolidation) per requested scale at requested
+            # cues_seen counts so Phase 5's get_schema_store can read the
+            # exact substrate state without re-running Phase 4.
+            if (
+                snapshot_steps
+                and snapshot_dir is not None
+                and phase4_units
+                and cues_seen in snapshot_steps
+            ):
+                from energy_memory.phase4.snapshot import save_substrate_snapshot
+                snap_scales = snapshot_scales or list(phase4_units.keys())
+                for s in snap_scales:
+                    if s not in phase4_units:
+                        continue
+                    unit = phase4_units[s]
+                    if unit.consolidation.n_patterns == 0:
+                        # Empty consolidation — still save (debugging), but
+                        # flag in metadata.
+                        pass
+                    snap_path = (
+                        snapshot_dir
+                        / f"{condition}_w{s}_step{cues_seen}.pt"
+                    )
+                    save_substrate_snapshot(
+                        memory=unit.memory,
+                        consolidation=unit.consolidation,
+                        path=snap_path,
+                        label=f"{condition}_w{s}_step{cues_seen}",
+                        metadata={
+                            "condition": condition,
+                            "scale": s,
+                            "cues_seen": cues_seen,
+                            "seed": snapshot_seed,
+                            "n_patterns": unit.consolidation.n_patterns,
+                        },
+                    )
+
             extra = ""
             if updaters and 2 in updaters:
                 s = updaters[2].stats()
@@ -714,6 +756,24 @@ def main() -> None:
         ),
     )
     parser.add_argument("--output-dir", default="reports/phase34_integrated")
+    parser.add_argument(
+        "--snapshot-steps", type=str, default=None,
+        help=(
+            "Comma-separated cues_seen values at which to save a Phase 5 "
+            "substrate snapshot (memory + consolidation per scale). E.g. "
+            "'500,1500,3000' to capture step_500, step_1500, post_death. "
+            "Saved under <output-dir>/snapshots/. Only phase3_phase4 "
+            "condition is captured (the others have no phase4_units)."
+        ),
+    )
+    parser.add_argument(
+        "--snapshot-scales", type=str, default=None,
+        help=(
+            "Comma-separated W scales to snapshot. Default: all scales the "
+            "phase4_units run over. Pass '2' to capture only W=2 (the "
+            "post-death small population most relevant to Phase 5)."
+        ),
+    )
     args = parser.parse_args()
 
     repo_root = Path(__file__).resolve().parents[1]
@@ -900,6 +960,19 @@ def main() -> None:
         )
         phase4_units_c[s].attach_initial_patterns()
 
+    snapshot_steps = (
+        [int(x) for x in args.snapshot_steps.split(",")]
+        if getattr(args, "snapshot_steps", None) else None
+    )
+    snapshot_scales_cfg = (
+        [int(x) for x in args.snapshot_scales.split(",")]
+        if getattr(args, "snapshot_scales", None) else None
+    )
+    snapshot_dir = None
+    if snapshot_steps:
+        snapshot_dir = output_dir / "snapshots"
+        snapshot_dir.mkdir(parents=True, exist_ok=True)
+
     all_results["phase3_phase4"] = stream_phase34(
         condition="phase3_phase4",
         slots=slots_c, cue_stream=cue_stream,
@@ -916,6 +989,10 @@ def main() -> None:
         phase4_units=phase4_units_c,
         reencode_every=args.reencode_every,
         reencode_discovered=args.reencode_discovered,
+        snapshot_steps=snapshot_steps,
+        snapshot_dir=snapshot_dir,
+        snapshot_scales=snapshot_scales_cfg,
+        snapshot_seed=args.seed,
     )
 
     # ──────────── Save and summarize ────────────

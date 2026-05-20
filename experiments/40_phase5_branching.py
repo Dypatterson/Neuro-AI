@@ -991,7 +991,8 @@ def _build_synthetic_substrate(*, n_atoms: int, dim: int, device: str, seed: int
     """Build a small (memory, consolidation, patterns) trio for smoke runs.
 
     Not a Phase 4 substrate — just enough to exercise the Phase 5 driver
-    end-to-end. The real run loads a saved post-death snapshot.
+    end-to-end. The real run loads a saved post-death snapshot via
+    `_load_substrate_from_snapshot`.
     """
     from energy_memory.phase4.consolidation import (
         ConsolidationConfig, ConsolidationState,
@@ -1008,6 +1009,28 @@ def _build_synthetic_substrate(*, n_atoms: int, dim: int, device: str, seed: int
         cons.add_pattern(novelty_strength=1.0 + 0.2 * (n_atoms - i))
         patterns.append(p)
     return mem, cons, patterns
+
+
+def _load_substrate_from_snapshot(*, path: str, device: str):
+    """Load (memory, consolidation, patterns) from a Phase 4 snapshot.
+
+    Constructs a TorchFHRR substrate matching the snapshot's dim. Returns
+    (memory, consolidation, patterns, info) where info carries the
+    snapshot's label/metadata for downstream reporting.
+    """
+    from energy_memory.phase4.snapshot import load_substrate_snapshot
+    # Peek the dim from the saved patterns tensor.
+    state = torch.load(path, map_location="cpu", weights_only=False)
+    saved_patterns = state["patterns"]
+    if saved_patterns.numel() == 0:
+        raise ValueError(f"snapshot {path} has zero stored patterns; nothing to load")
+    dim = saved_patterns.shape[-1]
+    substrate = TorchFHRR(dim=dim, device=device)
+    mem, cons, info = load_substrate_snapshot(
+        path=path, substrate=substrate, device=device,
+    )
+    patterns = list(mem._patterns)
+    return mem, cons, patterns, info
 
 
 def _run_condition_over_cues(
@@ -1086,6 +1109,15 @@ def main():
                         "decision5_spike: both formulations × γ ∈ {0.25, 0.5, 1.0}.")
     parser.add_argument("--seed", type=int, default=17)
     parser.add_argument("--device", type=str, default="cpu", choices=["cpu", "mps", "cuda"])
+    parser.add_argument(
+        "--substrate-snapshot", type=str, default=None,
+        help=(
+            "Path to a Phase 4 substrate snapshot .pt (from exp 19 with "
+            "--snapshot-steps). When provided, the synthetic substrate is "
+            "bypassed and Phase 5 runs against the loaded (memory, "
+            "consolidation). --dim and --n-atoms are then ignored."
+        ),
+    )
     parser.add_argument("--dim", type=int, default=256)
     parser.add_argument("--n-atoms", type=int, default=12)
     parser.add_argument("--n-cues", type=int, default=20)
@@ -1102,19 +1134,35 @@ def main():
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    mem, cons, patterns = _build_synthetic_substrate(
-        n_atoms=args.n_atoms, dim=args.dim, device=args.device, seed=args.seed,
-    )
+    snapshot_info: Optional[Dict[str, Any]] = None
+    if args.substrate_snapshot is not None:
+        mem, cons, patterns, snapshot_info = _load_substrate_from_snapshot(
+            path=args.substrate_snapshot, device=args.device,
+        )
+        effective_dim = mem.substrate.dim
+        print(
+            f"[load] substrate snapshot from {args.substrate_snapshot}: "
+            f"n_atoms={len(patterns)}, dim={effective_dim}, "
+            f"label={snapshot_info.get('label')!r}",
+            flush=True,
+        )
+    else:
+        mem, cons, patterns = _build_synthetic_substrate(
+            n_atoms=args.n_atoms, dim=args.dim, device=args.device, seed=args.seed,
+        )
+        effective_dim = args.dim
+
     schema_store, atom_idx = get_schema_store(
         consolidation=cons, patterns=mem._pattern_matrix(),
-        selection_rule="top_k_by_effective_strength", k=args.k,
+        selection_rule="top_k_by_effective_strength",
+        k=min(args.k, len(patterns)),
     )
 
     # Cues: perturbed copies of stored patterns (so retrieval has work to do).
     cues = []
     for i in range(args.n_cues):
         base = patterns[i % len(patterns)]
-        noise = torch.randn(args.dim, dtype=torch.complex64, device=args.device)
+        noise = torch.randn(effective_dim, dtype=torch.complex64, device=args.device)
         cues.append(mem.substrate.normalize(base + 0.15 * noise))
 
     boltzmann_rng = torch.Generator().manual_seed(args.seed + 10)
@@ -1150,12 +1198,14 @@ def main():
     payload = {
         "mode": args.mode,
         "seed": args.seed,
-        "dim": args.dim,
-        "n_atoms": args.n_atoms,
+        "dim": effective_dim,
+        "n_atoms": len(patterns),
         "n_cues": args.n_cues,
         "k": args.k,
         "beta": args.beta,
         "temperature": args.temperature,
+        "substrate_snapshot": args.substrate_snapshot,
+        "snapshot_info": snapshot_info,
         "conditions": results,
     }
     out_path.write_text(json.dumps(payload, indent=2))
