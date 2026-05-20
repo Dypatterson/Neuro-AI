@@ -20,24 +20,36 @@ on joint criterion (similar low energies AND substantial state divergence).
 
 ### Next session entry point (2026-05-20, late session)
 
-**A+B 1-seed pilot PASSES mechanism-validity gate** ([report 045](reports/045_phase5_ab_pilot_seed17.md)):
-W=4 step 1800 d_eff = **35.23** (≥ 25 target, vs baseline 5.36). The
-substrate retains 1064 atoms (vs baseline's 12 post-mass-death); A+B's
-`garbage_collect()` guard correctly suppressed binary death; A's
-`r_ema_mean` rose 0.017 → 0.090 monotonically; `mean_strength` decayed
-5× (0.221 → 0.043); 1035 atoms are at `dead_ready` (would have been
-binary-culled). Death-as-asymptotic-limit is correctly expressed in
-the consolidation dynamics.
+**A+B+step3 1-seed pilot PASSES mechanism-validity gate**
+([report 046](reports/046_phase5_ab_pilot_seed17_step3.md), supersedes
+[report 045](reports/045_phase5_ab_pilot_seed17.md) which preserved as
+the without-step-3 baseline):
+W=4 step 1800 d_eff = **35.20** (vs 35.23 without step 3; both ≥ 25
+target). Step 3 implementation landed at commit
+[2a94f5f](https://github.com/Dypatterson/Neuro-AI/commit/2a94f5f) with
+anti-homunculus reviewer PASS. The smooth-sigmoidal
+`w_i = σ((|E_i| − ε)/τ)` retrieval weighting (ε=0.05, τ=0.02) is
+implemented as `softplus((ε − |E_i|)/τ)` score-bias composed additively
+with the existing Saighi A_k bias.
 
-**Implementation gap surfaced by the pilot:** the design's
-[step 3 (E_i-weighted retrieval contribution)](notes/notes/2026-05-20-diagnostic-actuator-death-dynamic-form.md)
-is NOT yet implemented. Atoms with near-zero `effective_strength`
-still contribute equally in retrieval softmax; the "asymptotic death"
-property is computed in consolidation but unexpressed at retrieval.
-Three options for next session per [report 045 §"Updated next-step
-recommendation"](reports/045_phase5_ab_pilot_seed17.md):
-(1) implement step 3 + re-pilot (recommended); (2) ship n=10 as-is
-with the gap documented; (3) pause and redesign step 3 from scratch.
+Consolidation drill-downs (`r_ema`, `mean_strength`, `dead_ready`) are
+bit-identical between the two pilots — step 3 only affects retrieval
+weights, not substrate evolution. Phase 4 top1/capt5 identical to FP
+precision; Hebbian succ_rate diverges by ~3-5% in late training
+(marginal-case retrievals differ).
+
+**Death-as-asymptotic-limit is now fully expressed** at both
+consolidation (atoms decay continuously without binary deletion) and
+retrieval (low-E_i atoms contribute infinitesimally via the sigmoidal
+weighting). The architecture has its first complete
+diagnostic-actuator pair in dynamic form
+([2026-05-09 prescription](notes/notes/2026-05-09-papers-diagnostics-and-actuator-dynamics.md)
+threshold-crossing #1).
+
+**Next: Phase 5 K-branch ΔE diagnostic on the new substrate**, then
+n=10 Colab retrain if state_divergence is within 30% of pre-death.
+Path 3 (β+γ cue-regime, [design note](notes/notes/2026-05-20-cue-regime-role-prior-dynamic-form.md))
+remains contingent on the n=10 outcome.
 
 The 1-seed pilot script (ready to run):
 
