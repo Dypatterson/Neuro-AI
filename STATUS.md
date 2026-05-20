@@ -28,27 +28,31 @@ won't silently run binary death alongside A+B. **Next session: 1-seed
 pilot retrain on Colab to verify mechanism-validity criteria before
 committing to n=10.**
 
-The 1-seed pilot script (next-session work):
+The 1-seed pilot script (ready to run):
 
-1. **Pre-commit config** in the retrain script (per the design note's
-   load-bearing constraint that α / λ are set ONCE from theory, NOT
-   tuned to land d_eff in target range):
+1. **Pre-committed config** (all four binding values now set in code per
+   [reports/phase5_ab_calibration.json](reports/phase5_ab_calibration.json) +
+   the design note's load-bearing constraint):
    - `substrate.alpha_anti = 1.0` (natural unit scale: H_anti = -log d_eff)
    - `consolidation.config.coverage_lambda = 1.0` (formal Candidate A)
    - `consolidation.config.coverage_ema_rate = 0.01`
-     (EMA halflife ≈ 100 steps, matches the legacy `death_window=100`
-     baseline timescale)
-   - `replay.config.repulsion_step_size` — *not yet pre-committed in
-     code*. Will pick from a brief calibration spike on snapshots
-     (e.g., target: 1 cycle moves d_eff by ~0.5 in the collapsed
-     regime). Pre-commit before retrain.
-   - Existing config knobs (alpha_freq_lambda, inhibition_gain) remain
-     at their previous values; A+B is additive.
+     (EMA halflife ≈ 100 steps; matches the legacy `death_window=100`
+     timescale)
+   - `replay.config.repulsion_step_size = 100.0`
+     (one-shot calibration: smallest step whose median Δd_eff across
+     the 5 post-death seed snapshots is ≥ 0.05 — the conservative end
+     of the calibration band; per-tick phase change ~1–2°)
+   - Existing knobs (alpha_freq_lambda, inhibition_gain) remain at
+     their previous values; A+B is additive.
 
-2. **Run Phase 4 retrain on seed 17** (the existing "pre-death anchor"
-   seed) at W=4. The retrain produces snapshots at the same steps as
-   the existing Phase 5 substrate scale diagnostic ([report 043]
-   (reports/043_phase5_substrate_scale_diagnostic.md)).
+2. **Run with** `bash scripts/run_phase5_ab_pilot_seed17.sh`. Uses
+   `experiments/19_phase34_integrated.py` with the 4 A+B flags wired
+   in; snapshots at {500, 1500, 1700, 1800} so the
+   consolidation-geometry diagnostic produces a directly-comparable
+   d_eff trajectory against the pre-existing
+   [reports/phase5_snapshots_local/seed17/](reports/phase5_snapshots_local/seed17/)
+   snapshots. Pipeline smoke-tested end-to-end on small corpus; no
+   crashes.
 
 3. **Verify mechanism-validity criteria** (NOT graduation criteria):
    - d_eff ≥ 25 at step 1800 (pre-committed; failure = falsification).

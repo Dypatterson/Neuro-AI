@@ -1,0 +1,194 @@
+{
+  "snapshots": [
+    {
+      "snapshot": "reports/phase5_snapshots_local/seed1/phase3_phase4_w4_step1800.pt",
+      "seed": 1,
+      "n_atoms": 12,
+      "dim": 4096,
+      "d_eff_before": 3.9062929153442383,
+      "force_abs_mean": 7.085409015417099e-05,
+      "force_abs_max": 0.0003232684684917331,
+      "per_step": {
+        "0.01": {
+          "d_eff_after": 3.9062998294830322,
+          "delta_d_eff": 6.9141387939453125e-06
+        },
+        "0.1": {
+          "d_eff_after": 3.9063680171966553,
+          "delta_d_eff": 7.510185241699219e-05
+        },
+        "1": {
+          "d_eff_after": 3.907038450241089,
+          "delta_d_eff": 0.0007455348968505859
+        },
+        "10": {
+          "d_eff_after": 3.9137299060821533,
+          "delta_d_eff": 0.007436990737915039
+        },
+        "100": {
+          "d_eff_after": 3.981323003768921,
+          "delta_d_eff": 0.07503008842468262
+        },
+        "1000": {
+          "d_eff_after": 4.719831466674805,
+          "delta_d_eff": 0.8135385513305664
+        }
+      }
+    },
+    {
+      "snapshot": "reports/phase5_snapshots_local/seed2/phase3_phase4_w4_step1800.pt",
+      "seed": 2,
+      "n_atoms": 12,
+      "dim": 4096,
+      "d_eff_before": 6.414709091186523,
+      "force_abs_mean": 5.748060721089132e-05,
+      "force_abs_max": 0.00028044628561474383,
+      "per_step": {
+        "0.01": {
+          "d_eff_after": 6.414717197418213,
+          "delta_d_eff": 8.106231689453125e-06
+        },
+        "0.1": {
+          "d_eff_after": 6.414786338806152,
+          "delta_d_eff": 7.724761962890625e-05
+        },
+        "1": {
+          "d_eff_after": 6.415480136871338,
+          "delta_d_eff": 0.0007710456848144531
+        },
+        "10": {
+          "d_eff_after": 6.422402381896973,
+          "delta_d_eff": 0.007693290710449219
+        },
+        "100": {
+          "d_eff_after": 6.491886615753174,
+          "delta_d_eff": 0.07717752456665039
+        },
+        "1000": {
+          "d_eff_after": 7.206604957580566,
+          "delta_d_eff": 0.791895866394043
+        }
+      }
+    },
+    {
+      "snapshot": "reports/phase5_snapshots_local/seed11/phase3_phase4_w4_step1800.pt",
+      "seed": 11,
+      "n_atoms": 10,
+      "dim": 4096,
+      "d_eff_before": 3.8790781497955322,
+      "force_abs_mean": 8.065562724368647e-05,
+      "force_abs_max": 0.0003500025486573577,
+      "per_step": {
+        "0.01": {
+          "d_eff_after": 3.8790860176086426,
+          "delta_d_eff": 7.867813110351562e-06
+        },
+        "0.1": {
+          "d_eff_after": 3.8791608810424805,
+          "delta_d_eff": 8.273124694824219e-05
+        },
+        "1": {
+          "d_eff_after": 3.8799030780792236,
+          "delta_d_eff": 0.0008249282836914062
+        },
+        "10": {
+          "d_eff_after": 3.887319326400757,
+          "delta_d_eff": 0.00824117660522461
+        },
+        "100": {
+          "d_eff_after": 3.9621708393096924,
+          "delta_d_eff": 0.08309268951416016
+        },
+        "1000": {
+          "d_eff_after": 4.771634578704834,
+          "delta_d_eff": 0.8925564289093018
+        }
+      }
+    },
+    {
+      "snapshot": "reports/phase5_snapshots_local/seed17/phase3_phase4_w4_step1800.pt",
+      "seed": 17,
+      "n_atoms": 12,
+      "dim": 4096,
+      "d_eff_before": 5.364913463592529,
+      "force_abs_mean": 6.319343810901046e-05,
+      "force_abs_max": 0.0002768326667137444,
+      "per_step": {
+        "0.01": {
+          "d_eff_after": 5.364922046661377,
+          "delta_d_eff": 8.58306884765625e-06
+        },
+        "0.1": {
+          "d_eff_after": 5.364989280700684,
+          "delta_d_eff": 7.581710815429688e-05
+        },
+        "1": {
+          "d_eff_after": 5.365662097930908,
+          "delta_d_eff": 0.0007486343383789062
+        },
+        "10": {
+          "d_eff_after": 5.372387409210205,
+          "delta_d_eff": 0.007473945617675781
+        },
+        "100": {
+          "d_eff_after": 5.440047264099121,
+          "delta_d_eff": 0.0751338005065918
+        },
+        "1000": {
+          "d_eff_after": 6.153578758239746,
+          "delta_d_eff": 0.7886652946472168
+        }
+      }
+    },
+    {
+      "snapshot": "reports/phase5_snapshots_local/seed23/phase3_phase4_w4_step1800.pt",
+      "seed": 23,
+      "n_atoms": 6,
+      "dim": 4096,
+      "d_eff_before": 2.5150845050811768,
+      "force_abs_mean": 0.0001261084689758718,
+      "force_abs_max": 0.0005434349877759814,
+      "per_step": {
+        "0.01": {
+          "d_eff_after": 2.515092372894287,
+          "delta_d_eff": 7.867813110351562e-06
+        },
+        "0.1": {
+          "d_eff_after": 2.515164375305176,
+          "delta_d_eff": 7.987022399902344e-05
+        },
+        "1": {
+          "d_eff_after": 2.515890598297119,
+          "delta_d_eff": 0.0008060932159423828
+        },
+        "10": {
+          "d_eff_after": 2.5231595039367676,
+          "delta_d_eff": 0.00807499885559082
+        },
+        "100": {
+          "d_eff_after": 2.597276449203491,
+          "delta_d_eff": 0.08219194412231445
+        },
+        "1000": {
+          "d_eff_after": 3.464320182800293,
+          "delta_d_eff": 0.9492356777191162
+        }
+      }
+    }
+  ],
+  "calibration": {
+    "medians": {
+      "0.01": 7.867813110351562e-06,
+      "0.1": 7.724761962890625e-05,
+      "1": 0.0007710456848144531,
+      "10": 0.007693290710449219,
+      "100": 0.07717752456665039,
+      "1000": 0.8135385513305664
+    },
+    "target_delta_d_eff": 0.05,
+    "picked_step_size": 100.0,
+    "rule": "smallest step whose median \u0394Deff across seeds \u2265 target"
+  },
+  "alpha_anti": 1.0,
+  "target_delta_d_eff": 0.05
+}

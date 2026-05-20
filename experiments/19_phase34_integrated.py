@@ -569,6 +569,11 @@ def stream_phase34(
                         "retrieval_count_nonzero": int((cons.retrieval_count > 0).sum().cpu()),
                         "corr_u_m_retrieval_count": corr_u_m_rc,
                         "gini_u_m": gini_u_m,
+                        # Phase 5 A+B death-mechanism dynamic-form fields:
+                        "coverage_lambda": float(cons.config.coverage_lambda),
+                        "coverage_ema_rate": float(cons.config.coverage_ema_rate),
+                        "coverage_r_ema_mean": float(cons.r_ema.mean().cpu()),
+                        "coverage_r_ema_max": float(cons.r_ema.max().cpu()),
                     }
                 eval_result["death_diag"] = death_diag
             results.append(eval_result)
@@ -757,6 +762,47 @@ def main() -> None:
             "patterns regain dominance if they stop being retrieved."
         ),
     )
+    # Phase 5 A+B death-mechanism dynamic-form (the four pre-committed
+    # knobs per notes/notes/2026-05-20-diagnostic-actuator-death-dynamic-form.md
+    # and reports/phase5_ab_calibration.json). Defaults are 0 = OFF; binding
+    # pre-commit values for the 1-seed pilot are alpha_anti=1.0,
+    # coverage_lambda=1.0, coverage_ema_rate=0.01, repulsion_step_size=100.0.
+    parser.add_argument(
+        "--alpha-anti", type=float, default=0.0,
+        help=(
+            "Candidate B: strength of substrate's H_anti = -α·log(d_eff) "
+            "energy term. 0.0 = OFF (default, baseline behavior). 1.0 = "
+            "natural unit scale (binding for A+B pilot retrain). NOT "
+            "adapted from observed d_eff during training."
+        ),
+    )
+    parser.add_argument(
+        "--coverage-lambda", type=float, default=0.0,
+        help=(
+            "Candidate A: modulation strength on reinforce (multiplier "
+            "= 1 - lambda·r_ema). 0.0 = OFF. 1.0 = formal Candidate A "
+            "(binding for A+B pilot retrain). When > 0, also no-ops "
+            "garbage_collect() so binary death cannot run alongside."
+        ),
+    )
+    parser.add_argument(
+        "--coverage-ema-rate", type=float, default=0.01,
+        help=(
+            "Candidate A: per-step EMA rate on r_ema. Default 0.01 "
+            "(EMA halflife ≈ 100 steps, matches the legacy death_window "
+            "baseline timescale). Only active when coverage_lambda > 0."
+        ),
+    )
+    parser.add_argument(
+        "--repulsion-step-size", type=float, default=0.0,
+        help=(
+            "Candidate B: per-replay-cycle gradient step on substrate "
+            "patterns. 0.0 = OFF. 100.0 = pre-committed for A+B pilot "
+            "(one-shot calibration on reports/phase5_ab_calibration.json: "
+            "smallest step whose median ΔDeff across 5 post-death seeds "
+            "is ≥ 0.05). Requires --alpha-anti > 0 to fire."
+        ),
+    )
     parser.add_argument("--output-dir", default="reports/phase34_integrated")
     parser.add_argument(
         "--snapshot-steps", type=str, default=None,
@@ -797,7 +843,10 @@ def main() -> None:
     validation_ids = encode_texts(splits["validation"], vocab)
     print(f"  vocab: {len(vocab.id_to_token)} tokens", flush=True)
 
-    substrate = TorchFHRR(dim=args.dim, seed=args.seed, device=args.device)
+    substrate = TorchFHRR(
+        dim=args.dim, seed=args.seed, device=args.device,
+        alpha_anti=args.alpha_anti,
+    )
     if args.random_codebook:
         initial_codebook = substrate.random_vectors(len(vocab.id_to_token))
         codebook_label = "random"
@@ -939,6 +988,7 @@ def main() -> None:
         max_age=5,
         novelty_strength=args.novelty_strength,
         retrieval_gain=args.retrieval_gain,
+        repulsion_step_size=args.repulsion_step_size,
     )
     cons_config = ConsolidationConfig(
         m=args.consolidation_m,
@@ -950,6 +1000,8 @@ def main() -> None:
         inhibition_gain=args.inhibition_gain,
         inhibition_decay=args.inhibition_decay,
         alpha_freq_lambda=args.alpha_freq_lambda,
+        coverage_lambda=args.coverage_lambda,
+        coverage_ema_rate=args.coverage_ema_rate,
     )
     phase4_units_c = {}
     for s in scales:
