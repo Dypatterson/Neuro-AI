@@ -79,6 +79,20 @@ class ConsolidationConfig:
     # filters for retrieval frequency. See plan at
     # notes/notes/2026-05-16-freq-weighted-alpha-experiment-plan.md.
     alpha_freq_lambda: float = 0.0
+    # Candidate A (continuous coverage-weighted reinforcement rate).
+    # When coverage_lambda > 0, each atom's reinforcement on retrieval is
+    # multiplied by (1 - coverage_lambda * r_ema_i), where r_ema_i is a
+    # per-atom continuous EMA of the atom's coverage redundancy against
+    # the rest of the substrate. Highly redundant atoms gain almost
+    # nothing per retrieval; novel atoms gain at full rate. "Death" is
+    # the asymptotic limit of an atom whose strength decays to zero
+    # under repeated non-reinforcement — no discrete delete event.
+    # See notes/notes/2026-05-20-diagnostic-actuator-death-dynamic-form.md
+    # §"Candidate A". coverage_ema_rate is a slow EMA (matching the
+    # death_window=100 baseline timescale): r_ema halflife ≈ 100 steps.
+    # Both default off; values pre-committed for Phase 5 retrain.
+    coverage_lambda: float = 0.0
+    coverage_ema_rate: float = 0.01
 
 
 class ConsolidationState:
@@ -114,6 +128,11 @@ class ConsolidationState:
         # reinforce(); used by step_dynamics() to scale α_eff per row when
         # config.alpha_freq_lambda > 0. Kept as int32; no decay.
         self.retrieval_count = torch.zeros(0, dtype=torch.int32, device=self.device)
+        # Per-pattern coverage redundancy EMA (Candidate A).
+        # Updated each step_dynamics() call when pattern_matrix is supplied
+        # and config.coverage_lambda > 0. Stays at zero (and reinforce()
+        # multiplies by 1.0) when the mechanism is off.
+        self.r_ema = torch.zeros(0, dtype=torch.float32, device=self.device)
         self._step_count = 0
 
         if config.strength_weights is not None:
@@ -158,6 +177,10 @@ class ConsolidationState:
             self.retrieval_count,
             torch.zeros(1, dtype=torch.int32, device=self.device),
         ])
+        self.r_ema = torch.cat([
+            self.r_ema,
+            torch.zeros(1, dtype=torch.float32, device=self.device),
+        ])
         return self.n_patterns - 1
 
     def initialize_existing(self, idx: int, novelty_strength: Optional[float] = None) -> None:
@@ -183,6 +206,11 @@ class ConsolidationState:
         Also increments retrieval_count[idx]; this counter is consumed
         by step_dynamics() when config.alpha_freq_lambda > 0 to scale
         the per-pattern coupling coefficient.
+
+        When config.coverage_lambda > 0 (Candidate A), the input magnitude
+        is multiplied by (1 - coverage_lambda * r_ema[idx]). With
+        coverage_lambda=0 the multiplier is exactly 1 and behavior is
+        bit-identical to baseline.
         """
         if not 0 <= idx < self.n_patterns:
             raise IndexError(f"pattern index {idx} out of range")
@@ -191,6 +219,9 @@ class ConsolidationState:
             if magnitude is None
             else float(magnitude)
         )
+        cov = self.config.coverage_lambda
+        if cov > 0.0:
+            m = m * float((1.0 - cov * self.r_ema[idx]).clamp(min=0.0))
         self.u[idx, 0] += m
         self.retrieval_count[idx] += 1
 
@@ -222,7 +253,11 @@ class ConsolidationState:
         """
         return self.A
 
-    def step_dynamics(self, input_vector: Optional["torch.Tensor"] = None) -> None:
+    def step_dynamics(
+        self,
+        input_vector: Optional["torch.Tensor"] = None,
+        pattern_matrix: Optional["torch.Tensor"] = None,
+    ) -> None:
         """Advance all patterns one Benna-Fusi tick.
 
         Eq. 10/11 applied across all rows:
@@ -233,6 +268,15 @@ class ConsolidationState:
         Boundary at u_0 is implicit: there's no u_0 below u_1, so the
         symmetric Laplacian truncates and Eq. 11 has only -2*u_1 + u_2
         as Benna-Fusi specifies.
+
+        Candidate A (continuous redundancy EMA): when ``pattern_matrix``
+        is supplied and ``config.coverage_lambda > 0``, each atom's
+        r_ema is updated with a fresh instantaneous coverage estimate
+        from the row-wise off-diagonal Gram. The natural "decay" term
+        from the design note's formula ``dE_i/dt = (...)·(1-r_i) - λ·E_i``
+        is already provided by the Benna-Fusi Laplacian outflow with
+        the ``u_{m+1}=0`` boundary — no explicit -λE_i term is added.
+        See notes/notes/2026-05-20-diagnostic-actuator-death-dynamic-form.md.
         """
         if self.n_patterns == 0:
             return
@@ -286,6 +330,20 @@ class ConsolidationState:
         # Default decay=0.0 keeps monotonic growth (Saighi's basic form).
         if self.config.inhibition_decay > 0.0 and self.n_patterns > 0:
             self.A *= (1.0 - self.config.inhibition_decay)
+        # Candidate A: continuous redundancy EMA update.
+        if (
+            self.config.coverage_lambda > 0.0
+            and pattern_matrix is not None
+            and self.n_patterns >= 2
+        ):
+            r_inst = _coverage_redundancy_instantaneous(pattern_matrix)
+            if r_inst.shape[0] != self.n_patterns:
+                raise ValueError(
+                    f"pattern_matrix rows ({r_inst.shape[0]}) must match "
+                    f"n_patterns ({self.n_patterns})"
+                )
+            eta = self.config.coverage_ema_rate
+            self.r_ema = (1.0 - eta) * self.r_ema + eta * r_inst.to(self.r_ema.dtype)
         self._step_count += 1
         self._update_death_counter()
 
@@ -321,6 +379,7 @@ class ConsolidationState:
         self.below_threshold_steps = self.below_threshold_steps[keep]
         self.A = self.A[keep]
         self.retrieval_count = self.retrieval_count[keep]
+        self.r_ema = self.r_ema[keep]
 
     def stats(self) -> dict:
         if self.n_patterns == 0:
@@ -337,6 +396,8 @@ class ConsolidationState:
                 "retrieval_count_max": 0,
                 "retrieval_count_mean": 0.0,
                 "retrieval_count_nonzero": 0,
+                "coverage_r_ema_mean": 0.0,
+                "coverage_r_ema_max": 0.0,
             }
         strength = self.effective_strength().abs()
         rc = self.retrieval_count
@@ -356,4 +417,36 @@ class ConsolidationState:
             "retrieval_count_max": int(rc.max().detach().cpu()),
             "retrieval_count_mean": float(rc.to(torch.float32).mean().detach().cpu()),
             "retrieval_count_nonzero": int((rc > 0).sum().detach().cpu()),
+            "coverage_r_ema_mean": float(self.r_ema.mean().detach().cpu()),
+            "coverage_r_ema_max": float(self.r_ema.max().detach().cpu()),
         }
+
+
+def _coverage_redundancy_instantaneous(patterns: "torch.Tensor") -> "torch.Tensor":
+    """Per-atom instantaneous coverage redundancy r_i ∈ [0, 1].
+
+    Operationalization of Candidate A's r_i (notes/notes/2026-05-20-...md):
+    the formal definition is ``r_i = ||proj_{P_¬i}(p_i)|| / ||p_i||``, the
+    projection magnitude of atom i onto the column-span of the rest of
+    the substrate. We use a per-atom Gram-row proxy that is local per-i
+    (no global SVD, no scheduled population sweep — the proxy is
+    computable from atom i's similarities to its own neighbors, which is
+    the local geometry available to it):
+
+        G_ij = (1/D) * <p_i, p_j>            (complex; |G_ii| = 1)
+        r_i  = sqrt( mean_{j≠i} |G_ij|² )    (RMS off-diag, ∈ [0, 1])
+
+    For unit-magnitude FHRR patterns this proxy saturates at 1 when atom
+    i is identical to all other atoms and goes to 0 when atom i is
+    orthogonal to all of them. The EMA in
+    ``ConsolidationState.step_dynamics`` smooths this snapshot into the
+    slow-timescale running estimate the design note prescribes.
+    """
+    n, d = patterns.shape
+    if n < 2:
+        return torch.zeros(n, dtype=torch.float32, device=patterns.device)
+    gram = (patterns @ patterns.conj().T) / d  # [N, N] complex
+    gram_sq = gram.abs() * gram.abs()  # [N, N] real, in [0, 1]
+    mask = ~torch.eye(n, dtype=torch.bool, device=patterns.device)
+    off_diag_sum = (gram_sq * mask.to(gram_sq.dtype)).sum(dim=1)
+    return (off_diag_sum / (n - 1)).clamp(min=0.0, max=1.0).sqrt().to(torch.float32)

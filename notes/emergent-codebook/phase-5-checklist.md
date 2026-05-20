@@ -235,13 +235,15 @@ graduation. Listed so they are not lost:
 
 ## Status banner (one line for STATUS.md)
 
-> Phase 5: **substrate-scale diagnostic closes path 1 of report 042
-> ([report 043](../../reports/043_phase5_substrate_scale_diagnostic.md))**.
-> Pre-death (1024-atom) substrate restores branch divergence across 5/5
-> seeds (3×–4978×); K-branch mechanism is **not** structurally degenerate.
-> Death is implicated for branch collapse. BUT per-seed ΔE direction is
-> bimodal even on pre-death (K4 3/5 positive, K1 2/5 positive) — fixing
-> death alone is NOT expected to graduate Phase 5; combiner + cue regime
-> are the second axis. Next: design notes (continuous-rate death
-> candidates + cue-regime/role-prior formulations), no new compute
-> committed yet.
+> Phase 5: **A+B death-mechanism dynamic-form note complete and audited**
+> ([2026-05-20 diagnostic-actuator note](../notes/2026-05-20-diagnostic-actuator-death-dynamic-form.md);
+> anti-homunculus reviewer PASS after 4 fixes). Audit prereqs cleared
+> (commit [ec3b95b](https://github.com/Dypatterson/Neuro-AI/commit/ec3b95b):
+> CFL clamp, reproducibility lockfile, HAM deferred-sync). **A+B implementation
+> in flight 2026-05-20.** Continuous coverage-weighted reinforcement (A) +
+> -α log(d_eff) repulsion in substrate energy (B) replace the binary
+> death step. Pre-committed falsification criteria binding (d_eff ≥ 25 at
+> step 1800; K-branch state_divergence within 30% of pre-death; Phase 4 D1
+> non-regression at n=10; α/λ fixed pre-retrain, not tuned). Cue-regime /
+> role-prior bimodality (report 043's second axis) remains open — death
+> redesign is necessary but not sufficient for A1 graduation.

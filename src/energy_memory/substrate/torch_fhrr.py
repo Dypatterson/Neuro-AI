@@ -22,7 +22,13 @@ else:
 class TorchFHRR:
     """Batched FHRR operations backed by Torch tensors."""
 
-    def __init__(self, dim: int = 4096, seed: Optional[int] = None, device: Optional[str] = None):
+    def __init__(
+        self,
+        dim: int = 4096,
+        seed: Optional[int] = None,
+        device: Optional[str] = None,
+        alpha_anti: float = 0.0,
+    ):
         if torch is None:  # pragma: no cover - exercised when torch missing
             raise ModuleNotFoundError("TorchFHRR requires torch to be installed") from _IMPORT_ERROR
         if dim <= 0:
@@ -32,6 +38,21 @@ class TorchFHRR:
         self.generator = torch.Generator(device="cpu")
         if seed is not None:
             self.generator.manual_seed(seed)
+        # Candidate B (dimensionality-preserving repulsion field).
+        # alpha_anti is the strength of the substrate's H_anti = -α·log(d_eff)
+        # energy term. At alpha_anti=0 the term vanishes and the substrate
+        # energy is identical to the prior FHRR substrate. At alpha_anti>0
+        # the substrate's effective dimensionality becomes part of the
+        # substrate's energy landscape — d_eff is the integral of a
+        # continuous local dynamic, not a metric some controller checks.
+        # Per the load-bearing precondition (notes/notes/2026-05-20-...md
+        # §"Candidate B"), alpha_anti is set ONCE at substrate construction
+        # and is NOT adapted from observed d_eff trajectories during
+        # training. If alpha_anti is wrong, the next retrain uses a
+        # different alpha_anti; it is not a feedback loop on d_eff.
+        if alpha_anti < 0.0:
+            raise ValueError("alpha_anti must be non-negative")
+        self.alpha_anti = float(alpha_anti)
 
     @property
     def is_mps(self) -> bool:
@@ -98,3 +119,64 @@ class TorchFHRR:
         cpu_values = values.detach().cpu().tolist()
         cpu_indices = indices.detach().cpu().tolist()
         return [(labels[index], float(value)) for index, value in zip(cpu_indices, cpu_values)]
+
+    def d_eff(self, patterns) -> "torch.Tensor":
+        """Effective dimensionality (participation ratio) of the centered Gram.
+
+        Matches the operationalization in
+        ``scripts/consolidation_geometry_diagnostic.py`` so the d_eff
+        reported here is on the same scale as the falsification criteria
+        in [report 044] and the
+        [2026-05-20 diagnostic-actuator note](../../notes/notes/2026-05-20-diagnostic-actuator-death-dynamic-form.md).
+
+        d_eff = (Σ λ_k)² / Σ λ_k², where λ_k are eigenvalues of the
+        centered Hermitian Gram. Computed via the algebraic identity
+        (tr G)² / tr(G²) instead of eigvalsh — same value, differentiable
+        through autograd, O(N²·D) instead of O(N³) over the eigendecomp.
+        Returns NaN when fewer than 2 patterns.
+        """
+        n = patterns.shape[0]
+        if n < 2:
+            return torch.tensor(float("nan"), device=patterns.device)
+        centered = patterns - patterns.mean(dim=0, keepdim=True)
+        gram = centered @ centered.conj().T / n
+        tr_g = gram.diagonal().real.sum()
+        tr_g_sq = (gram.abs() * gram.abs()).sum()
+        return (tr_g * tr_g) / tr_g_sq.clamp(min=1e-12)
+
+    def substrate_energy_anti(self, patterns) -> "torch.Tensor":
+        """H_anti = -α · log(d_eff).
+
+        The dimensionality-preserving repulsion energy from Candidate B
+        of the diagnostic-actuator design note. Returns a 0-dim scalar
+        tensor (real, float32) so it can be added to any other substrate
+        energy term.
+
+        Per the load-bearing precondition: this energy is part of *the*
+        substrate energy at every call site that reads substrate energy
+        — settling, replay scoring, branch energy, consolidation. The
+        method always returns a value (zero at alpha_anti=0 or n<2) so
+        call sites can sum it unconditionally without an ``if`` guard.
+        """
+        if patterns.shape[0] < 2 or self.alpha_anti == 0.0:
+            return torch.zeros((), device=patterns.device, dtype=torch.float32)
+        deff = self.d_eff(patterns)
+        return (-self.alpha_anti * torch.log(deff.clamp(min=1e-12))).to(torch.float32)
+
+    def repulsion_force(self, patterns) -> "torch.Tensor":
+        """Per-atom descent direction ``-∂H_anti/∂p̄_i``.
+
+        Returned tensor has the same shape and complex dtype as
+        ``patterns``. Caller integrates this into pattern evolution:
+        ``new_p = normalize(p + lr * force)``. At alpha_anti=0 returns
+        zeros with no autograd work.
+        """
+        if patterns.shape[0] < 2 or self.alpha_anti == 0.0:
+            return torch.zeros_like(patterns)
+        p = patterns.detach().clone().requires_grad_(True)
+        energy = self.substrate_energy_anti(p)
+        grad, = torch.autograd.grad(energy, p)
+        # PyTorch returns ∂f/∂conj(z) for complex z with real f, such
+        # that ``z -= lr * grad`` is descent. Force is the descent
+        # direction itself.
+        return -grad

@@ -82,6 +82,16 @@ class ReplayConfig:
     # these knobs on if/when the replay flow moves to keep-and-sweep.
     suppression_decay: float = 1.0
     suppression_recovery: float = 0.0
+    # Candidate B (dimensionality-preserving repulsion field).
+    # Step size for the per-cycle substrate update under the
+    # H_anti = -α·log(d_eff) gradient. At 0.0 (default) the substrate
+    # patterns are static and behavior is bit-identical to baseline.
+    # Per the load-bearing precondition (notes/notes/2026-05-20-...md
+    # §"Candidate B"): this value is set ONCE at training start from
+    # theoretical considerations, NOT tuned to land d_eff in a target
+    # range. Companion to substrate.alpha_anti — both must be set
+    # together for B to fire.
+    repulsion_step_size: float = 0.0
 
 
 class ReplayStore:
@@ -351,7 +361,10 @@ class UnifiedReplayMemory(Generic[T]):
         Returns: dict with cycle stats.
         """
         if not self.store.traces:
-            self.consolidation.step_dynamics()
+            # Even with no traces to replay, the substrate's slow-timescale
+            # dynamics evolve: r_ema (Candidate A) updates from the current
+            # geometry, and repulsion (Candidate B) flows in pattern space.
+            self._step_substrate_dynamics()
             return {
                 "sampled": 0, "candidates": 0, "decayed": 0,
                 "store_after": len(self.store),
@@ -406,7 +419,7 @@ class UnifiedReplayMemory(Generic[T]):
                 else:
                     self.store.update_gate(local_idx, new_gate)
 
-        self.consolidation.step_dynamics()
+        self._step_substrate_dynamics()
         self._candidate_count += candidates
 
         return {
@@ -416,12 +429,56 @@ class UnifiedReplayMemory(Generic[T]):
             "store_after": len(self.store),
         }
 
+    def _step_substrate_dynamics(self) -> None:
+        """One slow-timescale substrate step: A's r_ema update + B's repulsion flow.
+
+        Both A and B share the same pattern-matrix snapshot for this
+        cycle. The repulsion update mutates the stored patterns and
+        invalidates the underlying memory's matrix cache so subsequent
+        retrievals see the new state.
+        """
+        pattern_matrix = None
+        if self.memory.stored_count >= 2 and (
+            self.consolidation.config.coverage_lambda > 0.0
+            or (
+                self.substrate.alpha_anti > 0.0
+                and self.config.repulsion_step_size > 0.0
+            )
+        ):
+            pattern_matrix = self.memory._pattern_matrix()
+
+        self.consolidation.step_dynamics(pattern_matrix=pattern_matrix)
+
+        if (
+            pattern_matrix is not None
+            and self.substrate.alpha_anti > 0.0
+            and self.config.repulsion_step_size > 0.0
+        ):
+            force = self.substrate.repulsion_force(pattern_matrix)
+            step = self.config.repulsion_step_size
+            new_patterns = self.substrate.normalize(pattern_matrix + step * force)
+            for i in range(self.memory.stored_count):
+                self.memory._patterns[i] = new_patterns[i]
+            self.memory.invalidate_cache()
+
     def garbage_collect(self) -> List[int]:
         """Remove patterns whose u-chain has decayed below death threshold.
 
         Returns the list of removed pattern indices (relative to the
         memory's current state, before removal).
+
+        Becomes a **no-op** when the A+B continuous death dynamic is
+        configured on (``consolidation.config.coverage_lambda > 0``):
+        asymptotic decay of effective_strength under (1-r_i)-modulated
+        reinforcement replaces binary deletion. Existing experiment
+        scripts call ``garbage_collect()`` unconditionally; this guard
+        ensures that turning A+B on does not silently run the binary
+        controller it replaces. Per the anti-homunculus audit verdict
+        and [design note §Implementation sketch]
+        (../../../notes/notes/2026-05-20-diagnostic-actuator-death-dynamic-form.md).
         """
+        if self.consolidation.config.coverage_lambda > 0.0:
+            return []
         dead = self.consolidation.dead_indices()
         if not dead:
             return []
