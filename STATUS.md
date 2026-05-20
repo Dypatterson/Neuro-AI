@@ -1,6 +1,6 @@
 # Project STATUS
 
-**Last updated:** 2026-05-20 (**Path (a′) prerequisites both closed in this session.** Research-literature review + notes audit reframed path (a) → path (a′): continuous-rate death as slow-timescale dynamic of which d_eff is a fast-timescale snapshot. Prereq 1 ([report 044](reports/044_consolidation_geometry_diagnostic.md)): built [scripts/consolidation_geometry_diagnostic.py](scripts/consolidation_geometry_diagnostic.py), ran on n=5 pre+post-death snapshots. **Substrate d_eff collapses ~10× across all 5 seeds** (pre-death ~40, post-death ~3–6 of 4096 dims); per-atom k-NN d_eff drops modestly (3.7 → 3.0). With K=4 branches and d_eff~5 post-death, branches cannot occupy distinct subspaces — the geometric mechanism for K-branch collapse from report 042. Companion [MESH-style memory-cliff check](reports/phase5_memory_cliff/README.md) (run by subagent): no cliff exists; n_atoms=6 retrieves perfectly. Capacity is fine; substrate effective-dim is the issue. Prereq 2 ([notes/notes/2026-05-20-diagnostic-actuator-death-dynamic-form.md](notes/notes/2026-05-20-diagnostic-actuator-death-dynamic-form.md), closes STATUS blocker #4): three candidate continuous local dynamics enumerated — A (coverage-weighted reinforcement rate), B (-α log(d_eff) repulsion in substrate energy), C (redundancy-coupled inhibition, Saighi-variant). Recommended: A+B combined. Anti-homunculus reviewer audited; caught a controller-in-disguise (step-3 hysteresis-on-ε flag) and 3 other wording slips. Four fixes applied: continuous-running-estimate r_i (A), substrate-energy-everywhere α-fixed (B), n≥10 pre-registered bimodality test (C), continuous E_i-weighted retrieval (A+B step 3), α-not-tuned pre-commitment. Now PASS. Earlier this session: [report 043](reports/043_phase5_substrate_scale_diagnostic.md) (substrate-scale discrimination); [report 042](reports/042_phase5_branching_collapse_diagnostic.md) (K-branch collapse + γ/K_main sweeps); [report 041](reports/041_phase5_de_n5_partial.md) (n=5 partial headline); Phase 4 graduated on D1 ([report 038](reports/038_phase4_d1_graduation.md)). 216 tests pass.)
+**Last updated:** 2026-05-20 late session (**Audit-driven pre-A+B fixes landed.** Commit [ec3b95b](https://github.com/Dypatterson/Neuro-AI/commit/ec3b95b): CFL clamp at consolidation.py:_step_dynamics (`_CFL_MAX_ALPHA_EFF=0.5`, derived strict bound — audit's 0.24 was overly conservative and broke existing tests); 2 new regression tests pin the constant and assert finite u at extreme λ; .env added to .gitignore; lockfile (requirements-lock.txt, torch 2.11.0 / numpy 2.4.4); torch>=2.0,<3 + numpy>=1.24,<3 in pyproject.toml; HAMAggregator.retrieve refactored to deferred-sync pattern (~12 fewer MPS stalls per call, bit-identical converged state via torch.where freeze). 218 tests pass. AUDIT_REPORT.md committed. **A+B implementation cleared to start next session.** Earlier in this same date: **Path (a′) prerequisites both closed.** Research-literature review + notes audit reframed path (a) → path (a′): continuous-rate death as slow-timescale dynamic of which d_eff is a fast-timescale snapshot. Prereq 1 ([report 044](reports/044_consolidation_geometry_diagnostic.md)): built [scripts/consolidation_geometry_diagnostic.py](scripts/consolidation_geometry_diagnostic.py), ran on n=5 pre+post-death snapshots. **Substrate d_eff collapses ~10× across all 5 seeds** (pre-death ~40, post-death ~3–6 of 4096 dims); per-atom k-NN d_eff drops modestly (3.7 → 3.0). With K=4 branches and d_eff~5 post-death, branches cannot occupy distinct subspaces — the geometric mechanism for K-branch collapse from report 042. Companion [MESH-style memory-cliff check](reports/phase5_memory_cliff/README.md) (run by subagent): no cliff exists; n_atoms=6 retrieves perfectly. Capacity is fine; substrate effective-dim is the issue. Prereq 2 ([notes/notes/2026-05-20-diagnostic-actuator-death-dynamic-form.md](notes/notes/2026-05-20-diagnostic-actuator-death-dynamic-form.md), closes STATUS blocker #4): three candidate continuous local dynamics enumerated — A (coverage-weighted reinforcement rate), B (-α log(d_eff) repulsion in substrate energy), C (redundancy-coupled inhibition, Saighi-variant). Recommended: A+B combined. Anti-homunculus reviewer audited; caught a controller-in-disguise (step-3 hysteresis-on-ε flag) and 3 other wording slips. Four fixes applied: continuous-running-estimate r_i (A), substrate-energy-everywhere α-fixed (B), n≥10 pre-registered bimodality test (C), continuous E_i-weighted retrieval (A+B step 3), α-not-tuned pre-commitment. Now PASS. Earlier this session: [report 043](reports/043_phase5_substrate_scale_diagnostic.md) (substrate-scale discrimination); [report 042](reports/042_phase5_branching_collapse_diagnostic.md) (K-branch collapse + γ/K_main sweeps); [report 041](reports/041_phase5_de_n5_partial.md) (n=5 partial headline); Phase 4 graduated on D1 ([report 038](reports/038_phase4_d1_graduation.md)). 216 tests pass.)
 
 The bookmark. Read this first every session before doing anything. If something
 in this file is wrong or stale, fix this file *first*, then do the work.
@@ -18,27 +18,46 @@ freq-α layer is needed. Branching seeds K_main schemas + 1 surprise branch;
 combines via energy-weighted bundle + re-settle; atom-splitting diagnostic
 on joint criterion (similar low energies AND substantial state divergence).
 
-### Next session entry point (2026-05-20)
+### Next session entry point (2026-05-20, late session)
 
-C then B executed in this session ([report 041](reports/041_phase5_de_n5_partial.md)).
+**Decision made: advance A+B.** Audit prerequisites cleared this session
+(commit [ec3b95b](https://github.com/Dypatterson/Neuro-AI/commit/ec3b95b)):
+CFL clamp at `_CFL_MAX_ALPHA_EFF=0.5` in `consolidation.py` (the
+boundary derived from 1D-Laplacian eigenvalues in [-4, 0], stricter
+than AUDIT_REPORT.md's overly-conservative 0.24); reproducibility
+hardened (lockfile + pinned torch/numpy); HAMAggregator deferred-sync
+refactor (matches `torch_hopfield.retrieve` pattern). 218 tests pass.
+[AUDIT_REPORT.md](AUDIT_REPORT.md) catalogs the remaining items (other
+GPU-sync loops, perplexity metric, FHRR/Hopfield test expansion) —
+not blocking A+B.
+
+Next session implements A+B per
+[2026-05-20 diagnostic-actuator note](notes/notes/2026-05-20-diagnostic-actuator-death-dynamic-form.md)
+(re-read the anti-homunculus-passing final formulation first):
+
+1. **A** — continuous coverage-weighted reinforcement rate `r_i`
+   (running estimate) in `src/energy_memory/phase4/consolidation.py`.
+2. **B** — −α log(d_eff) repulsion contribution to substrate energy in
+   `src/energy_memory/substrate/torch_fhrr.py`. α fixed from theory
+   *before* first retrain (pre-commit binding below).
+3. **Step 3 unification** — continuous E_i-weighted retrieval in the
+   integration layer.
+4. **1-seed pilot**: verify Phase 4 D1 non-regression
+   ([report 038](reports/038_phase4_d1_graduation.md)) before n=10
+   Colab retrain.
+
+C then B executed earlier this session ([report 041](reports/041_phase5_de_n5_partial.md)).
 The K4 headline at n=5 does not graduate — CI includes zero, 3/5 seeds
 positive, seed 1 dominates the mean negatively. K1 (B2 control)
 outperforms K4 with 5/5 seeds positive and pooled CI excludes zero;
 B2's gratuitous-branching prediction fires at this substrate scale.
 
-Path (a′) prerequisites both closed in this session. Mechanism cause
+Path (a′) prerequisites both closed earlier this session. Mechanism cause
 identified at the geometric level (d_eff ~10× collapse, [report 044](reports/044_consolidation_geometry_diagnostic.md));
 candidate continuous local dynamics enumerated and anti-homunculus
 audited ([2026-05-20 diagnostic-actuator note](notes/notes/2026-05-20-diagnostic-actuator-death-dynamic-form.md)).
 
-**Pending decision (the user's commit point):** advance the combined
-A+B (coverage-weighted reinforcement rate + -α log(d_eff) repulsion
-field) to implementation as a single design unit, OR defer.
-
-If advance: next session implements A+B in
-`src/energy_memory/phase4/consolidation.py` + `src/energy_memory/substrate/torch_fhrr.py`,
-verifies Phase 4 D1 graduation preserved on 1 seed pilot, then runs
-n=10 retrain on Colab. Pre-committed falsification criteria (per the
+Pre-committed falsification criteria for A+B retrain run (per the
 design note §"Pre-committed falsification criteria"):
 
 1. **d_eff preservation:** at the substrate's stable steady state
