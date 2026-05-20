@@ -193,6 +193,46 @@ class TestSnapshotRoundTrip(unittest.TestCase):
             with self.assertRaises(ValueError):
                 load_substrate_snapshot(path=path, substrate=wrong_substrate)
 
+    def test_positions_round_trip(self):
+        """When positions are passed to save, load returns them in info."""
+        from energy_memory.phase4.snapshot import (
+            save_substrate_snapshot, load_substrate_snapshot,
+        )
+        from energy_memory.phase2.encoding import build_position_vectors
+        from energy_memory.substrate.torch_fhrr import TorchFHRR
+        substrate, mem, cons = _build_substrate_with_state(seed=8)
+        positions = build_position_vectors(substrate, count=3)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "snap.pt"
+            save_substrate_snapshot(
+                memory=mem, consolidation=cons, path=path,
+                positions=positions,
+            )
+            new_substrate = TorchFHRR(dim=substrate.dim, device="cpu")
+            _, _, info = load_substrate_snapshot(
+                path=path, substrate=new_substrate,
+            )
+            self.assertIsNotNone(info["positions"])
+            self.assertEqual(info["positions"].shape, (3, substrate.dim))
+            for r in range(3):
+                self.assertTrue(torch.equal(info["positions"][r], positions[r]))
+
+    def test_positions_optional_old_snapshot_loads_none(self):
+        """Snapshots saved without positions return None in info."""
+        from energy_memory.phase4.snapshot import (
+            save_substrate_snapshot, load_substrate_snapshot,
+        )
+        from energy_memory.substrate.torch_fhrr import TorchFHRR
+        substrate, mem, cons = _build_substrate_with_state(seed=9)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "snap.pt"
+            save_substrate_snapshot(memory=mem, consolidation=cons, path=path)
+            new_substrate = TorchFHRR(dim=substrate.dim, device="cpu")
+            _, _, info = load_substrate_snapshot(
+                path=path, substrate=new_substrate,
+            )
+            self.assertIsNone(info["positions"])
+
     def test_empty_substrate_round_trips(self):
         """Edge case: a substrate with zero atoms saves and loads cleanly."""
         from energy_memory.phase4.snapshot import (

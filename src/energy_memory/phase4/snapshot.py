@@ -59,12 +59,19 @@ def save_substrate_snapshot(
     path: str | Path,
     label: Optional[str] = None,
     metadata: Optional[Dict[str, Any]] = None,
+    positions: Optional[Any] = None,
 ) -> Path:
     """Save (memory, consolidation) to `path`.
 
     Refuses to save if memory and consolidation have different row counts
     — that means the caller's bookkeeping is out of sync, which would
     corrupt the snapshot's index alignment.
+
+    `positions` (optional): a list of position vectors (or a stacked
+    [W, D] tensor) used by the encoding the patterns were built from.
+    Saved alongside the patterns so Phase 5's role-binding cue generator
+    can use the same positions the schemas were originally encoded with.
+    Without this, role-binding decomposition has no reference frame.
 
     Returns the path written.
     """
@@ -91,11 +98,21 @@ def save_substrate_snapshot(
     if cfg_dict["strength_weights"] is not None:
         cfg_dict["strength_weights"] = tuple(cfg_dict["strength_weights"])
 
+    positions_tensor: Optional[torch.Tensor] = None
+    if positions is not None:
+        if isinstance(positions, torch.Tensor):
+            positions_tensor = positions.detach().cpu()
+        else:
+            positions_tensor = torch.stack(
+                [p.detach().cpu() for p in positions], dim=0,
+            )
+
     state = {
         "version": SNAPSHOT_VERSION,
         "label": label,
         "patterns": patterns_tensor,
         "pattern_labels": list(memory.labels),
+        "positions": positions_tensor,
         "consolidation": {
             "u": consolidation.u.detach().cpu(),
             "below_threshold_steps": consolidation.below_threshold_steps.detach().cpu(),
@@ -159,9 +176,15 @@ def load_substrate_snapshot(
     cons.retrieval_count = state["consolidation"]["retrieval_count"].to(target_device)
     cons._step_count = int(state["consolidation"]["step_count"])
 
+    positions_saved = state.get("positions")
+    positions = None
+    if positions_saved is not None:
+        positions = positions_saved.to(target_device)
+
     info = {
         "label": state.get("label"),
         "metadata": dict(state.get("metadata") or {}),
         "version": state["version"],
+        "positions": positions,
     }
     return mem, cons, info

@@ -589,13 +589,15 @@ def stream_phase34(
                     if s not in phase4_units:
                         continue
                     unit = phase4_units[s]
-                    if unit.consolidation.n_patterns == 0:
-                        # Empty consolidation — still save (debugging), but
-                        # flag in metadata.
-                        pass
                     snap_path = (
                         snapshot_dir
                         / f"{condition}_w{s}_step{cues_seen}.pt"
+                    )
+                    # Positions come from the slot — same encoding the
+                    # patterns were built from. Required by Phase 5's
+                    # role-binding cue generator.
+                    slot_positions = (
+                        slots[s].positions if s in slots else None
                     )
                     save_substrate_snapshot(
                         memory=unit.memory,
@@ -609,6 +611,7 @@ def stream_phase34(
                             "seed": snapshot_seed,
                             "n_patterns": unit.consolidation.n_patterns,
                         },
+                        positions=slot_positions,
                     )
 
             extra = ""

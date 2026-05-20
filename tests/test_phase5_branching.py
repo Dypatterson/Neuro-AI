@@ -589,6 +589,196 @@ def _fhrr_cosine_test(a, b):
 
 
 @unittest.skipIf(torch is None, "torch required")
+class TestComputeSchemaBindings(unittest.TestCase):
+    """compute_schema_bindings unbinds each schema at each position. The
+    output shape is [N, n_roles, D]. Round-trips with encode_window:
+    unbinding at position r recovers the filler at that position (with
+    bundling interference)."""
+
+    def test_shape_matches_inputs(self):
+        mod = _import_module()
+        from energy_memory.substrate.torch_fhrr import TorchFHRR
+        from energy_memory.phase2.encoding import build_position_vectors
+        torch.manual_seed(0)
+        d = 32
+        substrate = TorchFHRR(dim=d, device="cpu")
+        positions = build_position_vectors(substrate, count=3)
+        schemas = torch.stack([
+            substrate.normalize(torch.randn(d, dtype=torch.complex64))
+            for _ in range(4)
+        ])
+        bindings = mod.compute_schema_bindings(
+            substrate=substrate, schemas=schemas, positions=positions,
+        )
+        self.assertEqual(bindings.shape, (4, 3, d))
+
+    def test_unbinds_correctly_for_encoded_window(self):
+        """When the schema was constructed as ``bundle(filler_i ⊛ pos_i)``,
+        unbinding at pos_i recovers filler_i (modulo bundling interference)."""
+        mod = _import_module()
+        from energy_memory.substrate.torch_fhrr import TorchFHRR
+        from energy_memory.phase2.encoding import (
+            build_position_vectors, encode_window,
+        )
+        torch.manual_seed(1)
+        d = 256  # larger so binding interference is small
+        substrate = TorchFHRR(dim=d, device="cpu")
+        positions = build_position_vectors(substrate, count=3)
+        codebook = substrate.normalize(torch.randn(10, d, dtype=torch.complex64))
+        # Schema encoding: tokens (3, 7, 1) at positions 0, 1, 2.
+        schema = encode_window(substrate, positions, codebook, [3, 7, 1])
+        schemas = schema.unsqueeze(0)  # [1, D]
+        bindings = mod.compute_schema_bindings(
+            substrate=substrate, schemas=schemas, positions=positions,
+        )
+        # Unbound at position 0 should be closer to token 3's codebook
+        # vector than to other tokens'.
+        sim_to_3 = float(substrate.similarity(bindings[0, 0], codebook[3]))
+        sim_to_7 = float(substrate.similarity(bindings[0, 0], codebook[7]))
+        sim_to_1 = float(substrate.similarity(bindings[0, 0], codebook[1]))
+        self.assertGreater(sim_to_3, sim_to_7)
+        self.assertGreater(sim_to_3, sim_to_1)
+
+
+@unittest.skipIf(torch is None, "torch required")
+class TestGenerateRoleBindingCue(unittest.TestCase):
+    """generate_role_binding_cue builds a cue with high role-binding
+    similarity to a target schema and content tunably biased toward a
+    distractor schema. This is the headline experiment's input
+    constructor.
+    """
+
+    def _setup(self, d=256, seed=0):
+        from energy_memory.substrate.torch_fhrr import TorchFHRR
+        from energy_memory.phase2.encoding import (
+            build_position_vectors, encode_window,
+        )
+        torch.manual_seed(seed)
+        substrate = TorchFHRR(dim=d, device="cpu")
+        positions = build_position_vectors(substrate, count=3)
+        codebook = substrate.normalize(torch.randn(20, d, dtype=torch.complex64))
+        role_target = encode_window(substrate, positions, codebook, [5, 10, 15])
+        content_distractor = encode_window(substrate, positions, codebook, [2, 4, 6])
+        return substrate, positions, role_target, content_distractor
+
+    def test_cue_bindings_match_role_target_per_position(self):
+        """With binding_noise=0 and content_distortion=0, the cue's
+        bindings at each position should equal the role_target's
+        bindings at that position (modulo unbind/bind round-trip noise)."""
+        mod = _import_module()
+        substrate, positions, role_target, content_distractor = self._setup(d=512, seed=1)
+        cue, cue_bindings = mod.generate_role_binding_cue(
+            substrate=substrate, positions=positions,
+            role_target_schema=role_target,
+            content_distractor=None,
+            binding_noise_std=0.0, content_distortion=0.0,
+        )
+        # Per position, cue_bindings[r] should equal unbind(role_target, pos[r]).
+        for r in range(len(positions)):
+            ref = substrate.unbind(role_target, positions[r])
+            diff = (cue_bindings[r] - ref).abs().max().item()
+            self.assertLess(diff, 1e-5)
+
+    def test_zero_distortion_recovers_normalized_role_target(self):
+        """With content_distortion=0 and no noise, the cue is just the
+        re-bundled role_target — which should be very close to the
+        normalized role_target itself."""
+        mod = _import_module()
+        substrate, positions, role_target, _ = self._setup(d=512, seed=2)
+        cue, _ = mod.generate_role_binding_cue(
+            substrate=substrate, positions=positions,
+            role_target_schema=role_target,
+            content_distractor=None,
+            binding_noise_std=0.0, content_distortion=0.0,
+        )
+        sim_to_target = float(substrate.similarity(cue, role_target))
+        self.assertGreater(sim_to_target, 0.99)
+
+    def test_high_distortion_pulls_content_toward_distractor(self):
+        """At content_distortion close to 1, the cue's overall content
+        similarity to content_distractor exceeds its similarity to
+        role_target."""
+        mod = _import_module()
+        substrate, positions, role_target, content_distractor = self._setup(d=512, seed=3)
+        cue, _ = mod.generate_role_binding_cue(
+            substrate=substrate, positions=positions,
+            role_target_schema=role_target,
+            content_distractor=content_distractor,
+            binding_noise_std=0.0, content_distortion=0.9,
+        )
+        sim_to_role = float(substrate.similarity(cue, role_target))
+        sim_to_content = float(substrate.similarity(cue, content_distractor))
+        self.assertGreater(sim_to_content, sim_to_role)
+
+    def test_role_bindings_survive_high_content_distortion(self):
+        """Even when the cue's overall content is biased toward the
+        distractor, the cue_bindings tensor still represents role_target's
+        fillers — this is the headline mechanism: content can be
+        confounded but role bindings remain a clean signal that role-prior
+        selection should exploit."""
+        mod = _import_module()
+        substrate, positions, role_target, content_distractor = self._setup(d=512, seed=4)
+        _, cue_bindings = mod.generate_role_binding_cue(
+            substrate=substrate, positions=positions,
+            role_target_schema=role_target,
+            content_distractor=content_distractor,
+            binding_noise_std=0.0, content_distortion=0.9,
+        )
+        for r in range(len(positions)):
+            ref = substrate.unbind(role_target, positions[r])
+            sim = float(substrate.similarity(cue_bindings[r], ref))
+            # Bindings should be ~exact (returned from the same unbind).
+            self.assertGreater(sim, 0.99)
+
+    def test_select_schema_priors_role_picks_role_target_under_distortion(self):
+        """End-to-end: at high content_distortion, select_schema_priors
+        with prior_type='role' picks the role-target schema; with
+        prior_type='content' picks the content_distractor. This is the
+        exact mechanism the Phase 5 headline tests."""
+        mod = _import_module()
+        substrate, positions, role_target, content_distractor = self._setup(d=512, seed=5)
+        schemas = torch.stack([role_target, content_distractor])
+        schema_bindings = mod.compute_schema_bindings(
+            substrate=substrate, schemas=schemas, positions=positions,
+        )
+        cue, cue_bindings = mod.generate_role_binding_cue(
+            substrate=substrate, positions=positions,
+            role_target_schema=role_target,
+            content_distractor=content_distractor,
+            binding_noise_std=0.0, content_distortion=0.85,
+        )
+        # Content: should pick distractor (index 1).
+        content_picks = mod.select_schema_priors(
+            cue=cue, schema_store=schemas, k_main=1,
+            delta_redundant=1.0, prior_type="content",
+        )
+        self.assertEqual(content_picks[0][0], 1)
+        # Role: should pick role_target (index 0).
+        role_picks = mod.select_schema_priors(
+            cue=cue, schema_store=schemas, k_main=1,
+            delta_redundant=1.0, prior_type="role",
+            cue_bindings=cue_bindings, schema_bindings=schema_bindings,
+        )
+        self.assertEqual(role_picks[0][0], 0)
+
+    def test_invalid_args_raise(self):
+        mod = _import_module()
+        substrate, positions, role_target, _ = self._setup(d=64, seed=6)
+        with self.assertRaises(ValueError):
+            mod.generate_role_binding_cue(
+                substrate=substrate, positions=positions,
+                role_target_schema=role_target,
+                content_distortion=-0.1,
+            )
+        with self.assertRaises(ValueError):
+            mod.generate_role_binding_cue(
+                substrate=substrate, positions=positions,
+                role_target_schema=role_target,
+                binding_noise_std=-0.1,
+            )
+
+
+@unittest.skipIf(torch is None, "torch required")
 class TestSettleBranchWithPrior(unittest.TestCase):
     """settle_branch_with_prior() supports two prior formulations (the
     decision #5 spike). Both reduce to unbiased retrieve at γ=0; they

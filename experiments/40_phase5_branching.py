@@ -357,6 +357,115 @@ def surprise_prior(
 
 
 # =============================================================================
+# Role-binding cue generation (headline experiment input)
+# =============================================================================
+
+def compute_schema_bindings(
+    *,
+    substrate: TorchFHRR,
+    schemas: torch.Tensor,
+    positions: Sequence[torch.Tensor],
+) -> torch.Tensor:
+    """Role-decompose each schema into per-position fillers.
+
+    For schema s_i and position r, the unbound filler is
+    ``substrate.unbind(s_i, positions[r])``. This recovers the noisy
+    filler the schema had bound at that position (assuming the schema
+    was originally encoded as ``bundle(filler_r ⊛ positions[r] for r)``,
+    which is how Phase 4 stored windows via
+    ``phase2.encoding.encode_window``).
+
+    Returns a [n_schemas, n_roles, D] complex tensor.
+    """
+    n_schemas = schemas.shape[0]
+    n_roles = len(positions)
+    d = schemas.shape[-1]
+    out = torch.zeros(
+        n_schemas, n_roles, d,
+        dtype=schemas.dtype, device=schemas.device,
+    )
+    for i in range(n_schemas):
+        for r in range(n_roles):
+            out[i, r] = substrate.unbind(schemas[i], positions[r].to(schemas.device))
+    return out
+
+
+def generate_role_binding_cue(
+    *,
+    substrate: TorchFHRR,
+    positions: Sequence[torch.Tensor],
+    role_target_schema: torch.Tensor,
+    content_distractor: Optional[torch.Tensor] = None,
+    binding_noise_std: float = 0.05,
+    content_distortion: float = 0.5,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Build a structural-retrieval test cue.
+
+    The cue is constructed so that *role-binding* similarity to
+    `role_target_schema` is high, while *content* similarity is biased
+    toward `content_distractor`. This is the headline test for Phase 5:
+    a role-prior schema selector should pick the role-matched schema;
+    a content-prior selector should pick the content-distractor.
+
+    Mechanism:
+        1. Extract role_target's fillers per position via unbind.
+        2. Add small Gaussian noise (binding_noise_std) so the cue's
+           fillers are not literally identical to the schema's.
+        3. Re-bundle to form the "structural" component.
+        4. Mix with content_distractor at weight `content_distortion`
+           and normalize.
+
+    Returns (cue, cue_bindings) where:
+        cue          : [D] complex, the input to Phase 5
+        cue_bindings : [n_roles, D] complex, the noisy fillers per position
+
+    Anti-homunculus note: this generator is a *measurement target* for
+    Phase 5's headline test. It is NOT a mechanism inside the
+    architecture. Phase 5's runtime receives `cue` and (optionally)
+    `cue_bindings` for the role-prior comparison condition; the
+    architecture does not know how the cue was synthesized.
+    """
+    if content_distortion < 0.0 or content_distortion > 1.0:
+        raise ValueError(
+            f"content_distortion must be in [0, 1], got {content_distortion}"
+        )
+    if binding_noise_std < 0.0:
+        raise ValueError(
+            f"binding_noise_std must be non-negative, got {binding_noise_std}"
+        )
+    device = role_target_schema.device
+    d = role_target_schema.shape[-1]
+    fillers = []
+    for pos in positions:
+        f = substrate.unbind(role_target_schema, pos.to(device))
+        if binding_noise_std > 0.0:
+            noise = binding_noise_std * torch.randn(
+                d, dtype=role_target_schema.dtype, device=device,
+            )
+            f = f + noise
+        fillers.append(f)
+    cue_bindings = torch.stack(fillers, dim=0)
+
+    # Structural component: re-bundle the (noisy) fillers at the same positions.
+    structural_terms = [
+        substrate.bind(fillers[r], positions[r].to(device))
+        for r in range(len(positions))
+    ]
+    structural = substrate.normalize(
+        torch.stack(structural_terms, dim=0).sum(dim=0)
+    )
+
+    if content_distractor is None or content_distortion == 0.0:
+        cue = structural
+    else:
+        cd = content_distractor.to(device)
+        mixed = (1.0 - content_distortion) * structural + content_distortion * cd
+        cue = substrate.normalize(mixed)
+
+    return cue, cue_bindings
+
+
+# =============================================================================
 # Per-branch settling with γ-biased energy
 # =============================================================================
 
@@ -1011,12 +1120,102 @@ def _build_synthetic_substrate(*, n_atoms: int, dim: int, device: str, seed: int
     return mem, cons, patterns
 
 
-def _load_substrate_from_snapshot(*, path: str, device: str):
-    """Load (memory, consolidation, patterns) from a Phase 4 snapshot.
+def _build_encoded_window_substrate(
+    *,
+    n_atoms: int,
+    dim: int,
+    window_size: int,
+    vocab_size: int,
+    device: str,
+    seed: int,
+):
+    """Build a synthetic substrate whose patterns are encoded windows.
 
-    Constructs a TorchFHRR substrate matching the snapshot's dim. Returns
-    (memory, consolidation, patterns, info) where info carries the
-    snapshot's label/metadata for downstream reporting.
+    Mirrors how a real Phase 4 substrate is constructed: a codebook of
+    token vectors, position vectors, and a Hopfield memory holding
+    bundle(filler_i ⊛ pos_i for i in window). Used by --mode headline
+    when no `--substrate-snapshot` is provided so the role-prior
+    comparison has a working synthetic baseline.
+
+    Returns (memory, consolidation, patterns, positions, codebook,
+    pattern_token_ids).
+    """
+    from energy_memory.phase4.consolidation import (
+        ConsolidationConfig, ConsolidationState,
+    )
+    from energy_memory.phase2.encoding import build_position_vectors, encode_window
+    torch.manual_seed(seed)
+    substrate = TorchFHRR(dim=dim, device=device)
+    mem = TorchHopfieldMemory(substrate)
+    cons = ConsolidationState(ConsolidationConfig(m=4, alpha=0.25), device=device)
+    positions = build_position_vectors(substrate, count=window_size)
+    codebook = substrate.normalize(
+        torch.randn(vocab_size, dim, dtype=torch.complex64, device=device)
+    )
+    patterns: List[torch.Tensor] = []
+    pattern_token_ids: List[Tuple[int, ...]] = []
+    rng = torch.Generator().manual_seed(seed + 1)
+    for i in range(n_atoms):
+        ids = tuple(
+            int(torch.randint(0, vocab_size, (1,), generator=rng).item())
+            for _ in range(window_size)
+        )
+        p = encode_window(substrate, positions, codebook, list(ids))
+        mem.store(p, label=i)
+        cons.add_pattern(novelty_strength=1.0 + 0.2 * (n_atoms - i))
+        patterns.append(p)
+        pattern_token_ids.append(ids)
+    return mem, cons, patterns, positions, codebook, pattern_token_ids
+
+
+def _build_role_binding_cues(
+    *,
+    substrate: TorchFHRR,
+    positions: Sequence[torch.Tensor],
+    patterns: Sequence[torch.Tensor],
+    n_cues: int,
+    binding_noise_std: float = 0.05,
+    content_distortion: float = 0.6,
+    seed: int = 0,
+) -> List[Dict[str, Any]]:
+    """For each cue, pick a role-target schema and a content-distractor
+    schema (different from role-target), then synthesize the cue per
+    `generate_role_binding_cue`.
+
+    Returns a list of dicts with keys:
+        cue, cue_bindings, role_target_idx, content_distractor_idx
+    so the headline driver can match its results to ground truth.
+    """
+    if len(patterns) < 2:
+        raise ValueError("need at least 2 patterns to pick role/content pair")
+    rng = torch.Generator().manual_seed(seed)
+    n_patterns = len(patterns)
+    out: List[Dict[str, Any]] = []
+    for _ in range(n_cues):
+        idx_pair = torch.randperm(n_patterns, generator=rng)[:2].tolist()
+        role_idx, content_idx = idx_pair[0], idx_pair[1]
+        cue, cue_bindings = generate_role_binding_cue(
+            substrate=substrate, positions=positions,
+            role_target_schema=patterns[role_idx],
+            content_distractor=patterns[content_idx],
+            binding_noise_std=binding_noise_std,
+            content_distortion=content_distortion,
+        )
+        out.append({
+            "cue": cue,
+            "cue_bindings": cue_bindings,
+            "role_target_idx": role_idx,
+            "content_distractor_idx": content_idx,
+        })
+    return out
+
+
+def _load_substrate_from_snapshot(*, path: str, device: str):
+    """Load (memory, consolidation, patterns, positions, info) from a snapshot.
+
+    Constructs a TorchFHRR substrate matching the snapshot's dim. Positions
+    (when saved) are returned as a [W, D] tensor; None when the snapshot
+    pre-dates positions support.
     """
     from energy_memory.phase4.snapshot import load_substrate_snapshot
     # Peek the dim from the saved patterns tensor.
@@ -1030,7 +1229,8 @@ def _load_substrate_from_snapshot(*, path: str, device: str):
         path=path, substrate=substrate, device=device,
     )
     patterns = list(mem._patterns)
-    return mem, cons, patterns, info
+    positions = info.get("positions")  # [W, D] tensor or None
+    return mem, cons, patterns, positions, info
 
 
 def _run_condition_over_cues(
@@ -1104,9 +1304,11 @@ def _run_condition_over_cues(
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--mode", type=str, default="smoke",
-                        choices=["smoke", "decision5_spike"],
-                        help="smoke: synthetic substrate, SMOKE_CONDITIONS. "
-                        "decision5_spike: both formulations × γ ∈ {0.25, 0.5, 1.0}.")
+                        choices=["smoke", "decision5_spike", "headline"],
+                        help="smoke: synthetic raw substrate, SMOKE_CONDITIONS. "
+                        "decision5_spike: per_pattern × global_pull × γ grid. "
+                        "headline: role-binding cues, paired role-vs-content "
+                        "ΔE per cue, with random-schema + γ=0 controls.")
     parser.add_argument("--seed", type=int, default=17)
     parser.add_argument("--device", type=str, default="cpu", choices=["cpu", "mps", "cuda"])
     parser.add_argument(
@@ -1122,6 +1324,20 @@ def main():
     parser.add_argument("--n-atoms", type=int, default=12)
     parser.add_argument("--n-cues", type=int, default=20)
     parser.add_argument("--k", type=int, default=8, help="schema store size (k)")
+    parser.add_argument("--window-size", type=int, default=3,
+                        help="positions count for headline mode synthetic substrate")
+    parser.add_argument("--vocab-size", type=int, default=30,
+                        help="codebook size for headline mode synthetic substrate")
+    parser.add_argument("--binding-noise-std", type=float, default=0.05,
+                        help="noise added to extracted role fillers (headline mode)")
+    parser.add_argument("--content-distortion", type=float, default=0.6,
+                        help="weight of content_distractor in headline cues, "
+                        "in [0, 1]; higher = more content/role disagreement")
+    parser.add_argument("--gamma", type=float, default=0.5,
+                        help="prior weight for headline mode")
+    parser.add_argument("--formulation", type=str, default="per_pattern",
+                        choices=list(FORMULATIONS),
+                        help="prior formulation for headline mode")
     parser.add_argument("--beta", type=float, default=10.0)
     parser.add_argument("--temperature", type=float, default=1.0)
     parser.add_argument("--delta-energy", type=float, default=0.1)
@@ -1135,22 +1351,44 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
 
     snapshot_info: Optional[Dict[str, Any]] = None
+    positions: Optional[Sequence[torch.Tensor]] = None
+    codebook: Optional[torch.Tensor] = None
     if args.substrate_snapshot is not None:
-        mem, cons, patterns, snapshot_info = _load_substrate_from_snapshot(
+        mem, cons, patterns, positions, snapshot_info = _load_substrate_from_snapshot(
             path=args.substrate_snapshot, device=args.device,
         )
         effective_dim = mem.substrate.dim
         print(
             f"[load] substrate snapshot from {args.substrate_snapshot}: "
             f"n_atoms={len(patterns)}, dim={effective_dim}, "
+            f"positions={'yes' if positions is not None else 'no'}, "
             f"label={snapshot_info.get('label')!r}",
             flush=True,
         )
+    elif args.mode == "headline":
+        mem, cons, patterns, positions_list, codebook, _token_ids = (
+            _build_encoded_window_substrate(
+                n_atoms=args.n_atoms, dim=args.dim,
+                window_size=args.window_size, vocab_size=args.vocab_size,
+                device=args.device, seed=args.seed,
+            )
+        )
+        positions = torch.stack(positions_list, dim=0)
+        effective_dim = args.dim
     else:
         mem, cons, patterns = _build_synthetic_substrate(
             n_atoms=args.n_atoms, dim=args.dim, device=args.device, seed=args.seed,
         )
         effective_dim = args.dim
+
+    if args.mode == "headline" and positions is None:
+        raise ValueError(
+            "headline mode requires positions; substrate snapshot did not "
+            "include them (was it saved by an older exp 19 without "
+            "--snapshot-steps positions support?). Re-save the snapshot, "
+            "or omit --substrate-snapshot to use the synthetic encoded-window "
+            "substrate."
+        )
 
     schema_store, atom_idx = get_schema_store(
         consolidation=cons, patterns=mem._pattern_matrix(),
@@ -1158,12 +1396,26 @@ def main():
         k=min(args.k, len(patterns)),
     )
 
-    # Cues: perturbed copies of stored patterns (so retrieval has work to do).
-    cues = []
-    for i in range(args.n_cues):
-        base = patterns[i % len(patterns)]
-        noise = torch.randn(effective_dim, dtype=torch.complex64, device=args.device)
-        cues.append(mem.substrate.normalize(base + 0.15 * noise))
+    # Build cues based on mode.
+    cues: List[torch.Tensor] = []
+    cue_specs: List[Dict[str, Any]] = []  # only populated in headline mode
+    if args.mode == "headline":
+        cue_specs = _build_role_binding_cues(
+            substrate=mem.substrate, positions=positions, patterns=patterns,
+            n_cues=args.n_cues,
+            binding_noise_std=args.binding_noise_std,
+            content_distortion=args.content_distortion,
+            seed=args.seed + 100,
+        )
+        cues = [c["cue"] for c in cue_specs]
+    else:
+        # Perturbed copies of stored patterns (so retrieval has work to do).
+        for i in range(args.n_cues):
+            base = patterns[i % len(patterns)]
+            noise = torch.randn(
+                effective_dim, dtype=torch.complex64, device=args.device,
+            )
+            cues.append(mem.substrate.normalize(base + 0.15 * noise))
 
     boltzmann_rng = torch.Generator().manual_seed(args.seed + 10)
     random_prior_rng = torch.Generator().manual_seed(args.seed + 20)
@@ -1173,26 +1425,115 @@ def main():
             (name, prior_type, gamma, k_main, "per_pattern")
             for (name, prior_type, gamma, k_main) in SMOKE_CONDITIONS
         ]
-    else:  # decision5_spike — formulation × γ grid (per_pattern + global_pull)
+    elif args.mode == "decision5_spike":
+        # formulation × γ grid (per_pattern + global_pull)
         runs = []
         for formulation in FORMULATIONS:
             for gamma in (0.25, 0.5, 1.0):
                 name = f"content_K4_g{gamma}_{formulation}"
                 runs.append((name, "content", gamma, 4, formulation))
+    else:  # headline
+        # The headline run: role vs content vs random; controls γ=0 and K=1.
+        runs = [
+            ("role_K4", "role", args.gamma, 4, args.formulation),
+            ("content_K4", "content", args.gamma, 4, args.formulation),
+            ("random_K4", "random", args.gamma, 4, args.formulation),
+            ("role_K1", "role", args.gamma, 1, args.formulation),
+            ("content_K1", "content", args.gamma, 1, args.formulation),
+            ("role_K4_g0", "role", 0.0, 4, args.formulation),
+            ("content_K4_g0", "content", 0.0, 4, args.formulation),
+        ]
 
     results = []
-    for (name, prior_type, gamma, k_main, formulation) in runs:
-        print(f"[run] {name} prior={prior_type} γ={gamma} K={k_main} form={formulation}")
-        agg = _run_condition_over_cues(
-            name=name, prior_type=prior_type, gamma=gamma, k_main=k_main,
-            mem=mem, cons=cons, patterns=patterns,
-            schema_store=schema_store, schema_atom_idx=atom_idx,
-            cues=cues, beta=args.beta, temperature=args.temperature,
-            delta_energy=args.delta_energy, delta_state=args.delta_state,
-            delta_redundant=args.delta_redundant, formulation=formulation,
-            boltzmann_rng=boltzmann_rng, random_prior_rng=random_prior_rng,
+    if args.mode == "headline":
+        # Headline mode runs cues with role-binding metadata; record per-cue
+        # energies under each condition so we can compute paired ΔE.
+        schema_bindings = compute_schema_bindings(
+            substrate=mem.substrate, schemas=schema_store, positions=positions,
         )
-        results.append(agg)
+        for (name, prior_type, gamma, k_main, formulation) in runs:
+            print(f"[run] {name} prior={prior_type} γ={gamma} K={k_main} form={formulation}")
+            per_cue_e_min = []
+            per_cue_e_min_unbiased = []
+            per_cue_align = []
+            for cue_id, spec in enumerate(cue_specs):
+                result = run_branched_retrieval(
+                    cue=spec["cue"], cue_id=cue_id, target_id=spec["role_target_idx"],
+                    memory=mem,
+                    codebook=codebook if codebook is not None else mem._pattern_matrix(),
+                    positions=positions,
+                    decode_ids=[], decode_k=5, masked_pos=0,
+                    schema_store=schema_store, schema_atom_idx=atom_idx,
+                    consolidation=cons, prior_type=prior_type, k_main=k_main,
+                    gamma=gamma, beta=args.beta, temperature=args.temperature,
+                    delta_energy=args.delta_energy, delta_state=args.delta_state,
+                    delta_redundant=args.delta_redundant,
+                    formulation=formulation,
+                    cue_bindings=spec["cue_bindings"],
+                    schema_bindings=schema_bindings,
+                    include_surprise_branch=False,
+                    boltzmann_rng=boltzmann_rng,
+                    random_prior_rng=random_prior_rng,
+                )
+                if not result.branches:
+                    continue
+                e_min = min(b.energy_unbiased for b in result.branches)
+                align = max(
+                    float(mem.substrate.similarity(b.q_settled, p))
+                    for b in result.branches for p in patterns
+                )
+                per_cue_e_min.append(e_min)
+                per_cue_e_min_unbiased.append(e_min)
+                per_cue_align.append(align)
+            n = max(len(per_cue_e_min), 1)
+            results.append({
+                "name": name,
+                "prior_type": prior_type,
+                "gamma": gamma,
+                "k_main": k_main,
+                "formulation": formulation,
+                "n_cues": len(per_cue_e_min),
+                "per_cue_energy_unbiased_min": per_cue_e_min,
+                "mean_energy_unbiased_min": sum(per_cue_e_min) / n,
+                "mean_on_substrate_alignment": sum(per_cue_align) / n,
+            })
+        # Paired ΔE = E_content - E_role (positive = role-prior found a
+        # lower-energy state, i.e. structural retrieval). Compute for
+        # matched (content_K4, role_K4) and (content_K1, role_K1) pairs.
+        named = {r["name"]: r for r in results}
+        deltas = {}
+        for tag in ("K4", "K1", "K4_g0"):
+            content_name = f"content_{tag}"
+            role_name = f"role_{tag}"
+            if content_name not in named or role_name not in named:
+                continue
+            c = named[content_name]["per_cue_energy_unbiased_min"]
+            r = named[role_name]["per_cue_energy_unbiased_min"]
+            if len(c) != len(r) or not c:
+                continue
+            per_cue_delta = [ci - ri for ci, ri in zip(c, r)]
+            n_pos = sum(1 for d in per_cue_delta if d > 0)
+            mean_d = sum(per_cue_delta) / len(per_cue_delta)
+            deltas[tag] = {
+                "n_pairs": len(per_cue_delta),
+                "mean_delta_e_content_minus_role": mean_d,
+                "fraction_positive": n_pos / len(per_cue_delta),
+                "per_cue_delta": per_cue_delta,
+            }
+    else:
+        for (name, prior_type, gamma, k_main, formulation) in runs:
+            print(f"[run] {name} prior={prior_type} γ={gamma} K={k_main} form={formulation}")
+            agg = _run_condition_over_cues(
+                name=name, prior_type=prior_type, gamma=gamma, k_main=k_main,
+                mem=mem, cons=cons, patterns=patterns,
+                schema_store=schema_store, schema_atom_idx=atom_idx,
+                cues=cues, beta=args.beta, temperature=args.temperature,
+                delta_energy=args.delta_energy, delta_state=args.delta_state,
+                delta_redundant=args.delta_redundant, formulation=formulation,
+                boltzmann_rng=boltzmann_rng, random_prior_rng=random_prior_rng,
+            )
+            results.append(agg)
+        deltas = None
 
     out_path = output_dir / f"phase5_{args.mode}_seed{args.seed}.json"
     payload = {
@@ -1205,9 +1546,18 @@ def main():
         "beta": args.beta,
         "temperature": args.temperature,
         "substrate_snapshot": args.substrate_snapshot,
-        "snapshot_info": snapshot_info,
+        "snapshot_info": (
+            {k: v for k, v in (snapshot_info or {}).items() if k != "positions"}
+            if snapshot_info is not None else None
+        ),
         "conditions": results,
     }
+    if args.mode == "headline":
+        payload["headline_deltas"] = deltas
+        payload["binding_noise_std"] = args.binding_noise_std
+        payload["content_distortion"] = args.content_distortion
+        payload["formulation"] = args.formulation
+        payload["gamma"] = args.gamma
     out_path.write_text(json.dumps(payload, indent=2))
     print(f"[done] wrote {out_path}")
     return payload
