@@ -232,6 +232,10 @@ def select_schema_priors(
     prior_type: str = "content",
     cue_bindings: Optional[torch.Tensor] = None,
     schema_bindings: Optional[torch.Tensor] = None,
+    schema_fidelities: Optional[torch.Tensor] = None,
+    p: float = 1.0,
+    q: float = 1.0,
+    substrate: Optional[TorchFHRR] = None,
     rng: Optional[torch.Generator] = None,
 ) -> List[Tuple[int, torch.Tensor]]:
     """Pick K_main schemas with a diversity filter.
@@ -245,7 +249,7 @@ def select_schema_priors(
         Greedy diversity walk: any candidate whose max cosine to an
         already-selected schema exceeds this is skipped. delta_redundant=1.0
         disables the filter; 0.0 forces orthogonality.
-    prior_type : {'content', 'role', 'random'}
+    prior_type : {'content', 'role', 'random', 'fidelity_weighted'}
         'content' : rank by FHRR cosine cue vs schema.
         'role'    : rank by mean-of-best-match role-binding similarity.
                     Requires cue_bindings [n_roles_cue, D] and
@@ -256,10 +260,27 @@ def select_schema_priors(
                     Cue/bindings ignored. Anti-homunculus note: this is the
                     falsifier for "schemas matter" — if random priors
                     yield the same headline ΔE, no structural retrieval.
+        'fidelity_weighted' : Path-3 β prior. Continuous weighted sum over
+                    the FULL schema_store (no top-k cutoff, no diversity
+                    filter): prior = normalize(Σ_i (cue·s_i)_+^p · f_i^q · s_i)
+                    where f_i = mean pairwise FHRR distance of unbound
+                    fillers. Returns ONE prior regardless of k_main.
+                    Requires schema_fidelities [N] and substrate; uses
+                    p, q parameters. See
+                    notes/notes/2026-05-20-cue-regime-role-prior-dynamic-form.md
+                    and src/energy_memory/phase5/role_fidelity.py.
     cue_bindings : [n_roles_cue, D] complex, optional
         Role-decomposed cue (unbound fillers per role position).
     schema_bindings : [N, n_roles_schema, D] complex, optional
         Same decomposition for each schema.
+    schema_fidelities : [N] float32, optional
+        Per-schema role-fidelity in [0, 1] for prior_type='fidelity_weighted'.
+    p, q : float, default 1.0
+        β-prior exponents for prior_type='fidelity_weighted'.
+    substrate : TorchFHRR, optional
+        For β-prior normalization. If omitted under
+        prior_type='fidelity_weighted', falls back to element-wise unit-
+        magnitude normalization.
     rng : torch.Generator, optional
         For prior_type='random'; otherwise unused.
 
@@ -274,6 +295,25 @@ def select_schema_priors(
         return []
     if k_main <= 0:
         return []
+
+    if prior_type == "fidelity_weighted":
+        # β prior: one continuous-weighted vector, no per-atom branching.
+        from energy_memory.phase5.role_fidelity import fidelity_weighted_prior
+        if schema_fidelities is None:
+            raise ValueError(
+                "prior_type='fidelity_weighted' requires schema_fidelities"
+            )
+        if schema_fidelities.shape != (n_schemas,):
+            raise ValueError(
+                f"schema_fidelities must be [N={n_schemas}], got "
+                f"{tuple(schema_fidelities.shape)}"
+            )
+        prior_vec = fidelity_weighted_prior(
+            cue=cue, schemas=schema_store, fidelities=schema_fidelities,
+            p=p, q=q, substrate=substrate,
+        )
+        # Synthetic schema_idx = -1 (β prior is not tied to any one atom).
+        return [(-1, prior_vec)]
 
     if prior_type == "content":
         scores = _fhrr_cosine(cue, schema_store)
@@ -303,7 +343,7 @@ def select_schema_priors(
     else:
         raise ValueError(
             f"unknown prior_type {prior_type!r}; expected "
-            "'content' | 'role' | 'random'"
+            "'content' | 'role' | 'random' | 'fidelity_weighted'"
         )
 
     ranked = torch.argsort(scores, descending=True)
@@ -950,6 +990,9 @@ def run_branched_retrieval(
     formulation: str = "per_pattern",
     cue_bindings: Optional[torch.Tensor] = None,
     schema_bindings: Optional[torch.Tensor] = None,
+    schema_fidelities: Optional[torch.Tensor] = None,
+    p: float = 1.0,
+    q: float = 1.0,
     include_surprise_branch: bool = True,
     max_settling_iter: int = 12,
     boltzmann_rng: Optional[torch.Generator] = None,
@@ -979,6 +1022,8 @@ def run_branched_retrieval(
         cue=cue, schema_store=schema_store, k_main=k_main,
         delta_redundant=delta_redundant, prior_type=prior_type,
         cue_bindings=cue_bindings, schema_bindings=schema_bindings,
+        schema_fidelities=schema_fidelities, p=p, q=q,
+        substrate=memory.substrate,
         rng=random_prior_rng,
     )
 
@@ -1439,6 +1484,11 @@ def main():
                 runs.append((name, "content", gamma, 4, formulation))
     else:  # headline
         # The headline run: role vs content vs random; controls γ=0 and K=1.
+        # Plus β (path-3) conditions: fid_K1_q0 (content-only baseline) and
+        # fid_K1_q1 (β recommended). β operates over the FULL pattern matrix
+        # (not the top-k pre-filter); the headline loop substitutes the full
+        # matrix at the call site when the condition name starts with "fid_".
+        # See notes/notes/2026-05-20-cue-regime-role-prior-dynamic-form.md.
         km = args.k_main
         runs = [
             (f"role_K{km}", "role", args.gamma, km, args.formulation),
@@ -1446,6 +1496,11 @@ def main():
             (f"random_K{km}", "random", args.gamma, km, args.formulation),
             (f"role_K{km}_g0", "role", 0.0, km, args.formulation),
             (f"content_K{km}_g0", "content", 0.0, km, args.formulation),
+            # β conditions (path 3, the report-049 selector-layer fix).
+            # K=1 because β produces ONE continuous-weighted prior; γ is
+            # the same as the role/content conditions for a fair comparison.
+            ("fid_K1_q0", "fidelity_weighted", args.gamma, 1, args.formulation),
+            ("fid_K1_q1", "fidelity_weighted", args.gamma, 1, args.formulation),
         ]
         # K=1 control runs only if k_main != 1 (otherwise duplicates main).
         if km != 1:
@@ -1461,8 +1516,52 @@ def main():
         schema_bindings = compute_schema_bindings(
             substrate=mem.substrate, schemas=schema_store, positions=positions,
         )
+
+        # β prerequisites: when any fid_* condition runs, β operates over
+        # the FULL pattern matrix (not the top-k pre-filter). Pre-compute
+        # full-substrate bindings + fidelities once; reuse per cue.
+        full_patterns = mem._pattern_matrix()
+        run_needs_full_substrate = any(
+            r[1] == "fidelity_weighted" for r in runs
+        )
+        if run_needs_full_substrate:
+            from energy_memory.phase5.role_fidelity import compute_role_fidelity
+            full_schema_bindings = compute_schema_bindings(
+                substrate=mem.substrate, schemas=full_patterns,
+                positions=positions,
+            )
+            full_schema_fidelities = compute_role_fidelity(full_schema_bindings)
+            print(
+                f"[β] full-substrate fidelities computed: N={full_patterns.shape[0]}, "
+                f"mean(f)={float(full_schema_fidelities.mean()):.4f}, "
+                f"std(f)={float(full_schema_fidelities.std()):.4f}, "
+                f"min={float(full_schema_fidelities.min()):.4f}, "
+                f"max={float(full_schema_fidelities.max()):.4f}"
+            )
+        else:
+            full_schema_bindings = None
+            full_schema_fidelities = None
+
         for (name, prior_type, gamma, k_main, formulation) in runs:
-            print(f"[run] {name} prior={prior_type} γ={gamma} K={k_main} form={formulation}")
+            # Determine q for β conditions (encoded in the condition name).
+            if prior_type == "fidelity_weighted":
+                q_run = 0.0 if name.endswith("_q0") else 1.0
+                p_run = 1.0
+                # β uses the full schema store, not the top-k filter.
+                run_schemas = full_patterns
+                run_schema_bindings = full_schema_bindings
+                run_schema_fidelities = full_schema_fidelities
+                run_atom_idx = None  # β prior is not tied to specific atom indices
+            else:
+                q_run = 1.0
+                p_run = 1.0
+                run_schemas = schema_store
+                run_schema_bindings = schema_bindings
+                run_schema_fidelities = None
+                run_atom_idx = atom_idx
+
+            print(f"[run] {name} prior={prior_type} γ={gamma} K={k_main} form={formulation}"
+                  + (f" (β: q={q_run})" if prior_type == "fidelity_weighted" else ""))
             per_cue_e_min = []
             per_cue_e_min_unbiased = []
             per_cue_align = []
@@ -1479,14 +1578,16 @@ def main():
                     codebook=codebook if codebook is not None else mem._pattern_matrix(),
                     positions=positions,
                     decode_ids=[], decode_k=5, masked_pos=0,
-                    schema_store=schema_store, schema_atom_idx=atom_idx,
+                    schema_store=run_schemas, schema_atom_idx=run_atom_idx,
                     consolidation=cons, prior_type=prior_type, k_main=k_main,
                     gamma=gamma, beta=args.beta, temperature=args.temperature,
                     delta_energy=args.delta_energy, delta_state=args.delta_state,
                     delta_redundant=args.delta_redundant,
                     formulation=formulation,
                     cue_bindings=spec["cue_bindings"],
-                    schema_bindings=schema_bindings,
+                    schema_bindings=run_schema_bindings,
+                    schema_fidelities=run_schema_fidelities,
+                    p=p_run, q=q_run,
                     include_surprise_branch=False,
                     boltzmann_rng=boltzmann_rng,
                     random_prior_rng=random_prior_rng,
@@ -1588,6 +1689,25 @@ def main():
                 "fraction_positive": n_pos / len(per_cue_delta),
                 "per_cue_delta": per_cue_delta,
             }
+
+        # β headline: ΔE = E_unbiased(fid_K1_q0) - E_unbiased(fid_K1_q1),
+        # per-cue. Positive ΔE means q=1 (fidelity-weighted) finds a
+        # lower-energy state than q=0 (content-only baseline). See
+        # notes/notes/2026-05-20-cue-regime-role-prior-dynamic-form.md
+        # §"Pre-committed falsification criteria" — criterion #2 here.
+        if "fid_K1_q0" in named and "fid_K1_q1" in named:
+            q0_e = named["fid_K1_q0"]["per_cue_energy_unbiased_min"]
+            q1_e = named["fid_K1_q1"]["per_cue_energy_unbiased_min"]
+            if len(q0_e) == len(q1_e) and q0_e:
+                per_cue_beta_delta = [a - b for a, b in zip(q0_e, q1_e)]
+                n_pos_beta = sum(1 for d in per_cue_beta_delta if d > 0)
+                mean_beta = sum(per_cue_beta_delta) / len(per_cue_beta_delta)
+                deltas["beta_q0_minus_q1"] = {
+                    "n_pairs": len(per_cue_beta_delta),
+                    "mean_delta_e_q0_minus_q1": mean_beta,
+                    "fraction_positive": n_pos_beta / len(per_cue_beta_delta),
+                    "per_cue_delta": per_cue_beta_delta,
+                }
     else:
         for (name, prior_type, gamma, k_main, formulation) in runs:
             print(f"[run] {name} prior={prior_type} γ={gamma} K={k_main} form={formulation}")
