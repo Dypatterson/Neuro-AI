@@ -181,4 +181,161 @@ def fidelity_weighted_prior(
     return weighted / mag.to(weighted.dtype)
 
 
-__all__ = ["compute_role_fidelity", "fidelity_weighted_prior"]
+def compute_role_fidelity_decode_margin(
+    schema_bindings: "torch.Tensor",
+    vocabulary: "torch.Tensor",
+) -> "torch.Tensor":
+    """Per-schema decode-margin fidelity (Ganesan-style, per research C).
+
+    For each (schema, role) pair, decode the unbound filler against a
+    vocabulary of candidate filler vectors via FHRR cosine. The
+    discriminability gap (max − second_max) measures how sharply the
+    unbind decodes to one vocabulary entry.
+
+    A schema with intact role-binding has unbinds that each decode
+    sharply to one vocabulary entry → high margin. A schema whose
+    role-binding has degraded (e.g., a discovery-channel re-settled
+    mixture) has unbinds that decode diffusely → low margin.
+
+    Per-atom variance comes from binding-signal concentration, not
+    from inter-filler distance — bypasses the FHRR `1 − 1/√D`
+    crosstalk floor that makes `compute_role_fidelity` uniform at
+    high D (see reports/050_phase5_beta_smoke_seed17.md).
+
+    Parameters
+    ----------
+    schema_bindings : torch.Tensor, shape [N, W, D] complex
+        Unbound fillers per schema and position. From
+        ``compute_schema_bindings``.
+    vocabulary : torch.Tensor, shape [V, D] complex
+        Candidate decode targets. Use the substrate's pattern matrix
+        for a substrate-self-consistent decode, or load the FHRR
+        codebook for a codebook-decode.
+
+    Returns
+    -------
+    torch.Tensor, shape [N] float32
+        Mean over positions of (max − second_max) cosine to vocabulary.
+        Bounded in [0, 2] (margin is non-negative for unit-magnitude
+        FHRR vectors).
+    """
+    if schema_bindings.dim() != 3:
+        raise ValueError(
+            f"schema_bindings must be [N, W, D], got "
+            f"{tuple(schema_bindings.shape)}"
+        )
+    if vocabulary.dim() != 2:
+        raise ValueError(
+            f"vocabulary must be [V, D], got {tuple(vocabulary.shape)}"
+        )
+    n, w, d = schema_bindings.shape
+    v = vocabulary.shape[0]
+    if vocabulary.shape[1] != d:
+        raise ValueError(
+            f"vocabulary's D={vocabulary.shape[1]} must match "
+            f"schema_bindings' D={d}"
+        )
+    if n == 0:
+        return torch.zeros(0, dtype=torch.float32, device=schema_bindings.device)
+    if v < 2:
+        return torch.zeros(n, dtype=torch.float32, device=schema_bindings.device)
+
+    # Reshape bindings to [N*W, D] for batched cosine to vocabulary.
+    flat = schema_bindings.reshape(n * w, d)
+    # Cosine via FHRR inner product divided by D.
+    gram = flat @ vocabulary.conj().T / d  # [N*W, V] complex
+    cosines = gram.abs()  # [N*W, V] real in [0, ~1]
+    # Top-2 per row.
+    top2 = cosines.topk(k=2, dim=-1).values  # [N*W, 2]
+    margins = (top2[:, 0] - top2[:, 1]).reshape(n, w)  # [N, W]
+    # Mean over positions → per-atom fidelity.
+    return margins.mean(dim=-1).clamp(min=0.0).to(torch.float32)
+
+
+def compute_role_fidelity_settled(
+    schemas: "torch.Tensor",
+    positions,
+    memory,
+    substrate,
+    beta: float = 10.0,
+    max_iter: int = 12,
+) -> "torch.Tensor":
+    """Per-schema role-fidelity computed on POST-SETTLING states.
+
+    For each schema s_i:
+
+    1. Use s_i as a probe through the Hopfield substrate's iterative
+       softmax settling → produce q_settled_i (the basin attractor
+       state).
+    2. Compute the standard pairwise-distance fidelity on q_settled_i's
+       unbinds rather than s_i's raw unbinds.
+
+    The intuition (per research B B2): settling drives the substrate
+    state toward discrete basin membership. The pairwise structure of
+    q_settled's unbinds has variance the raw unbind sum doesn't,
+    because basin attractors differ across atoms even when raw
+    FHRR-crosstalk doesn't.
+
+    Anti-homunculus shape: per-atom measurement using existing
+    Hopfield settling dynamics; no new architectural mechanism.
+
+    Parameters
+    ----------
+    schemas : torch.Tensor, shape [N, D] complex
+        Schemas to probe. Usually the substrate's own patterns.
+    positions : sequence of D-dim complex tensors
+        Position vectors for unbinding.
+    memory : TorchHopfieldMemory
+        For settling. Memory's substrate must equal `substrate`.
+    substrate : TorchFHRR
+        For unbinding operations.
+    beta : float, default 10.0
+        Hopfield settling inverse-temperature.
+    max_iter : int, default 12
+        Max settling iterations.
+
+    Returns
+    -------
+    torch.Tensor, shape [N] float32
+        Per-atom mean pairwise distance among settled-state unbinds.
+    """
+    if schemas.dim() != 2:
+        raise ValueError(
+            f"schemas must be [N, D], got {tuple(schemas.shape)}"
+        )
+    n, d = schemas.shape
+    w = len(positions)
+    if n == 0:
+        return torch.zeros(0, dtype=torch.float32, device=schemas.device)
+    if w < 2:
+        return torch.zeros(n, dtype=torch.float32, device=schemas.device)
+
+    # Settle each schema. retrieve returns a TorchRetrievalResult whose
+    # `state` field is the post-settling FHRR vector. Loop is fine for
+    # N ~ 1064 at D=4096 (handful of seconds on CPU).
+    settled = torch.zeros_like(schemas)
+    for i in range(n):
+        result = memory.retrieve(
+            query=schemas[i], beta=beta, max_iter=max_iter,
+        )
+        settled[i] = result.state
+
+    # Unbind each settled state at each position → [N, W, D]
+    settled_bindings = torch.zeros(
+        n, w, d, dtype=schemas.dtype, device=schemas.device,
+    )
+    for r in range(w):
+        pos_r = positions[r].to(schemas.device)
+        for i in range(n):
+            settled_bindings[i, r] = substrate.unbind(settled[i], pos_r)
+
+    # Reuse the existing pairwise-distance fidelity calculation.
+    return compute_role_fidelity(settled_bindings)
+
+
+__all__ = [
+    "compute_role_fidelity",
+    "compute_role_fidelity_decode_margin",
+    "compute_role_fidelity_settled",
+    "fidelity_weighted_prior",
+]

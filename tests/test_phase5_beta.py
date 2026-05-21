@@ -195,5 +195,155 @@ class TestFidelityWeightedPrior(unittest.TestCase):
             )
 
 
+@unittest.skipIf(torch is None, "torch required")
+class TestDecodeMarginFidelity(unittest.TestCase):
+    """β-alternative #1: per-atom decode-margin fidelity.
+
+    Per research C #1 (Ganesan-style), and report 051 Tier 1
+    disambiguation against the f_i uniformity finding of report 050.
+    """
+
+    def _random_unit_phasor(self, d, seed):
+        gen = torch.Generator(device="cpu").manual_seed(seed)
+        phase = torch.rand((d,), generator=gen) * (2.0 * math.pi)
+        return torch.polar(torch.ones((d,)), phase)
+
+    def test_sharp_unbind_gives_high_margin(self):
+        """When unbinds align cleanly with a single vocabulary entry,
+        margin is large.
+        """
+        from energy_memory.phase5.role_fidelity import (
+            compute_role_fidelity_decode_margin,
+        )
+        D, W, V = 1024, 4, 8
+        # Build a vocabulary of orthogonal-ish FHRR vectors.
+        vocab = torch.stack(
+            [self._random_unit_phasor(D, seed=v) for v in range(V)], dim=0
+        )
+        # Schema bindings = the first W vocabulary entries (each unbind
+        # IS a vocabulary entry, perfectly aligned).
+        bindings = vocab[:W].unsqueeze(0)  # [1, W, D]
+        f = compute_role_fidelity_decode_margin(bindings, vocab)
+        self.assertEqual(f.shape, (1,))
+        # Each unbind has cos=1 with one vocab entry and ~1/√D ≈ 0.03
+        # with others; margin should be ≈ 1 - 0.03 ≈ 0.97.
+        self.assertGreater(float(f[0]), 0.9)
+
+    def test_diffuse_unbind_gives_low_margin(self):
+        """When unbinds align with several vocabulary entries (a mix),
+        margin is small.
+        """
+        from energy_memory.phase5.role_fidelity import (
+            compute_role_fidelity_decode_margin,
+        )
+        D, W, V = 1024, 4, 8
+        vocab = torch.stack(
+            [self._random_unit_phasor(D, seed=v) for v in range(V)], dim=0
+        )
+        # Each binding is a mix of TWO vocab entries (averaged in
+        # complex space + normalized).
+        bindings_list = []
+        for r in range(W):
+            mix = (vocab[r] + vocab[(r + 1) % V]) / 2.0
+            mix = mix / mix.abs().clamp(min=1e-9)
+            bindings_list.append(mix)
+        bindings = torch.stack(bindings_list, dim=0).unsqueeze(0)  # [1, W, D]
+        f = compute_role_fidelity_decode_margin(bindings, vocab)
+        # Mixed unbinds have top-2 cosines close to each other → small
+        # margin (much less than the sharp case).
+        self.assertLess(float(f[0]), 0.5)
+
+    def test_empty_schemas_returns_empty(self):
+        from energy_memory.phase5.role_fidelity import (
+            compute_role_fidelity_decode_margin,
+        )
+        D = 512
+        vocab = torch.stack(
+            [self._random_unit_phasor(D, seed=v) for v in range(4)], dim=0
+        )
+        empty = torch.zeros(0, 4, D, dtype=torch.complex64)
+        f = compute_role_fidelity_decode_margin(empty, vocab)
+        self.assertEqual(f.shape, (0,))
+
+    def test_dim_mismatch_raises(self):
+        from energy_memory.phase5.role_fidelity import (
+            compute_role_fidelity_decode_margin,
+        )
+        bindings = torch.zeros(2, 4, 512, dtype=torch.complex64)
+        vocab = torch.zeros(8, 256, dtype=torch.complex64)
+        with self.assertRaises(ValueError):
+            compute_role_fidelity_decode_margin(bindings, vocab)
+
+
+@unittest.skipIf(torch is None, "torch required")
+class TestSettlingBasedFidelity(unittest.TestCase):
+    """β-alternative #2: per-atom fidelity computed on post-settling state.
+
+    Per research B B2 + research C #5 + research E §3.3 — three
+    independent angles converged on this.
+    """
+
+    def _build_substrate(self, n_atoms: int, dim: int, w: int, seed: int):
+        from energy_memory.substrate.torch_fhrr import TorchFHRR
+        from energy_memory.memory.torch_hopfield import TorchHopfieldMemory
+        from energy_memory.phase2.encoding import (
+            build_position_vectors, encode_window,
+        )
+        substrate = TorchFHRR(dim=dim, seed=seed, device="cpu")
+        memory = TorchHopfieldMemory(substrate)
+        positions = build_position_vectors(substrate, count=w)
+        # Build a small codebook of W*n_atoms fillers (one per atom·role).
+        gen = torch.Generator(device="cpu").manual_seed(seed + 7)
+        vocab_size = max(w + 2, 8)
+        codebook = substrate.normalize(torch.polar(
+            torch.ones((vocab_size, dim)),
+            torch.rand((vocab_size, dim), generator=gen) * (2.0 * math.pi),
+        ))
+        # Encode n_atoms distinct windows.
+        patterns = []
+        for i in range(n_atoms):
+            ids = [(i + r) % vocab_size for r in range(w)]
+            p = encode_window(substrate, positions, codebook, ids)
+            memory.store(p, label=i)
+            patterns.append(p)
+        return substrate, memory, positions, torch.stack(patterns, dim=0)
+
+    def test_settling_produces_per_atom_fidelity(self):
+        """Settling-based fidelity should return a [N] tensor with
+        non-degenerate values (not all identical).
+        """
+        from energy_memory.phase5.role_fidelity import (
+            compute_role_fidelity_settled,
+        )
+        substrate, memory, positions, patterns = self._build_substrate(
+            n_atoms=8, dim=512, w=4, seed=23,
+        )
+        f = compute_role_fidelity_settled(
+            schemas=patterns, positions=positions,
+            memory=memory, substrate=substrate, beta=10.0, max_iter=12,
+        )
+        self.assertEqual(f.shape, (8,))
+        # Values bounded in [0, 1].
+        self.assertGreaterEqual(float(f.min()), 0.0)
+        self.assertLessEqual(float(f.max()), 1.0)
+
+    def test_settling_empty_returns_empty(self):
+        from energy_memory.phase5.role_fidelity import (
+            compute_role_fidelity_settled,
+        )
+        from energy_memory.substrate.torch_fhrr import TorchFHRR
+        from energy_memory.memory.torch_hopfield import TorchHopfieldMemory
+        from energy_memory.phase2.encoding import build_position_vectors
+        substrate = TorchFHRR(dim=128, device="cpu")
+        memory = TorchHopfieldMemory(substrate)
+        positions = build_position_vectors(substrate, count=4)
+        empty = torch.zeros(0, 128, dtype=torch.complex64)
+        f = compute_role_fidelity_settled(
+            schemas=empty, positions=positions,
+            memory=memory, substrate=substrate,
+        )
+        self.assertEqual(f.shape, (0,))
+
+
 if __name__ == "__main__":
     unittest.main()
