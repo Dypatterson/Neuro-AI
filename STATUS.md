@@ -46,10 +46,29 @@ diagnostic-actuator pair in dynamic form
 ([2026-05-09 prescription](notes/notes/2026-05-09-papers-diagnostics-and-actuator-dynamics.md)
 threshold-crossing #1).
 
-**Next: Phase 5 K-branch ΔE diagnostic on the new substrate**, then
-n=10 Colab retrain if state_divergence is within 30% of pre-death.
-Path 3 (β+γ cue-regime, [design note](notes/notes/2026-05-20-cue-regime-role-prior-dynamic-form.md))
-remains contingent on the n=10 outcome.
+**K-branch state-divergence diagnostic FAILS at n=1**
+([report 047](reports/047_phase5_ab_branch_divergence_failure.md)).
+Falsification SIGNAL on mechanism-validity criterion #2 (n=5 needed
+for the formal verdict). The failure is NOT caused by A+B+step3's
+substrate mechanics — d_eff = 35 holds, the broader 1064 atoms are
+geometrically diverse. The failure is caused by **a substrate-
+construction interaction**: A's (1 − r_ema) modulation initializes
+new atoms with r_ema=0, advantaging the Phase-4 discovery-channel
+atoms over original Phase-3 atoms in strength accumulation. The
+discovery atoms (added via convergent retrieval settles) are near-
+duplicates of each other; they end up as the top-8 by effective_strength
+with FP-precision-identical pairwise similarity (1.0000 vs baseline's
+0.36). The schema store is therefore degenerate; the K-branch
+mechanism produces n_branches=1 and state_divergence=0.
+
+Three sketched fixes ([report 047 §"Three possible fixes"](reports/047_phase5_ab_branch_divergence_failure.md)):
+- **A1**: substrate-aware r_ema initialization for new atoms (smallest patch).
+- **A2**: schema-store selection by combined strength + diversity.
+- **A3**: path-3 β continuous role-fidelity weighting (already designed).
+
+None committed yet. Each needs a design + anti-homunculus check.
+Recommended next move: pause + design (option 1 per report 047).
+n=10 Colab retrain is BLOCKED pending fix selection.
 
 The 1-seed pilot script (ready to run):
 
