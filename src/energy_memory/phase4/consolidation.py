@@ -484,28 +484,42 @@ class ConsolidationState:
 def _coverage_redundancy_instantaneous(patterns: "torch.Tensor") -> "torch.Tensor":
     """Per-atom instantaneous coverage redundancy r_i ∈ [0, 1].
 
-    Operationalization of Candidate A's r_i (notes/notes/2026-05-20-...md):
-    the formal definition is ``r_i = ||proj_{P_¬i}(p_i)|| / ||p_i||``, the
-    projection magnitude of atom i onto the column-span of the rest of
-    the substrate. We use a per-atom Gram-row proxy that is local per-i
+    Operationalization of Candidate A's r_i. The formal definition is
+    ``r_i = ||proj_{P_¬i}(p_i)|| / ||p_i||``, the projection magnitude
+    of atom i onto the column-span of the rest of the substrate.
+
+    We use a per-atom Gram-row max-reduction proxy that is local per-i
     (no global SVD, no scheduled population sweep — the proxy is
     computable from atom i's similarities to its own neighbors, which is
     the local geometry available to it):
 
         G_ij = (1/D) * <p_i, p_j>            (complex; |G_ii| = 1)
-        r_i  = sqrt( mean_{j≠i} |G_ij|² )    (RMS off-diag, ∈ [0, 1])
+        r_i  = max_{j≠i} |G_ij|              (∈ [0, 1])
 
     For unit-magnitude FHRR patterns this proxy saturates at 1 when atom
-    i is identical to all other atoms and goes to 0 when atom i is
-    orthogonal to all of them. The EMA in
-    ``ConsolidationState.step_dynamics`` smooths this snapshot into the
-    slow-timescale running estimate the design note prescribes.
+    i is identical to *any* other atom (the duplicate's |G| = 1
+    dominates the max), and goes to 0 when atom i is orthogonal to all
+    others.
+
+    A1' (notes/notes/2026-05-20-r-inst-measure-dynamic-form.md):
+    earlier the reduction was ``sqrt(mean_{j≠i} |G_ij|²)`` (RMS off-
+    diagonal). That mean-RMS form under-measures *sparse* duplicates:
+    an atom that's a perfect duplicate of one neighbor but orthogonal
+    to N-2 others got r_i ≈ sqrt(1/(N-1)) ≈ 0.03 — diluted by the
+    averaging across N atoms — even though the formal projection-
+    magnitude reading is 1.0. Report 048 traced the A1 mechanism-
+    validity failure (criterion #1) to this dilution; A1' (max-over-
+    others) restores the correct saturation behavior for sparse
+    duplicates. The EMA in ``ConsolidationState.step_dynamics`` smooths
+    this snapshot into the slow-timescale running estimate the design
+    note prescribes.
     """
     n, d = patterns.shape
     if n < 2:
         return torch.zeros(n, dtype=torch.float32, device=patterns.device)
     gram = (patterns @ patterns.conj().T) / d  # [N, N] complex
-    gram_sq = gram.abs() * gram.abs()  # [N, N] real, in [0, 1]
+    gram_abs = gram.abs()  # [N, N] real, in [0, 1]
     mask = ~torch.eye(n, dtype=torch.bool, device=patterns.device)
-    off_diag_sum = (gram_sq * mask.to(gram_sq.dtype)).sum(dim=1)
-    return (off_diag_sum / (n - 1)).clamp(min=0.0, max=1.0).sqrt().to(torch.float32)
+    # Zero out the diagonal so it doesn't dominate the max
+    gram_abs_off = gram_abs.masked_fill(~mask, 0.0)
+    return gram_abs_off.max(dim=1).values.clamp(min=0.0, max=1.0).to(torch.float32)

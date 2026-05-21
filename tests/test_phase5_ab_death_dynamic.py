@@ -60,6 +60,28 @@ class TestCoverageRedundancyInstantaneous(unittest.TestCase):
         self.assertEqual(r.shape, (1,))
         self.assertEqual(float(r[0]), 0.0)
 
+    def test_sparse_duplicate_against_orthogonal_substrate(self):
+        """A1' regression: a single duplicate among many orthogonal atoms
+        should yield r_i ≈ 1 for the two duplicate atoms and r_i small
+        for the rest. The earlier mean-RMS reduction gave r_i ≈ 0.03 for
+        sparse duplicates (the report-048 failure mode).
+        """
+        from energy_memory.phase4.consolidation import (
+            _coverage_redundancy_instantaneous,
+        )
+        # 30 random unit phasors + 1 duplicate of the first one
+        orth = self._random_unit_phasors(n=30, d=4096, seed=23)
+        patterns = torch.cat([orth, orth[:1]], dim=0)  # 31 atoms total
+        r = _coverage_redundancy_instantaneous(patterns)
+        self.assertEqual(r.shape, (31,))
+        # Atom 0 and atom 30 are duplicates: both should have r ≈ 1.
+        self.assertGreater(float(r[0]), 0.95)
+        self.assertGreater(float(r[30]), 0.95)
+        # Other atoms (1..29) are orthogonal to everyone; max similarity
+        # to any neighbor is still small (~0.01-0.05 at D=4096).
+        non_duplicate_r = torch.cat([r[1:30]])
+        self.assertLess(float(non_duplicate_r.max()), 0.20)
+
 
 @unittest.skipIf(torch is None, "torch required")
 class TestCandidateAReinforcement(unittest.TestCase):
