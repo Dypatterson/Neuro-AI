@@ -36,13 +36,21 @@ class TorchRetrievalResult(Generic[T]):
     iterations: int
     converged: bool
     # Pre-CPU-sync weights tensor (same values as `weights`, kept on
-    # substrate device). Surfaced for the pair #4 metastability mechanism
-    # (notes/notes/2026-05-20-metastability-replay-prioritization-dynamic-form.md):
-    # m_i ← EMA over c_i = w_i · (1 − max_j w_j) is updated per-retrieval
-    # from this tensor, avoiding a redundant CPU sync. None when retrieve()
-    # is called from a context that doesn't need it (left for callers that
-    # only consume top_index/top_score).
+    # substrate device). Surfaced for the pair #4 metastability mechanism.
+    # Legacy field — preserved for backwards compatibility with code paths
+    # that consume the raw final softmax weights. Path 3 reformulation uses
+    # metastability_contribution instead (see field below).
     weights_tensor: Optional["torch.Tensor"] = None
+    # Path 3 (notes/notes/2026-05-20-metastability-replay-prioritization-dynamic-form.md
+    # §ADDENDUM): trajectory-based per-atom metastability contribution
+    # c_i^(traj) = max_{t < T} w_i^(t) − w_i^(final), computed inside the
+    # existing settling loop's running max (audit constraint #8). Bounded
+    # in [0, 1]. Atoms that competed during settling but lost the fixed
+    # point get c_i > 0; winners and never-competing atoms get c_i ≈ 0.
+    # On-device tensor; ConsolidationState.update_metastability consumes
+    # this directly without re-deriving from weights (audit constraint #9
+    # — single computation, no extra CPU sync).
+    metastability_contribution: Optional["torch.Tensor"] = None
 
 
 class TorchHopfieldMemory(Generic[T]):
@@ -115,11 +123,19 @@ class TorchHopfieldMemory(Generic[T]):
         frozen = torch.zeros((), dtype=torch.bool, device=device)
         final_state = state
         prev_energy: Optional["torch.Tensor"] = None
+        # Path 3 (audit constraint #8): track running max of per-iteration
+        # softmax weights inside the existing settling loop. One elementwise
+        # max per iteration; no separate trajectory replay pass.
+        running_max_weights: Optional["torch.Tensor"] = None
         for _ in range(max_iter):
             scores = self._scores(state, patterns)
             energy = self._energy_from_scores(scores, beta=beta, kernel=kernel)
             energy_tensors.append(energy)
             weights = self._weights(scores, beta=beta, kernel=kernel)
+            if running_max_weights is None:
+                running_max_weights = weights.detach().clone()
+            else:
+                running_max_weights = torch.maximum(running_max_weights, weights.detach())
             next_state = self.substrate.normalize((patterns * weights[:, None]).sum(dim=0))
             if prev_energy is not None:
                 converged_now = ((energy - prev_energy).abs() < tol) & (~frozen)
@@ -145,6 +161,15 @@ class TorchHopfieldMemory(Generic[T]):
         final_weights = self._weights(final_scores, beta=beta, kernel=kernel)
         top_index = int(torch.argmax(final_scores).detach().cpu())
         top_label = self.labels[top_index] if self.labels else None
+        # Path 3 (audit constraint #9): compute c_i^(traj) exactly once,
+        # after the loop. Stays on-device until update_metastability consumes
+        # it. clamp(min=0) is a safety guard — the max-running construction
+        # already guarantees non-negative, but float arithmetic at the
+        # converged iteration can produce tiny negative drift.
+        if running_max_weights is not None:
+            metastability_contribution = (running_max_weights - final_weights.detach()).clamp(min=0.0)
+        else:
+            metastability_contribution = None
         return TorchRetrievalResult(
             state=state,
             weights=final_weights.detach().cpu().tolist(),
@@ -157,6 +182,7 @@ class TorchHopfieldMemory(Generic[T]):
             iterations=len(energy_trace),
             converged=converged,
             weights_tensor=final_weights.detach(),
+            metastability_contribution=metastability_contribution,
         )
 
     def energy(self, state, beta: float = 8.0, patterns=None, kernel: str = "softmax") -> float:

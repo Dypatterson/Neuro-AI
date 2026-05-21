@@ -363,15 +363,16 @@ def stream_phase34(
                     )
                     # Saighi A_k accumulation on successful retrieval.
                     unit.consolidation.accumulate_inhibition(trace.final_top_index)
-                # Pair #4: update per-atom metastability EMA from the
-                # retrieval's softmax weights vector. The audit binds this
-                # to the same tensor retrieve() already produced (no second
-                # pass). No-op at metastability_obs_rate=0 (the κ=0 control).
+                # Pair #4 (Path 3): update per-atom metastability EMA from
+                # the retrieval's trajectory-based c_i contribution. The
+                # audit binds this to the same tensor retrieve() already
+                # produced (audit constraint #8). No-op at
+                # metastability_obs_rate=0 (the κ=0 control).
                 if (
-                    result.weights_tensor is not None
-                    and result.weights_tensor.shape[0] == unit.consolidation.n_patterns
+                    result.metastability_contribution is not None
+                    and result.metastability_contribution.shape[0] == unit.consolidation.n_patterns
                 ):
-                    unit.consolidation.update_metastability(result.weights_tensor)
+                    unit.consolidation.update_metastability(result.metastability_contribution)
                 unit._retrieval_count += 1
             else:
                 result = slot.memory.retrieve(cue_vec, beta=beta, max_iter=12)

@@ -443,16 +443,15 @@ class UnifiedReplayMemory(Generic[T]):
             # Saighi A_k accumulation: every successful retrieval of
             # attractor k increments A_k by inhibition_gain (no-op when 0).
             self.consolidation.accumulate_inhibition(trace.final_top_index)
-        # Pair #4: update per-atom metastability EMA from the retrieval's
-        # softmax weights. No-op when metastability_obs_rate == 0 (the
-        # κ=0 control baseline). c_i is computed from result.weights_tensor
-        # which is the same tensor retrieve() already produced — audit
-        # constraint #1 binds us to NOT invoke a second pass.
+        # Pair #4 (Path 3): update per-atom metastability EMA from the
+        # retrieval's trajectory-based c_i contribution, computed inside
+        # retrieve()'s settling loop (audit constraint #8). No-op when
+        # metastability_obs_rate == 0 (the κ=0 control baseline).
         if (
-            result.weights_tensor is not None
-            and result.weights_tensor.shape[0] == self.consolidation.n_patterns
+            result.metastability_contribution is not None
+            and result.metastability_contribution.shape[0] == self.consolidation.n_patterns
         ):
-            self.consolidation.update_metastability(result.weights_tensor)
+            self.consolidation.update_metastability(result.metastability_contribution)
         self._retrieval_count += 1
         return result, trace
 
@@ -512,15 +511,16 @@ class UnifiedReplayMemory(Generic[T]):
                 score_bias=replay_bias,
             )
 
-            # Pair #4: update m_i from the replay retrieval's softmax weights.
-            # Replay retrievals are real settling events through the
-            # substrate and produce per-atom contributions that should
-            # accumulate into m_i. No-op at metastability_obs_rate=0.
+            # Pair #4 (Path 3): update m_i from the replay retrieval's
+            # trajectory-based c_i contribution. Replay retrievals are real
+            # settling events through the substrate and produce per-atom
+            # contributions that should accumulate into m_i. No-op at
+            # metastability_obs_rate=0.
             if (
-                new_result.weights_tensor is not None
-                and new_result.weights_tensor.shape[0] == self.consolidation.n_patterns
+                new_result.metastability_contribution is not None
+                and new_result.metastability_contribution.shape[0] == self.consolidation.n_patterns
             ):
-                self.consolidation.update_metastability(new_result.weights_tensor)
+                self.consolidation.update_metastability(new_result.metastability_contribution)
 
             if new_trace.final_top_score >= self.config.resolve_threshold:
                 if candidate_handler is not None:

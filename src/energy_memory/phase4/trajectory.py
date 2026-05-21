@@ -167,6 +167,11 @@ class TracedHopfieldMemory(TorchHopfieldMemory, Generic[T]):
         frozen = torch.zeros((), dtype=torch.bool, device=device)
         final_state = state
         prev_energy: Optional["torch.Tensor"] = None
+        # Path 3 (audit constraint #8): running max over per-iteration
+        # softmax weights — one elementwise max per iteration, in the same
+        # settling loop that produces the weights. No separate trajectory
+        # replay pass.
+        running_max_weights: Optional["torch.Tensor"] = None
 
         for _ in range(max_iter):
             scores = self._scores(state, patterns)
@@ -175,6 +180,10 @@ class TracedHopfieldMemory(TorchHopfieldMemory, Generic[T]):
             if bias is not None:
                 logits = logits - bias
             weights = torch.softmax(logits, dim=0)
+            if running_max_weights is None:
+                running_max_weights = weights.detach().clone()
+            else:
+                running_max_weights = torch.maximum(running_max_weights, weights.detach())
             next_state = self.substrate.normalize(
                 (patterns * weights[:, None]).sum(dim=0),
             )
@@ -229,6 +238,13 @@ class TracedHopfieldMemory(TorchHopfieldMemory, Generic[T]):
         top_label = self.labels[top_index] if self.labels else None
         top_score = float(final_scores[top_index].detach().cpu())
 
+        # Path 3 (audit constraint #9): c_i^(traj) computed once after the
+        # settling loop.
+        if running_max_weights is not None:
+            metastability_contribution = (running_max_weights - final_weights.detach()).clamp(min=0.0)
+        else:
+            metastability_contribution = None
+
         result = TorchRetrievalResult(
             state=state,
             weights=final_weights.detach().cpu().tolist(),
@@ -241,6 +257,7 @@ class TracedHopfieldMemory(TorchHopfieldMemory, Generic[T]):
             iterations=len(energy_trace),
             converged=converged,
             weights_tensor=final_weights.detach(),
+            metastability_contribution=metastability_contribution,
         )
 
         trace = TrajectoryTrace(

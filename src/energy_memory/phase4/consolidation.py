@@ -331,44 +331,52 @@ class ConsolidationState:
         tau = self.config.retrieval_weight_tau
         return torch.nn.functional.softplus((eps - e) / tau)
 
-    def update_metastability(self, weights: "torch.Tensor") -> None:
-        """Pair #4: update per-atom metastability EMA from a retrieval's softmax weights.
+    def update_metastability(self, contribution: "torch.Tensor") -> None:
+        """Pair #4 (Path 3): update per-atom metastability EMA from a pre-computed contribution.
 
-        For a retrieval with weight vector ``w ∈ ℝ^N``:
+        For a retrieval with trajectory-based contribution
+        ``c_i^(traj) ∈ [0, 1]``:
 
-            c_i = w_i · (1 − max_j w_j)          ∈ [0, 1/4]
-            m_i ← (1 − μ_obs) · m_i + μ_obs · c_i
+            m_i ← (1 − μ_obs) · m_i + μ_obs · c_i^(traj)
 
-        ``c_i`` is the per-atom metastability contribution defined in
-        notes/notes/2026-05-20-metastability-replay-prioritization-dynamic-form.md.
-        A sharp retrieval (max_w ≈ 1) gives c_i ≈ 0 for all i. A diffuse
-        retrieval where atom i carries weight in a no-clear-winner settling
-        gives a positive c_i; the EMA accumulates this across retrievals.
+        ``c_i^(traj)`` is the per-atom "lost-out atom" signal defined in
+        notes/notes/2026-05-20-metastability-replay-prioritization-dynamic-form.md
+        §ADDENDUM:
 
-        Atoms with negligible softmax weight contribute c_i ≈ 0 by the
-        softmax's exponential roll-off — no membership test.
+            c_i^(traj) = max_{t < T} w_i^(t) − w_i^(final)
+
+        computed inside the existing settling loop's running max and
+        surfaced on ``TorchRetrievalResult.metastability_contribution``.
+        This reformulation replaces the fixed-point operationalization
+        ``c_i = w_i · (1 − max_w)`` which collapses to zero on substrates
+        with sharp self-retrieving basins (HEN / Kashyap 2024 finding;
+        smoke-falsified on the A+B+A1' substrate, 2026-05-21).
+
+        Atoms with sharp final basins (winners) and atoms that never
+        participated contribute c_i ≈ 0; atoms that competed mid-settling
+        but lost contribute c_i > 0.
 
         When ``config.metastability_obs_rate == 0`` this method is a no-op
         (the κ=0 control baseline; m_i stays at zero so the priority
         composition is bit-identical to the pre-pivot replay store).
 
         Args:
-            weights: per-pattern softmax weight vector from a retrieve()
-                call. Shape ``(n_patterns,)``. Sourced from
-                ``TorchRetrievalResult.weights_tensor`` to avoid a CPU sync.
+            contribution: per-atom ``c_i^(traj)`` tensor. Shape
+                ``(n_patterns,)``. Sourced from
+                ``TorchRetrievalResult.metastability_contribution`` —
+                pre-computed inside retrieve() (audit constraint #1: no
+                re-evaluation pass).
         """
         if self.config.metastability_obs_rate <= 0.0:
             return
         if self.n_patterns == 0:
             return
-        if weights.shape[0] != self.n_patterns:
+        if contribution.shape[0] != self.n_patterns:
             raise ValueError(
-                f"weights length ({weights.shape[0]}) must match "
+                f"contribution length ({contribution.shape[0]}) must match "
                 f"n_patterns ({self.n_patterns})"
             )
-        w = weights.to(self.metastability_ema.dtype).to(self.device)
-        max_w = w.max()
-        c = w * (1.0 - max_w)
+        c = contribution.to(self.metastability_ema.dtype).to(self.device)
         mu = self.config.metastability_obs_rate
         self.metastability_ema = (1.0 - mu) * self.metastability_ema + mu * c
 

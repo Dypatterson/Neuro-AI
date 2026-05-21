@@ -508,3 +508,291 @@ an existing energy-ranked computation. Pair #2 (drift /
 replay-pressure) is symmetric and would be Phase 5.5 if scope
 allows; pair #5 (cap-coverage / restructuring) becomes the Phase 6
 target.
+
+---
+
+# ADDENDUM (2026-05-21): Trajectory-based `c_i` reformulation
+
+Held same week as the original design note, after the 1-seed Colab
+smoke (commit [c98c6ea](https://github.com/Dypatterson/Neuro-AI/commit/c98c6ea)
+fix-bypass) confirmed the metastability mechanism FIRES but produces
+m_i magnitudes that are too small to bias the replay trajectory. This
+addendum reformulates `c_i` (the per-retrieval contribution into m_i)
+based on HEN (Kashyap 2024) §rank-reduction findings.
+
+## What the smoke established
+
+Seed 17, A+B+A1' substrate, μ_obs=0.05, κ ∈ {0, 2}, μ_rep=0.5,
+n_cues=3000. Both conditions reached final m_max ≈ 0.0082 with
+**bit-identical training trajectories**. Meta_stable_w3 was 1.0000 in
+both conditions (and identical 11/seed across all 10 seeds in the
+original buggy n=10 run that did not call update_metastability, which
+the new fix's bit-identical result confirms is the true baseline).
+
+Diagnosis: under the A+B substrate's sharp self-retrieving basins
+([report 049](../../reports/049_phase5_a1prime_pilot_seed17.md):
+top atom self-retrieves with FP precision), `max_w → 1` at the fixed
+point, so `c_i = w_i · (1 − max_w) → 0` for every atom regardless of
+how the retrieval got there. The fixed-point operationalization of
+metastability has **structurally near-zero magnitude** on this
+substrate.
+
+This is the **same shape of failure** as the four-step chain's prior
+chapters:
+- Failure mode 1 (A+B closed): controller arbitrating over local metric.
+- Failure mode 2 (A1 closed): implementer hard-coded a constant where
+  a measurement belonged.
+- Failure mode 3 (A1' closed): wrong reduction operator (RMS instead
+  of max) collapsed a sparse-duplicate signal.
+- Failure mode 4 (β at D=4096): substrate-encoding noise floor
+  structurally denied per-atom variance.
+- **Failure mode 5 (this addendum): fixed-point measurement on
+  sharp-basin substrate collapsed a trajectory signal.**
+
+Pattern: each layer's failure mode has a corresponding substrate-side
+local-geometric fix at a different operational layer. Each fix is
+literature-grounded and anti-homunculus clean. The architecture
+discipline has produced its fifth chapter.
+
+## The literature insight
+
+**HEN (Kashyap 2024)** — `tmp/pdf_text/MHN-ENR.txt` — explicitly
+addresses fixed-point-vs-trajectory metastability. Two load-bearing
+findings from §"Quantifying Meta-Stable States":
+
+> "the dynamics destabilize to low-rank solutions, collapsing the
+> retrieval fidelity. For sufficiently high β = [80, 150], the
+> dynamics stabilize over a period of time, leading to near-perfect
+> recovery"
+
+> "we report the relative rank ( RR = R_S/R_Ξ) of the recovered state
+> matrix... For sufficiently high β, the iterates of HEN stabilize
+> to provide near perfect retrieval"
+
+The metastability signature lives in **the trajectory of settling
+iterates**, not the converged state. Under high β + sharp basins,
+the converged state loses the signal; the signal is in
+which-atoms-competed-during-settling-and-lost.
+
+**Modern Hopfield Network (Ramsauer 2020 / Krotov-Hopfield)** — cited
+by HEN — also notes that β controls convergence behavior. Our Phase 4
+β=10 is in the "stabilize-to-sharp-fixed-point" regime, which is
+exactly where the fixed-point c_i fails.
+
+**MIR (Aljundi 2019)** — `tmp/pdf_text/OCL-MIR.txt` — operationalizes
+its replay-priority signal as a *predicted loss change under virtual
+parameter update*, not a fixed-point softmax weight. MIR sidesteps
+this failure mode entirely by reading a different kind of signal.
+Our pair #4 cannot import MIR's signal directly (we do not have an
+explicit task loss), but the methodological lesson applies: choose a
+signal that does not collapse at the fixed point.
+
+## The reformulation: `c_i^(traj)`
+
+**Replace** the original fixed-point operationalization
+
+> `c_i = w_i^(final) · (1 − max_j w_j^(final))`            ⟵ Eq. F
+
+**With** the trajectory-based "lost-out atom" operationalization
+
+> `c_i^(traj) = max_{t < T} w_i^(t) − w_i^(final)`         ⟵ Eq. T
+
+where `T` is the actual converged iteration count (≤ max_iter),
+`w_i^(t)` is atom i's softmax weight at iteration t, and the max is
+taken across the full settling trajectory of that retrieval.
+
+**Bounded** in `[0, 1]` (since each `w_i^(t)` is a softmax weight).
+
+**Sign:** strictly non-negative. Zero only for atoms that were either
+(a) always-winning across the full trajectory (in which case
+`max_t w_i^(t) = w_i^(final)`) or (b) never-competing (in which case
+both terms are ≈ 0).
+
+**Magnitude (substrate-independent argument):** for any atom i that
+participated in early settling (which is itself diffuse — the query
+starts somewhere between basins and the softmax is initially
+high-entropy regardless of β), there exists some t for which
+`w_i^(t) > w_i^(final)`. The gap `max_t w_i^(t) − w_i^(final)` is
+not collapsed by the basin's sharpness — it is preserved by the
+fact that the FIRST iteration's softmax is always diffuse. This is
+why Eq. T is "literature-grounded": HEN's rank-reduction finding
+shows that the *trajectory* contains the metastability signal even
+when the *fixed point* does not.
+
+## Anti-homunculus self-check (binding)
+
+The addendum's anti-homunculus check, before any code lands:
+
+- **Who decides which iteration `t` is `max_t`?** No one. `max_t` is a
+  reduction over the full trajectory — every iteration's `w_i^(t)`
+  is computed by the existing settling loop. The max is a
+  measurement of trajectory geometry. No threshold, no controller.
+- **Is `c_i^(traj)` still local-per-atom?** Yes. Each atom's trajectory
+  in weight-space is its own continuous variable; `max_t` operates
+  per-atom independently. No global metric is read.
+- **Does the trajectory get a separate evaluation pass?** No. The
+  trajectory is already computed by the existing `retrieve()` /
+  `retrieve_with_trace()` call. The `max_t` reduction happens inside
+  the same loop. Audit constraint #1 from the original audit
+  (no re-evaluation pass) is preserved.
+- **Does anything else change?** No. μ_obs (EMA blend) unchanged.
+  μ_rep (pay-down on sampling) unchanged. κ (priority gain) unchanged.
+  Priority composition `gate · tag · suppression · (1 + κ · m_trace)`
+  unchanged. The only change is the *source* of m_i — the per-atom
+  measurement that feeds the EMA.
+- **Is `max_t` a controller-in-disguise?** No more than A1's
+  `max_{j≠i} |G_ij|` reduction is (which received anti-homunculus
+  PASS as a measurement). Both are local-per-atom max-over-set
+  reductions. The set is just different (other atoms vs. own
+  trajectory iterations).
+- **Does Eq. T sneak in implicit β-tuning?** No. β is fixed at the
+  substrate-construction layer. Eq. T's magnitude under high β is
+  the empirical observation that motivates the reformulation, not
+  an invitation to retune β.
+
+**Anti-homunculus verdict (self-check):** PASS by inheritance of the
+original audit. The change is at the c_i operationalization layer
+only; every audit constraint #1-#7 from the original is preserved.
+
+**The reviewer audit is still required before code lands** — the
+self-check is necessary but not sufficient.
+
+## Why `c_i^(traj)` is NOT retuning in disguise
+
+The original design note pre-committed κ, μ_obs, μ_rep against
+retuning in response to first-retrain results. This reformulation:
+
+1. **Does NOT change any of κ, μ_obs, μ_rep.** Those stay at the
+   pre-committed values (κ=2.0, μ_obs=0.05, μ_rep=0.5). The Path 2
+   "recalibrate κ to ~50" option is explicitly NOT taken.
+2. **Changes the per-atom measurement c_i.** This is a redesign of
+   the operationalization, parallel to A1' (which changed the
+   redundancy proxy from RMS to max-over-others, an
+   operationalization change).
+3. **Is motivated by a literature finding** (HEN: trajectory > fixed
+   point under high β), not by sliding a parameter to hit a target.
+4. **Has its own anti-homunculus audit** before code lands.
+
+The discipline binding "first retrain misses falsification criterion
+⟹ falsification, not retune" applies to *parameters within a fixed
+operationalization*. A redesigned operationalization is a fresh
+mechanism that gets its own falsification attempt under fresh
+pre-committed parameters.
+
+This is the same logic that took A → A1 (substrate-derived r_ema init
+fixed A's failure mode) → A1' (max-reduction fixed A1's failure
+mode). Each step changed the measurement; κ-equivalent parameters
+were preserved or freshly chosen, never feedback-tuned.
+
+## What `c_i^(traj)` does NOT solve
+
+- **If the substrate converges in 1–2 iterations** (sharp basins +
+  early-exit on `tol=1e-8`), the trajectory is too short to expose
+  any "lost-out atom" signal. `max_t w_i^(t) ≈ w_i^(final)` for all
+  atoms, and `c_i^(traj) ≈ 0`. This is Path 3's own failure mode;
+  the 1-seed smoke will reveal it in 6–10 min.
+- **If the early iterations are already sharp** (e.g., the query is
+  very close to a stored pattern from cycle 1), `c_i^(traj)` for
+  non-winners is small but non-zero. This is the regime where pair #4
+  has its smallest measurable effect.
+- **The signal does not survive substrates with categorical, single-
+  iteration retrieval.** That is, the substrate must do some
+  iterative settling to expose trajectory metastability. The current
+  `TorchHopfieldMemory.retrieve` already does this (max_iter=12,
+  early-exit on convergence).
+
+## Pre-committed falsification criteria (unchanged + one extension)
+
+All four original criteria stand:
+- Δ meta_stable_rate at W=3, CI disjoint from zero, Δ ≤ −0.10
+- D1 non-regression Δms_w3 ≤ −0.5
+- m_i CV > 0.1 within first eval
+- d_eff ≥ 25 at step 1800
+
+**Extension (binding for Path 3):**
+- **Smoke-stage gate (new):** the 1-seed smoke must show
+  `m_max > 0.05` and `|Δ meta_stable_w3| > 0.01` *before* the full
+  n=10 launches. If both fail, Path 3's failure mode (substrate
+  converges too fast for trajectory metastability) is real and the
+  mechanism is falsified at the smoke layer — DO NOT proceed to n=10.
+
+This smoke-stage gate is symmetric to A+B's
+`phase5_ab_calibration.json` smoke that gated the full retrain.
+
+## Implementation deltas vs. the original design
+
+The original implementation sketch had four lines of changed code in
+the consolidation layer plus the `weights_tensor` surfacing. Path 3
+adds one line per retrieval (the running max update) and changes
+the source of c_i. Specifically:
+
+1. **`TorchHopfieldMemory.retrieve`** (and **`TracedHopfieldMemory.retrieve_with_trace`**)
+   gain a per-iteration `running_max_weights = torch.maximum(
+   running_max_weights, current_weights)` update inside the existing
+   settling loop. One elementwise max per iteration, no extra sync.
+   After the loop, `c_i^(traj) = running_max_weights − final_weights`
+   is computed once.
+2. **`TorchRetrievalResult`** gains a new field
+   `metastability_contribution: Optional[torch.Tensor]` carrying
+   `c_i^(traj)` on-device.
+3. **`ConsolidationState.update_metastability`** signature changes
+   from `(weights)` to `(contribution)`. The method body becomes
+   `self.metastability_ema = (1 − μ_obs) · m_i + μ_obs · contribution`
+   — the EMA is unchanged; the input is just the pre-computed
+   trajectory contribution instead of the fixed-point weights.
+4. **Call sites** (`UnifiedReplayMemory.retrieve_and_observe`,
+   `run_replay_cycle`, the experiment 19 inlined loop) pass
+   `result.metastability_contribution` instead of
+   `result.weights_tensor`.
+5. **Tests** in `tests/test_phase5_metastability.py` get a new
+   `TestTrajectoryMetastabilityContribution` class that:
+   - Asserts a synthetic monotonically-converging trajectory
+     produces `c_i^(traj) > 0` for non-winners.
+   - Asserts an instantly-converged retrieval (1 iteration) produces
+     `c_i^(traj) ≈ 0` everywhere (Path 3's own failure mode is
+     correctly identified).
+   - Asserts `update_metastability(contribution)` with κ=0 still
+     preserves bit-identical priority composition.
+
+The substrate-wide architectural principle stated by this
+reformulation:
+
+> **Substrate measurements that are softmax-fixed-point quantities
+> collapse under sharp-basin regimes. Trajectory-based
+> reformulations recover the signal.**
+
+This principle applies to pair #5 (cap-coverage / restructuring) when
+that pair is opened. Pair #5's `c_i = cos(retrieve(cue_i), p_i)` is
+fixed-point and will need its own trajectory reformulation in Phase 6.
+
+Pair #2 (drift / replay-pressure) operates at the *consolidation-step
+timescale*, not the per-retrieval timescale, so it is immune to this
+failure mode by construction — `δ_i = ||p_i(t) − p_i(t − Δt_i)||²`
+is already a trajectory measurement across consolidation steps.
+
+## Closing the loop on the substrate-principle thread
+
+The 2026-05-09 note prescribed five diagnostic-actuator pairs as the
+architectural threshold-crossing. The chain has now produced four
+substrate-principle findings:
+
+| Phase 5 chapter | Substrate principle |
+| --- | --- |
+| A+B (closed) | d_eff is endogenous to substrate energy |
+| A1 | new-atom r_ema is a measurement, not an implementer constant |
+| A1' | redundancy reduction must saturate on sparse duplicates |
+| β path (falsified) | role-fidelity via pairwise-distance is null at the FHRR noise floor |
+| **Pair #4 c_i^(traj) (this addendum)** | **softmax fixed-point measurements collapse on sharp-basin substrates; trajectory reformulations recover the signal** |
+
+Each principle is now a transferable architectural constraint for
+the rest of the project. Pair #4's graduation under the
+reformulation would close the second pair (after A+B) and validate
+both the per-atom-EMA-into-energy-ranked-sampling shape AND the
+trajectory-over-fixed-point principle.
+
+If the smoke under `c_i^(traj)` fails Path 3's own falsification
+(m_max < 0.05 or |Δ| < 0.01), pair #4 is falsified architecturally
+(not just under one κ choice) and the right move is the pivot to
+pair #2 — which is immune to this entire class of failure modes by
+operating at consolidation timescale rather than retrieval
+timescale.
