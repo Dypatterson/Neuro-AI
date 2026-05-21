@@ -29,10 +29,25 @@ planning, before answering a question that involves project state — read:
    [notes/emergent-codebook/phase-4-checklist.md](notes/emergent-codebook/phase-4-checklist.md))
    if one exists for the active phase. Every line item with a non-✅ status
    is potentially relevant to the current session.
+3. **The §"Headline metric" + §"Required controls" sections of the active
+   phase's design document** (e.g.
+   [notes/emergent-codebook/phase-5-unified-design.md](notes/emergent-codebook/phase-5-unified-design.md)).
+   Cite the exact line numbers — STATUS.md banners can drift away from
+   the design spec over multiple sessions, and the design spec is the
+   load-bearing source of truth for what "graduation" means.
+
+   *Why this rule exists.* Phase 5 spent two sessions chasing a
+   diagnostic instrumentation chain (K-branch state_divergence) that
+   STATUS.md had drifted into describing as the headline. The actual
+   design-spec headline (ΔE between role-prior and content-prior in
+   [phase-5-unified-design.md:256-281](notes/emergent-codebook/phase-5-unified-design.md))
+   was sitting unread the whole time. Re-skim the active design doc at
+   session start; STATUS.md alone is not enough.
 
 `STATUS.md` and the active checklist are *binding*, not advisory. If you
-catch a contradiction between them and another document mid-session, that
-is itself a finding — surface it to the user, don't paper over it.
+catch a contradiction between them and another document mid-session
+— **including the active phase's design spec** — that is itself a
+finding to surface, not paper over.
 
 If a session causes any status change (a blocker becomes done, a new
 blocker surfaces, an audit fails), update `STATUS.md` and the checklist
@@ -51,6 +66,23 @@ informs a phase-graduation decision, the agent must state, in plain text:
 > **Last verified result:** [report]
 > **Why this experiment now:** [one sentence tying it to a STATUS.md
 > blocker or checklist line item]
+
+The `[spec file:line]` citation is **mandatory**, not optional. It must
+point at the active phase's design document (typically under
+[notes/emergent-codebook/](notes/emergent-codebook/)) — NOT at STATUS.md
+and NOT at the most recent report's "what we're measuring" framing.
+If the experiment is measuring something that does NOT appear as the
+headline in the design spec, the experiment is by definition a
+**drill-down**, not a graduation experiment, and the report must
+explicitly label it as such.
+
+*Why this rule exists.* Diagnostic measurements designed to investigate
+a failure mode can drift into being treated as the phase's headline
+over multiple sessions of debugging. The line-number citation is the
+forcing function that catches the drift. If you can't find the metric
+in the design spec, that's itself a finding — either the spec needs
+updating (with explicit user agreement) or the experiment isn't a
+graduation experiment.
 
 If you cannot fill in any field — for example you do not know what the
 headline metric should be, or you cannot identify a STATUS.md blocker
