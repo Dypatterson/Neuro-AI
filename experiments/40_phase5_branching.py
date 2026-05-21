@@ -339,7 +339,10 @@ def select_schema_priors(
         best_per_cue_binding = cos.max(dim=1).values  # [N, Rc]
         scores = best_per_cue_binding.mean(dim=-1)  # [N]
     elif prior_type == "random":
-        scores = torch.rand(n_schemas, generator=rng, device=schema_store.device)
+        # Generate on CPU (where the seeded Generator lives) then move to the
+        # schema_store's device. torch.rand requires generator.device ==
+        # device, and the seeded rng here is a CPU Generator for reproducibility.
+        scores = torch.rand(n_schemas, generator=rng).to(schema_store.device)
     else:
         raise ValueError(
             f"unknown prior_type {prior_type!r}; expected "
