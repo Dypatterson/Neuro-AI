@@ -168,11 +168,24 @@ class ConsolidationState:
     def n_patterns(self) -> int:
         return int(self.u.shape[0])
 
-    def add_pattern(self, novelty_strength: Optional[float] = None) -> int:
+    def add_pattern(
+        self,
+        novelty_strength: Optional[float] = None,
+        r_ema_init: Optional[float] = None,
+    ) -> int:
         """Append a new pattern's u-chain; return its index.
 
         New patterns enter at u_1 with `novelty_strength`. All other u_k
         start at zero — they'll fill up only if replay sustains the pattern.
+
+        A1 (notes/notes/2026-05-20-discovery-channel-r-ema-init-dynamic-form.md):
+        when ``r_ema_init`` is supplied, the new atom's r_ema starts at the
+        geometric equilibrium implied by the current substrate (caller
+        computes r_inst for the new row via
+        ``_coverage_redundancy_instantaneous`` on the augmented pattern
+        matrix). When omitted, r_ema starts at 0 — the default-off
+        behavior preserved for ``coverage_lambda=0`` runs and for tests
+        that don't have a pattern matrix at add-time.
         """
         s = (
             self.config.novelty_strength
@@ -194,9 +207,10 @@ class ConsolidationState:
             self.retrieval_count,
             torch.zeros(1, dtype=torch.int32, device=self.device),
         ])
+        r_ema_value = 0.0 if r_ema_init is None else float(r_ema_init)
         self.r_ema = torch.cat([
             self.r_ema,
-            torch.zeros(1, dtype=torch.float32, device=self.device),
+            torch.full((1,), r_ema_value, dtype=torch.float32, device=self.device),
         ])
         return self.n_patterns - 1
 

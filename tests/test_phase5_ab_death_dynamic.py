@@ -498,5 +498,134 @@ class TestUnifiedReplayMemoryWiring(unittest.TestCase):
         self.assertGreater(float(replay.consolidation.r_ema.min()), 0.3)
 
 
+class TestA1DiscoveryChannelInit(unittest.TestCase):
+    """A1: ``r_ema`` initialized at the EMA's geometric equilibrium for
+    each new atom at add-time. See
+    notes/notes/2026-05-20-discovery-channel-r-ema-init-dynamic-form.md.
+    """
+
+    def _build_landscape(self, kind: str, *, coverage_lambda: float):
+        """Build a replay system with one of two landscape shapes.
+
+        kind="orthogonal": 8 random independent FHRR patterns (low
+            pairwise |G_ij|, so r_inst per atom ≈ 0).
+        kind="duplicates": 8 patterns that are all near-copies of a
+            single base (high pairwise |G_ij|, so r_inst ≈ 1).
+        """
+        from energy_memory.phase4.consolidation import (
+            ConsolidationConfig, ConsolidationState,
+        )
+        from energy_memory.phase4.replay_loop import (
+            ReplayConfig, UnifiedReplayMemory,
+        )
+        from energy_memory.phase4.trajectory import TracedHopfieldMemory
+        from energy_memory.substrate.torch_fhrr import TorchFHRR
+
+        substrate = TorchFHRR(dim=256, seed=17, device="cpu")
+        memory = TracedHopfieldMemory(substrate)
+        cons = ConsolidationState(
+            ConsolidationConfig(
+                m=4, alpha=0.25,
+                coverage_lambda=coverage_lambda,
+                coverage_ema_rate=0.01,
+            ),
+            device="cpu",
+        )
+        replay = UnifiedReplayMemory(
+            substrate=substrate, memory=memory, consolidation=cons,
+            config=ReplayConfig(),
+        )
+        gen = torch.Generator(device="cpu").manual_seed(43)
+        if kind == "orthogonal":
+            for _ in range(8):
+                phases = torch.rand((substrate.dim,), generator=gen) * (2.0 * math.pi)
+                memory.store(torch.polar(torch.ones((substrate.dim,)), phases))
+        elif kind == "duplicates":
+            base_phases = torch.rand((substrate.dim,), generator=gen) * (2.0 * math.pi)
+            base = torch.polar(torch.ones((substrate.dim,)), base_phases)
+            for _ in range(8):
+                # Tiny phase noise so patterns aren't FP-identical but
+                # remain mutually nearly-collinear (|G_ij| → 1).
+                noise = (torch.rand((substrate.dim,), generator=gen) - 0.5) * 0.02
+                memory.store(substrate.normalize(
+                    torch.polar(torch.ones((substrate.dim,)), base_phases + noise)
+                ))
+        else:
+            raise ValueError(kind)
+        return substrate, memory, replay
+
+    def test_attach_initial_orthogonal_landscape_starts_at_zero(self):
+        """Independent patterns ⇒ r_inst ≈ 0 per atom ⇒ A1 init ≈ 0."""
+        substrate, memory, replay = self._build_landscape(
+            "orthogonal", coverage_lambda=1.0,
+        )
+        replay.attach_initial_patterns()
+        r_ema = replay.consolidation.r_ema
+        self.assertEqual(r_ema.shape[0], 8)
+        self.assertLess(float(r_ema.max()), 0.15)
+
+    def test_attach_initial_duplicate_landscape_starts_near_one(self):
+        """Near-collinear patterns ⇒ r_inst ≈ 1 per atom ⇒ A1 init ≈ 1.
+        The pre-A1 init (zero) would have left every atom at 0 here.
+        """
+        substrate, memory, replay = self._build_landscape(
+            "duplicates", coverage_lambda=1.0,
+        )
+        replay.attach_initial_patterns()
+        r_ema = replay.consolidation.r_ema
+        self.assertEqual(r_ema.shape[0], 8)
+        self.assertGreater(float(r_ema.min()), 0.95)
+
+    def test_coverage_lambda_zero_preserves_zero_init(self):
+        """A1 is gated on coverage_lambda > 0. With A off, r_ema is
+        still allocated as zeros (default-off behavior preserved).
+        """
+        substrate, memory, replay = self._build_landscape(
+            "duplicates", coverage_lambda=0.0,
+        )
+        replay.attach_initial_patterns()
+        r_ema = replay.consolidation.r_ema
+        self.assertEqual(r_ema.shape[0], 8)
+        self.assertEqual(float(r_ema.max()), 0.0)
+
+    def test_discovery_channel_duplicate_atom_gets_high_r_ema_immediately(self):
+        """End-to-end wiring: when the discovery channel adds a near-
+        duplicate atom on a collapsed landscape, the new atom's r_ema
+        is high *at add-time*, not zero waiting ~100 EMA steps to relax.
+        This is the A+B+step3 substrate failure report 047 documents.
+        """
+        substrate, memory, replay = self._build_landscape(
+            "duplicates", coverage_lambda=1.0,
+        )
+        replay.attach_initial_patterns()
+        # Simulate the discovery channel: add one more near-duplicate
+        # atom by mimicking what candidate_handler would do (store new
+        # pattern into memory, then walk consolidation forward via the
+        # A1-wired path).
+        gen = torch.Generator(device="cpu").manual_seed(99)
+        base_phases = torch.angle(memory._patterns[0])
+        noise = (torch.rand((substrate.dim,), generator=gen) - 0.5) * 0.02
+        duplicate = substrate.normalize(
+            torch.polar(torch.ones((substrate.dim,)), base_phases + noise)
+        )
+        memory.store(duplicate)
+        new_idx = memory.stored_count - 1
+        # Replicate the discovery-channel A1 wiring (same code path as
+        # replay_loop.run_replay_cycle when candidate_handler returns).
+        r_inst = replay._compute_r_inst_for_init()
+        while replay.consolidation.n_patterns <= new_idx:
+            next_idx = replay.consolidation.n_patterns
+            r_init = (
+                None if r_inst is None
+                else float(r_inst[next_idx].detach().cpu())
+            )
+            replay.consolidation.add_pattern(
+                novelty_strength=replay.config.novelty_strength,
+                r_ema_init=r_init,
+            )
+        new_r_ema = float(replay.consolidation.r_ema[new_idx])
+        self.assertGreater(new_r_ema, 0.95)
+
+
 if __name__ == "__main__":
     unittest.main()

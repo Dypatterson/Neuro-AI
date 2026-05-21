@@ -42,6 +42,7 @@ from energy_memory.memory.torch_hopfield import TorchRetrievalResult
 from energy_memory.phase4.consolidation import (
     ConsolidationConfig,
     ConsolidationState,
+    _coverage_redundancy_instantaneous,
 )
 from energy_memory.phase4.trajectory import (
     TracedHopfieldMemory,
@@ -296,11 +297,38 @@ class UnifiedReplayMemory(Generic[T]):
 
         Called once after the underlying memory is populated with a
         landscape. Each existing pattern enters consolidation at u_1 = novelty_strength.
+
+        A1 (notes/notes/2026-05-20-discovery-channel-r-ema-init-dynamic-form.md):
+        when ``coverage_lambda > 0`` and the landscape has ≥ 2 patterns,
+        each new atom's r_ema starts at its geometric equilibrium
+        (``r_inst`` against the current substrate) instead of 0. For an
+        initially-orthogonal landscape this is ≈ 0 across all atoms; for
+        a landscape with near-duplicate patterns those atoms start at
+        their geometric redundancy.
         """
+        r_inst = self._compute_r_inst_for_init()
         while self.consolidation.n_patterns < self.memory.stored_count:
+            idx = self.consolidation.n_patterns
+            r_init = None if r_inst is None else float(r_inst[idx].detach().cpu())
             self.consolidation.add_pattern(
                 novelty_strength=self.config.novelty_strength,
+                r_ema_init=r_init,
             )
+
+    def _compute_r_inst_for_init(self):
+        """Compute per-atom r_inst on the current memory's pattern matrix
+        for use as A1's r_ema initialization.
+
+        Returns None when the geometric init is inert (``coverage_lambda
+        = 0`` or fewer than 2 stored patterns). Callers pass the per-row
+        scalar into ``ConsolidationState.add_pattern(r_ema_init=...)``.
+        """
+        if self.consolidation.config.coverage_lambda <= 0.0:
+            return None
+        if self.memory.stored_count < 2:
+            return None
+        pattern_matrix = self.memory._pattern_matrix()
+        return _coverage_redundancy_instantaneous(pattern_matrix)
 
     def retrieve_and_observe(
         self,
@@ -391,9 +419,22 @@ class UnifiedReplayMemory(Generic[T]):
                 if candidate_handler is not None:
                     new_idx = candidate_handler(new_trace)
                     if new_idx is not None:
+                        # A1: re-compute r_inst on the augmented pattern
+                        # matrix (which now includes the just-added atom
+                        # via candidate_handler) so each pending-add row
+                        # starts at the EMA's geometric equilibrium for
+                        # the current substrate. See
+                        # notes/notes/2026-05-20-discovery-channel-r-ema-init-dynamic-form.md.
+                        r_inst = self._compute_r_inst_for_init()
                         while self.consolidation.n_patterns <= new_idx:
+                            next_idx = self.consolidation.n_patterns
+                            r_init = (
+                                None if r_inst is None
+                                else float(r_inst[next_idx].detach().cpu())
+                            )
                             self.consolidation.add_pattern(
                                 novelty_strength=self.config.novelty_strength,
+                                r_ema_init=r_init,
                             )
                 candidates += 1
                 self.store.remove(local_idx)
