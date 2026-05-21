@@ -36,7 +36,7 @@ energy, not readout.
 
 | # | Headline | Status | Evidence |
 | -- | --- | :---: | --- |
-| A1 | **Δ final-state energy E_A − E_B (content-prior minus role-prior) > 0 with 95% CI disjoint from zero**, on a held-out cue set designed for structural retrieval, n_seeds ≥ 10 | 🟨 | partial, n=5: ΔE = −1.5e-4, CI [−5.2e-4, +2.1e-4] (includes 0); 3/5 seeds positive; LOSO never excludes zero ([report 041](../../reports/041_phase5_de_n5_partial.md)) |
+| A1 | **Δ final-state energy E_A − E_B (content-prior minus role-prior) > 0 with 95% CI disjoint from zero**, on a held-out cue set designed for structural retrieval, n_seeds ≥ 10, **AND** `mean ΔE ≥ 5.5e-3` per the [magnitude-floor pre-commit](../notes/2026-05-21-phase5-headline-magnitude-floor.md) (substrate-noise-scale floor at D=4096, β=10, N≈1064) | ⚠️ | **graduation-unattained — directional but sub-noise.** n=10 on A+B+A1' substrate: ΔE = +0.00130, CI [+0.00071, +0.00193]; 10/10 seeds positive in mean. CI-half PASSES (lower > 0); magnitude-half FAILS (4.2× below floor). Controls clean: γ=0 = 0.000000 exact; random-schema sits between content and role. Per binding pre-commit, NOT graduation. [Report 053](../../reports/053_phase5_headline_n10_directional_subnoise.md) |
 
 Positive ΔE means role-prior branches settle into lower-energy joint
 states than content-prior branches — the test of structural retrieval.
@@ -51,9 +51,9 @@ removes the mechanism under test.
 
 | # | Control | What it falsifies if it fails | Status | Evidence |
 | -- | --- | --- | :---: | --- |
-| B1 | **Random-schema branches** | If random schemas as priors produce the same ΔE as role-binding schemas, no structural retrieval is happening | 🟨 | random_K4 logged in exp 40 output, not paired against role_K4 in [report 041](../../reports/041_phase5_de_n5_partial.md) |
+| B1 | **Random-schema branches** | If random schemas as priors produce the same ΔE as role-binding schemas, no structural retrieval is happening | ✅ | n=10: random sits between content and role; mean(content − random) = +0.00086 ± 0.00161 across seeds; random is *not* equivalent to role (control distinguishes). [Report 053](../../reports/053_phase5_headline_n10_directional_subnoise.md) |
 | B2 | **K=1 (single-branch, no branching)** | If single-branch with role-prior matches K-branch with role-prior, branching is gratuitous | ⚠️ | **fires at n=5**: K1 ΔE = +1.3e-4 (5/5 seeds positive, pooled bootstrap CI [+3.5e-5, +2.8e-4] excludes 0) ≥ K4 ΔE = −1.5e-4. Branching is gratuitous (in fact destructive) on 6–12-atom post-death substrates. [Report 041](../../reports/041_phase5_de_n5_partial.md) |
-| B3 | **No-prior (γ=0)** | If ΔE survives with no prior weight, the prior is not doing the work | ✅ | ΔE = 0 exactly across 5 seeds × 20 cues; γ=0 makes content/role priors identical by construction. [Report 041](../../reports/041_phase5_de_n5_partial.md) |
+| B3 | **No-prior (γ=0)** | If ΔE survives with no prior weight, the prior is not doing the work | ✅ | n=10: ΔE_K1_g0 = 0.000000 exact across all 10 seeds × 200 cues, confirming γ=0 makes content/role priors identical by construction (no test-setup leak). [Report 053](../../reports/053_phase5_headline_n10_directional_subnoise.md) (n=5 prior: [report 041](../../reports/041_phase5_de_n5_partial.md)) |
 | B4 | **No-schema-store** (priors drawn directly from codebook, not filtered slow store) | If ΔE survives without the schema store, the store is not the right source | ❌ | not yet run |
 
 ---
@@ -109,7 +109,7 @@ or destroyed by one seed.
 
 | # | Item | Status | Evidence |
 | -- | --- | :---: | --- |
-| D1 | **n_seeds ≥ 10** on the headline run | 🟨 | at n=5 ([report 041](../../reports/041_phase5_de_n5_partial.md)); 5 more W=4 post-death snapshots needed |
+| D1 | **n_seeds ≥ 10** on the headline run | ✅ | n=10 attained on A+B+A1' substrate ([report 053](../../reports/053_phase5_headline_n10_directional_subnoise.md)). 10 fresh substrate snapshots built in same Colab run (~30 min) then headline against each. |
 | D2 | **Leave-one-seed-out (LOSO) CI sensitivity** reported on the headline | 🟨 | LOSO reported at n=5; for K4 no leave-one-out subset produces CI excluding zero ([report 041](../../reports/041_phase5_de_n5_partial.md)) |
 | D3 | **Seed-23-specific readout** in the headline report — ΔE for seed 23 alone, side-by-side with the n=10 mean | 🟨 | seed 23 K4 ΔE = +1.55e-7 (weak positive, not outlier at n=5) ([report 041](../../reports/041_phase5_de_n5_partial.md)) |
 
