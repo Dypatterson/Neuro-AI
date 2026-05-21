@@ -295,5 +295,70 @@ class TestMetastabilityWiredIntoRetrieveAndObserve(unittest.TestCase):
         self.assertTrue(torch.all(cons.metastability_ema == 0.0))
 
 
+@unittest.skipIf(torch is None, "torch required")
+class TestRunReplayCycleFiresMetastability(unittest.TestCase):
+    """Regression: run_replay_cycle's replay retrievals must update m_i.
+
+    The n=10 graduation retrain (2026-05-20) initially produced
+    bit-identical κ=0 vs κ=2.0 results because the replay-cycle
+    retrievals were not calling update_metastability. This test guards
+    against re-introducing that bypass.
+    """
+
+    def _build(self, obs_rate):
+        from energy_memory.phase4.consolidation import (
+            ConsolidationConfig, ConsolidationState,
+        )
+        from energy_memory.phase4.replay_loop import (
+            ReplayConfig, UnifiedReplayMemory,
+        )
+        from energy_memory.phase4.trajectory import TracedHopfieldMemory
+        from energy_memory.substrate.torch_fhrr import TorchFHRR
+
+        substrate = TorchFHRR(dim=256, seed=99, device="cpu")
+        memory = TracedHopfieldMemory(substrate)
+        cons = ConsolidationState(
+            ConsolidationConfig(m=4, metastability_obs_rate=obs_rate),
+            device="cpu",
+        )
+        replay = UnifiedReplayMemory(
+            substrate=substrate, memory=memory, consolidation=cons,
+            config=ReplayConfig(
+                store_threshold=0.0,
+                replay_every=1, replay_batch_size=2,
+                metastability_gain=2.0,
+                metastability_replay_decay=0.5,
+            ),
+        )
+        gen = torch.Generator(device="cpu").manual_seed(7)
+        base = torch.polar(
+            torch.ones((substrate.dim,)),
+            torch.rand((substrate.dim,), generator=gen) * (2.0 * math.pi),
+        )
+        for k in range(4):
+            phase_jitter = torch.rand((substrate.dim,), generator=gen) * 0.03
+            patt = substrate.normalize(base * torch.polar(torch.ones((substrate.dim,)), phase_jitter))
+            memory.store(patt)
+        replay.attach_initial_patterns()
+        # Seed the replay store with one trace so run_replay_cycle has
+        # something to retrieve.
+        replay.retrieve_and_observe(query=base, beta=4.0, max_iter=6)
+        return cons, replay
+
+    def test_run_replay_cycle_updates_m_i(self):
+        cons, replay = self._build(obs_rate=0.5)
+        # Reset m_i to zero so we can verify run_replay_cycle moves it.
+        cons.metastability_ema.zero_()
+        replay.run_replay_cycle(beta=4.0, max_iter=6)
+        # The replay retrieval should have pushed m_i above zero somewhere.
+        self.assertGreater(float(cons.metastability_ema.max()), 0.0)
+
+    def test_run_replay_cycle_noop_at_obs_rate_zero(self):
+        cons, replay = self._build(obs_rate=0.0)
+        cons.metastability_ema.zero_()
+        replay.run_replay_cycle(beta=4.0, max_iter=6)
+        self.assertTrue(torch.all(cons.metastability_ema == 0.0))
+
+
 if __name__ == "__main__":
     unittest.main()

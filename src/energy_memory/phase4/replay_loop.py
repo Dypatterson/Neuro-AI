@@ -512,6 +512,16 @@ class UnifiedReplayMemory(Generic[T]):
                 score_bias=replay_bias,
             )
 
+            # Pair #4: update m_i from the replay retrieval's softmax weights.
+            # Replay retrievals are real settling events through the
+            # substrate and produce per-atom contributions that should
+            # accumulate into m_i. No-op at metastability_obs_rate=0.
+            if (
+                new_result.weights_tensor is not None
+                and new_result.weights_tensor.shape[0] == self.consolidation.n_patterns
+            ):
+                self.consolidation.update_metastability(new_result.weights_tensor)
+
             if new_trace.final_top_score >= self.config.resolve_threshold:
                 if candidate_handler is not None:
                     new_idx = candidate_handler(new_trace)

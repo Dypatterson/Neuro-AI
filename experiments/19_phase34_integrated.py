@@ -340,8 +340,19 @@ def stream_phase34(
                     score_bias=cur_bias,
                 )
                 gate = trace.gate_signal()
+                # Pair #4: primary atom is the retrieval's top_index (a pure
+                # key into ConsolidationState.metastability_ema, audit
+                # constraint #5). -1 sentinel when out of consolidation range.
+                primary_atom_idx = -1
+                if (
+                    trace.final_top_index is not None
+                    and trace.final_top_index < unit.consolidation.n_patterns
+                ):
+                    primary_atom_idx = int(trace.final_top_index)
                 if gate > unit.config.store_threshold:
-                    unit.store.add(trace, gate_signal=gate)
+                    unit.store.add(
+                        trace, gate_signal=gate, primary_atom_idx=primary_atom_idx,
+                    )
                 if (
                     trace.final_top_index is not None
                     and trace.final_top_index < unit.consolidation.n_patterns
@@ -352,6 +363,15 @@ def stream_phase34(
                     )
                     # Saighi A_k accumulation on successful retrieval.
                     unit.consolidation.accumulate_inhibition(trace.final_top_index)
+                # Pair #4: update per-atom metastability EMA from the
+                # retrieval's softmax weights vector. The audit binds this
+                # to the same tensor retrieve() already produced (no second
+                # pass). No-op at metastability_obs_rate=0 (the κ=0 control).
+                if (
+                    result.weights_tensor is not None
+                    and result.weights_tensor.shape[0] == unit.consolidation.n_patterns
+                ):
+                    unit.consolidation.update_metastability(result.weights_tensor)
                 unit._retrieval_count += 1
             else:
                 result = slot.memory.retrieve(cue_vec, beta=beta, max_iter=12)
