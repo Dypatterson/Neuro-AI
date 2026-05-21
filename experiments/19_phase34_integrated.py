@@ -574,6 +574,11 @@ def stream_phase34(
                         "coverage_ema_rate": float(cons.config.coverage_ema_rate),
                         "coverage_r_ema_mean": float(cons.r_ema.mean().cpu()),
                         "coverage_r_ema_max": float(cons.r_ema.max().cpu()),
+                        # Phase 5 pair #4 metastability-replay-priority fields:
+                        "metastability_obs_rate": float(cons.config.metastability_obs_rate),
+                        "metastability_ema_mean": float(cons.metastability_ema.mean().cpu()),
+                        "metastability_ema_max": float(cons.metastability_ema.max().cpu()),
+                        "metastability_ema_std": float(cons.metastability_ema.std().cpu()) if cons.n_patterns > 1 else 0.0,
                     }
                 eval_result["death_diag"] = death_diag
             results.append(eval_result)
@@ -803,6 +808,36 @@ def main() -> None:
             "is ≥ 0.05). Requires --alpha-anti > 0 to fire."
         ),
     )
+    # Phase 5 pair #4 (metastability ~ replay-prioritization). Per
+    # notes/notes/2026-05-20-metastability-replay-prioritization-dynamic-form.md.
+    # Defaults are 0 = OFF (the κ=0 control baseline); pre-commit values
+    # for the n=10 graduation retrain are passed explicitly.
+    parser.add_argument(
+        "--metastability-obs-rate", type=float, default=0.0,
+        help=(
+            "Pair #4: per-retrieval EMA blending coefficient μ_obs for "
+            "m_i ← (1−μ_obs)·m_i + μ_obs·c_i where c_i = w_i·(1−max_w). "
+            "0.0 = OFF (the κ=0 control baseline; m_i stays at zero). "
+            "NOT adapted from observed meta_stable_rate."
+        ),
+    )
+    parser.add_argument(
+        "--metastability-gain", type=float, default=0.0,
+        help=(
+            "Pair #4: κ multiplicative gain on per-trace m_trace in the "
+            "replay-store priority: priority *= (1 + κ·m_trace). 0.0 = "
+            "the κ=0 control; priority composition is bit-identical to "
+            "the pre-pivot baseline. NOT adapted from observation."
+        ),
+    )
+    parser.add_argument(
+        "--metastability-replay-decay", type=float, default=0.0,
+        help=(
+            "Pair #4: μ_rep decay applied to m_{i*(trace)} on each "
+            "replay-sampling event: m ← (1−μ_rep)·m. 0.0 = OFF "
+            "(m_i pay-down disabled)."
+        ),
+    )
     parser.add_argument("--output-dir", default="reports/phase34_integrated")
     parser.add_argument(
         "--snapshot-steps", type=str, default=None,
@@ -989,6 +1024,8 @@ def main() -> None:
         novelty_strength=args.novelty_strength,
         retrieval_gain=args.retrieval_gain,
         repulsion_step_size=args.repulsion_step_size,
+        metastability_gain=args.metastability_gain,
+        metastability_replay_decay=args.metastability_replay_decay,
     )
     cons_config = ConsolidationConfig(
         m=args.consolidation_m,
@@ -1002,6 +1039,7 @@ def main() -> None:
         alpha_freq_lambda=args.alpha_freq_lambda,
         coverage_lambda=args.coverage_lambda,
         coverage_ema_rate=args.coverage_ema_rate,
+        metastability_obs_rate=args.metastability_obs_rate,
     )
     phase4_units_c = {}
     for s in scales:

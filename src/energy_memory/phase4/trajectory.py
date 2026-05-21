@@ -240,6 +240,7 @@ class TracedHopfieldMemory(TorchHopfieldMemory, Generic[T]):
             energy_trace=energy_trace,
             iterations=len(energy_trace),
             converged=converged,
+            weights_tensor=final_weights.detach(),
         )
 
         trace = TrajectoryTrace(

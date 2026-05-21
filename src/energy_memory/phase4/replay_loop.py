@@ -93,6 +93,20 @@ class ReplayConfig:
     # range. Companion to substrate.alpha_anti — both must be set
     # together for B to fire.
     repulsion_step_size: float = 0.0
+    # Pair #4 (metastability ~ replay-prioritization).
+    # κ — multiplicative gain on per-trace metastability m_trace in the
+    # replay-store priority composition:
+    #     priority(t) = gate(t) · tag_count(t) · suppression(t) · (1 + κ · m_trace)
+    # At κ = 0 the composition is bit-identical to the pre-pivot baseline
+    # (the load-bearing precondition for the falsification control).
+    # μ_rep — decay applied to m_{i*(trace)} on each replay-sampling event:
+    #     m_i ← (1 − μ_rep) · m_i
+    # Both default off; values pre-committed per the design note before
+    # any retrain (audit constraint #4: never adapted from observed
+    # meta_stable_rate).
+    # See notes/notes/2026-05-20-metastability-replay-prioritization-dynamic-form.md.
+    metastability_gain: float = 0.0
+    metastability_replay_decay: float = 0.0
 
 
 class ReplayStore:
@@ -122,19 +136,37 @@ class ReplayStore:
         tag_overlap_threshold: Optional[float] = None,
         suppression_decay: float = 1.0,
         suppression_recovery: float = 0.0,
+        consolidation: Optional[ConsolidationState] = None,
+        metastability_gain: float = 0.0,
+        metastability_replay_decay: float = 0.0,
     ):
         self.capacity = capacity
         self.traces: List[TrajectoryTrace] = []
         self.gate_signals: List[float] = []
         self.tag_counts: List[int] = []
         self.suppression: List[float] = []
+        # Pair #4: per-trace primary-atom index — the highest-similarity
+        # stored atom for the trace's query. Used purely as a key into
+        # ConsolidationState.metastability_ema (audit constraint #5: no
+        # side effects beyond keying m). -1 sentinel = "no overlap data"
+        # (e.g., substrate is None, no stored atoms, or below threshold).
+        self.primary_atom: List[int] = []
         self._evicted = 0
         self._substrate = substrate
         self._tag_overlap_threshold = tag_overlap_threshold
         self._suppression_decay = suppression_decay
         self._suppression_recovery = suppression_recovery
+        self._consolidation = consolidation
+        self._metastability_gain = float(metastability_gain)
+        self._metastability_replay_decay = float(metastability_replay_decay)
 
-    def add(self, trace: TrajectoryTrace, gate_signal: float) -> None:
+    def add(
+        self,
+        trace: TrajectoryTrace,
+        gate_signal: float,
+        *,
+        primary_atom_idx: int = -1,
+    ) -> None:
         # Idea 4a: overlap collapse. If the incoming trace's query is close
         # enough to an existing stored trace, bump that trace's tag_count
         # and refresh its gate signal rather than storing a duplicate.
@@ -149,6 +181,11 @@ class ReplayStore:
                 # Track the max gate signal across observations of this trace.
                 if gate_signal > self.gate_signals[overlap_idx]:
                     self.gate_signals[overlap_idx] = gate_signal
+                # Pair #4: keep the most recently observed primary atom
+                # for this collapsed trace (the freshest retrieval's
+                # top_index). It is purely a key into metastability_ema.
+                if primary_atom_idx >= 0:
+                    self.primary_atom[overlap_idx] = primary_atom_idx
                 return
 
         if len(self.traces) >= self.capacity:
@@ -157,6 +194,7 @@ class ReplayStore:
         self.gate_signals.append(gate_signal)
         self.tag_counts.append(1)
         self.suppression.append(1.0)
+        self.primary_atom.append(int(primary_atom_idx))
 
     def _find_overlap(self, trace: TrajectoryTrace) -> Optional[int]:
         assert self._substrate is not None
@@ -183,8 +221,28 @@ class ReplayStore:
         self._evicted += 1
 
     def _priorities(self) -> List[float]:
+        # Pair #4: at κ = 0 (the κ=0 control), m_factor = 1.0 for every
+        # trace and the composition is bit-identical to the pre-pivot
+        # baseline. This is the load-bearing precondition for the
+        # falsification control. Audit constraint #6: same code path —
+        # the multiplication is applied unconditionally rather than
+        # gated by an ``if κ == 0`` branch.
+        kappa = self._metastability_gain
+        cons = self._consolidation
+        if kappa > 0.0 and cons is not None and cons.n_patterns > 0:
+            m_tensor = cons.metastability_ema
+            n = cons.n_patterns
+            m_factors: List[float] = []
+            for i in range(len(self.traces)):
+                idx = self.primary_atom[i]
+                if 0 <= idx < n:
+                    m_factors.append(1.0 + kappa * float(m_tensor[idx].detach().cpu()))
+                else:
+                    m_factors.append(1.0)
+        else:
+            m_factors = [1.0] * len(self.traces)
         return [
-            self.gate_signals[i] * self.tag_counts[i] * self.suppression[i]
+            self.gate_signals[i] * self.tag_counts[i] * self.suppression[i] * m_factors[i]
             for i in range(len(self.traces))
         ]
 
@@ -217,6 +275,20 @@ class ReplayStore:
                     self.suppression[i] = min(
                         1.0, self.suppression[i] + self._suppression_recovery
                     )
+
+        # Pair #4: pay-down on replay sampling. m_{i*(trace)} ← (1 − μ_rep) · m_{i*(trace)}.
+        # Audit constraint #3: lives inside sample() after multinomial, not
+        # in a separate maintenance call. The trigger is the sampling event
+        # itself, so the pay-down is the local response of m_i to its own
+        # atom being drained.
+        cons = self._consolidation
+        mu_rep = self._metastability_replay_decay
+        if cons is not None and mu_rep > 0.0 and cons.n_patterns > 0:
+            factor = 1.0 - mu_rep
+            for trace_idx in sampled:
+                atom_idx = self.primary_atom[trace_idx]
+                if 0 <= atom_idx < cons.n_patterns:
+                    cons.metastability_payback(atom_idx, factor)
         return sampled
 
     def get(self, idx: int) -> TrajectoryTrace:
@@ -230,6 +302,7 @@ class ReplayStore:
         self.gate_signals.pop(idx)
         self.tag_counts.pop(idx)
         self.suppression.pop(idx)
+        self.primary_atom.pop(idx)
 
     def update_gate(self, idx: int, gate_signal: float) -> None:
         self.gate_signals[idx] = gate_signal
@@ -287,6 +360,9 @@ class UnifiedReplayMemory(Generic[T]):
             tag_overlap_threshold=config.tag_overlap_threshold,
             suppression_decay=config.suppression_decay,
             suppression_recovery=config.suppression_recovery,
+            consolidation=consolidation,
+            metastability_gain=config.metastability_gain,
+            metastability_replay_decay=config.metastability_replay_decay,
         )
         self._retrieval_count = 0
         self._candidate_count = 0
@@ -343,8 +419,19 @@ class UnifiedReplayMemory(Generic[T]):
             score_bias=bias,
         )
         gate = trace.gate_signal()
+        # Pair #4: primary-atom index for this trace is the retrieval's
+        # top index — the highest-similarity stored atom for the query.
+        # It is a pure key into ConsolidationState.metastability_ema
+        # (audit constraint #5: no side effects). -1 when no retrieval
+        # was made or top_index is out of consolidation range.
+        primary_atom_idx = -1
+        if (
+            trace.final_top_index is not None
+            and trace.final_top_index < self.consolidation.n_patterns
+        ):
+            primary_atom_idx = int(trace.final_top_index)
         if gate > self.config.store_threshold:
-            self.store.add(trace, gate_signal=gate)
+            self.store.add(trace, gate_signal=gate, primary_atom_idx=primary_atom_idx)
         if (
             trace.final_top_index is not None
             and trace.final_top_index < self.consolidation.n_patterns
@@ -356,6 +443,16 @@ class UnifiedReplayMemory(Generic[T]):
             # Saighi A_k accumulation: every successful retrieval of
             # attractor k increments A_k by inhibition_gain (no-op when 0).
             self.consolidation.accumulate_inhibition(trace.final_top_index)
+        # Pair #4: update per-atom metastability EMA from the retrieval's
+        # softmax weights. No-op when metastability_obs_rate == 0 (the
+        # κ=0 control baseline). c_i is computed from result.weights_tensor
+        # which is the same tensor retrieve() already produced — audit
+        # constraint #1 binds us to NOT invoke a second pass.
+        if (
+            result.weights_tensor is not None
+            and result.weights_tensor.shape[0] == self.consolidation.n_patterns
+        ):
+            self.consolidation.update_metastability(result.weights_tensor)
         self._retrieval_count += 1
         return result, trace
 

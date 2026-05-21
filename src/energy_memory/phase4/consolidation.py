@@ -110,6 +110,15 @@ class ConsolidationConfig:
     # ~12× in softmax weight at the population's median).
     retrieval_weight_epsilon: float = 0.05
     retrieval_weight_tau: float = 0.02
+    # Pair #4 (metastability ~ replay-prioritization).
+    # Per-atom metastability EMA m_i over c_i = w_i · (1 − max_j w_j),
+    # where w is the softmax weight vector from each retrieve() call.
+    # metastability_obs_rate (μ_obs): EMA blending coefficient applied
+    # on every retrieval observation. m_i ← (1 − μ_obs)·m_i + μ_obs·c_i.
+    # See notes/notes/2026-05-20-metastability-replay-prioritization-dynamic-form.md.
+    # Default 0.0 leaves m_i at zero so the priority composition is bit-
+    # identical to baseline (the κ=0 control depends on this).
+    metastability_obs_rate: float = 0.0
 
 
 class ConsolidationState:
@@ -150,6 +159,10 @@ class ConsolidationState:
         # and config.coverage_lambda > 0. Stays at zero (and reinforce()
         # multiplies by 1.0) when the mechanism is off.
         self.r_ema = torch.zeros(0, dtype=torch.float32, device=self.device)
+        # Per-atom metastability EMA m_i (pair #4). Updated on every
+        # retrieve() call via update_metastability(weights). Stays at zero
+        # when metastability_obs_rate == 0 (the κ=0 control baseline).
+        self.metastability_ema = torch.zeros(0, dtype=torch.float32, device=self.device)
         self._step_count = 0
 
         if config.strength_weights is not None:
@@ -211,6 +224,12 @@ class ConsolidationState:
         self.r_ema = torch.cat([
             self.r_ema,
             torch.full((1,), r_ema_value, dtype=torch.float32, device=self.device),
+        ])
+        # Pair #4: new atoms enter with zero metastability accumulation.
+        # The audit binds this — no "prior" derived from population stats.
+        self.metastability_ema = torch.cat([
+            self.metastability_ema,
+            torch.zeros(1, dtype=torch.float32, device=self.device),
         ])
         return self.n_patterns - 1
 
@@ -311,6 +330,63 @@ class ConsolidationState:
         eps = self.config.retrieval_weight_epsilon
         tau = self.config.retrieval_weight_tau
         return torch.nn.functional.softplus((eps - e) / tau)
+
+    def update_metastability(self, weights: "torch.Tensor") -> None:
+        """Pair #4: update per-atom metastability EMA from a retrieval's softmax weights.
+
+        For a retrieval with weight vector ``w ∈ ℝ^N``:
+
+            c_i = w_i · (1 − max_j w_j)          ∈ [0, 1/4]
+            m_i ← (1 − μ_obs) · m_i + μ_obs · c_i
+
+        ``c_i`` is the per-atom metastability contribution defined in
+        notes/notes/2026-05-20-metastability-replay-prioritization-dynamic-form.md.
+        A sharp retrieval (max_w ≈ 1) gives c_i ≈ 0 for all i. A diffuse
+        retrieval where atom i carries weight in a no-clear-winner settling
+        gives a positive c_i; the EMA accumulates this across retrievals.
+
+        Atoms with negligible softmax weight contribute c_i ≈ 0 by the
+        softmax's exponential roll-off — no membership test.
+
+        When ``config.metastability_obs_rate == 0`` this method is a no-op
+        (the κ=0 control baseline; m_i stays at zero so the priority
+        composition is bit-identical to the pre-pivot replay store).
+
+        Args:
+            weights: per-pattern softmax weight vector from a retrieve()
+                call. Shape ``(n_patterns,)``. Sourced from
+                ``TorchRetrievalResult.weights_tensor`` to avoid a CPU sync.
+        """
+        if self.config.metastability_obs_rate <= 0.0:
+            return
+        if self.n_patterns == 0:
+            return
+        if weights.shape[0] != self.n_patterns:
+            raise ValueError(
+                f"weights length ({weights.shape[0]}) must match "
+                f"n_patterns ({self.n_patterns})"
+            )
+        w = weights.to(self.metastability_ema.dtype).to(self.device)
+        max_w = w.max()
+        c = w * (1.0 - max_w)
+        mu = self.config.metastability_obs_rate
+        self.metastability_ema = (1.0 - mu) * self.metastability_ema + mu * c
+
+    def metastability_payback(self, idx: int, factor: float) -> None:
+        """Pair #4: pay down m_i for atom idx when its trace is replayed.
+
+        Called from ``ReplayStore.sample()`` after the multinomial draw
+        for each sampled trace's primary atom. ``factor`` is
+        ``(1 − μ_rep)`` ∈ [0, 1]; values outside that range are clamped.
+
+        See audit constraint #3 (notes/notes/2026-05-20-metastability-...
+        ): pay-down lives inside ``sample()`` after multinomial, not in
+        a separate maintenance call.
+        """
+        if not 0 <= idx < self.n_patterns:
+            raise IndexError(f"pattern index {idx} out of range")
+        f = max(0.0, min(1.0, float(factor)))
+        self.metastability_ema[idx] = self.metastability_ema[idx] * f
 
     def step_dynamics(
         self,
@@ -439,6 +515,7 @@ class ConsolidationState:
         self.A = self.A[keep]
         self.retrieval_count = self.retrieval_count[keep]
         self.r_ema = self.r_ema[keep]
+        self.metastability_ema = self.metastability_ema[keep]
 
     def stats(self) -> dict:
         if self.n_patterns == 0:
@@ -457,6 +534,8 @@ class ConsolidationState:
                 "retrieval_count_nonzero": 0,
                 "coverage_r_ema_mean": 0.0,
                 "coverage_r_ema_max": 0.0,
+                "metastability_ema_mean": 0.0,
+                "metastability_ema_max": 0.0,
             }
         strength = self.effective_strength().abs()
         rc = self.retrieval_count
@@ -478,6 +557,8 @@ class ConsolidationState:
             "retrieval_count_nonzero": int((rc > 0).sum().detach().cpu()),
             "coverage_r_ema_mean": float(self.r_ema.mean().detach().cpu()),
             "coverage_r_ema_max": float(self.r_ema.max().detach().cpu()),
+            "metastability_ema_mean": float(self.metastability_ema.mean().detach().cpu()),
+            "metastability_ema_max": float(self.metastability_ema.max().detach().cpu()),
         }
 
 

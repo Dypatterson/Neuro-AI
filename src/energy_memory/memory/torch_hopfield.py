@@ -35,6 +35,14 @@ class TorchRetrievalResult(Generic[T]):
     energy_trace: List[float]
     iterations: int
     converged: bool
+    # Pre-CPU-sync weights tensor (same values as `weights`, kept on
+    # substrate device). Surfaced for the pair #4 metastability mechanism
+    # (notes/notes/2026-05-20-metastability-replay-prioritization-dynamic-form.md):
+    # m_i ← EMA over c_i = w_i · (1 − max_j w_j) is updated per-retrieval
+    # from this tensor, avoiding a redundant CPU sync. None when retrieve()
+    # is called from a context that doesn't need it (left for callers that
+    # only consume top_index/top_score).
+    weights_tensor: Optional["torch.Tensor"] = None
 
 
 class TorchHopfieldMemory(Generic[T]):
@@ -148,6 +156,7 @@ class TorchHopfieldMemory(Generic[T]):
             energy_trace=energy_trace,
             iterations=len(energy_trace),
             converged=converged,
+            weights_tensor=final_weights.detach(),
         )
 
     def energy(self, state, beta: float = 8.0, patterns=None, kernel: str = "softmax") -> float:
