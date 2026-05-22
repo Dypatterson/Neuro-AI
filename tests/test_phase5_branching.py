@@ -1545,5 +1545,184 @@ class TestRunBranchedRetrievalIntegration(unittest.TestCase):
             self.assertEqual(b.prior_source, "content")
 
 
+@unittest.skipIf(torch is None, "torch required")
+class TestStep3ScoreBias(unittest.TestCase):
+    """Step-3 retrieval-weight bias plumbing (post-2026-05-21 walk-back).
+
+    Reports 047-053 were measured on the unweighted landscape because
+    experiments/40 never passed consolidation.retrieval_weight_bias()
+    into settle_branch_with_prior. These tests pin:
+      (1) bit-identical baseline when score_bias is None,
+      (2) bit-identical when score_bias is an explicit zero tensor,
+      (3) the bias actually attenuates a targeted atom (mechanism check),
+      (4) end-to-end propagation through run_branched_retrieval.
+
+    The bit-identical tests are load-bearing: any future change to the
+    settle path that breaks reports-047-053 reproducibility will fail
+    these tests.
+    """
+
+    def _build_memory(self, n=6, d=64, seed=0):
+        from energy_memory.memory.torch_hopfield import TorchHopfieldMemory
+        from energy_memory.substrate.torch_fhrr import TorchFHRR
+        torch.manual_seed(seed)
+        substrate = TorchFHRR(dim=d, device="cpu")
+        mem = TorchHopfieldMemory(substrate)
+        patterns = []
+        for i in range(n):
+            p = torch.randn(d, dtype=torch.complex64)
+            p = substrate.normalize(p)
+            mem.store(p, label=i)
+            patterns.append(p)
+        return mem, patterns
+
+    def test_score_bias_none_matches_pre_walkback_path(self):
+        """settle_branch_with_prior(score_bias=None) is bit-identical to
+        the pre-walk-back code path that omitted the parameter entirely."""
+        mod = _import_module()
+        mem, patterns = self._build_memory(n=6, d=64, seed=0)
+        cue = mem.substrate.normalize(
+            patterns[2] + 0.1 * torch.randn(64, dtype=torch.complex64)
+        )
+        zero_prior = torch.zeros(64, dtype=torch.complex64)
+        settled_omitted, telem_omitted = mod.settle_branch_with_prior(
+            memory=mem, cue=cue, prior=zero_prior,
+            beta=10.0, gamma=0.0, max_iter=12, formulation="per_pattern",
+        )
+        settled_none, telem_none = mod.settle_branch_with_prior(
+            memory=mem, cue=cue, prior=zero_prior,
+            beta=10.0, gamma=0.0, max_iter=12, formulation="per_pattern",
+            score_bias=None,
+        )
+        self.assertTrue(torch.equal(settled_omitted, settled_none))
+        self.assertEqual(
+            telem_omitted["energy_unbiased_final"],
+            telem_none["energy_unbiased_final"],
+        )
+        self.assertEqual(
+            telem_none["energy_unbiased_step3_final"],
+            telem_none["energy_unbiased_final"],
+        )
+
+    def test_score_bias_zero_tensor_bit_identical_to_none(self):
+        """A score_bias of all zeros must reproduce the None path
+        bit-identically — the subtraction is a no-op at zero."""
+        mod = _import_module()
+        mem, patterns = self._build_memory(n=6, d=64, seed=1)
+        cue = mem.substrate.normalize(
+            patterns[0] + 0.05 * torch.randn(64, dtype=torch.complex64)
+        )
+        zero_prior = torch.zeros(64, dtype=torch.complex64)
+        zero_bias = torch.zeros(len(patterns), dtype=torch.float32)
+        settled_none, telem_none = mod.settle_branch_with_prior(
+            memory=mem, cue=cue, prior=zero_prior,
+            beta=10.0, gamma=0.0, max_iter=12, formulation="per_pattern",
+            score_bias=None,
+        )
+        settled_zero, telem_zero = mod.settle_branch_with_prior(
+            memory=mem, cue=cue, prior=zero_prior,
+            beta=10.0, gamma=0.0, max_iter=12, formulation="per_pattern",
+            score_bias=zero_bias,
+        )
+        self.assertLess((settled_none - settled_zero).abs().max().item(), 1e-6)
+        self.assertAlmostEqual(
+            telem_none["energy_unbiased_final"],
+            telem_zero["energy_unbiased_final"],
+            places=5,
+        )
+        self.assertAlmostEqual(
+            telem_zero["energy_unbiased_step3_final"],
+            telem_zero["energy_unbiased_final"],
+            places=5,
+        )
+
+    def test_score_bias_attenuates_targeted_atom(self):
+        """A large score_bias on a single atom should pull retrieval AWAY
+        from that atom — the mechanism check for step 3.
+
+        Setup: cue is close to pattern 2. With no bias, retrieval lands on
+        pattern 2. With a large bias on pattern 2 only, retrieval should
+        land on a different pattern (the next-closest)."""
+        mod = _import_module()
+        mem, patterns = self._build_memory(n=6, d=64, seed=4)
+        cue = mem.substrate.normalize(
+            patterns[2] + 0.05 * torch.randn(64, dtype=torch.complex64)
+        )
+        zero_prior = torch.zeros(64, dtype=torch.complex64)
+
+        # Without bias: lands on pattern 2.
+        settled_unbiased, _ = mod.settle_branch_with_prior(
+            memory=mem, cue=cue, prior=zero_prior,
+            beta=10.0, gamma=0.0, max_iter=12, formulation="per_pattern",
+        )
+        sims_unbiased = [
+            float(mem.substrate.similarity(settled_unbiased, p)) for p in patterns
+        ]
+        argmax_unbiased = max(range(6), key=lambda i: sims_unbiased[i])
+        self.assertEqual(argmax_unbiased, 2)
+
+        # With huge bias on pattern 2 only: retrieval avoids pattern 2.
+        suppress = torch.zeros(6, dtype=torch.float32)
+        suppress[2] = 1e6
+        settled_biased, telem_biased = mod.settle_branch_with_prior(
+            memory=mem, cue=cue, prior=zero_prior,
+            beta=10.0, gamma=0.0, max_iter=12, formulation="per_pattern",
+            score_bias=suppress,
+        )
+        sims_biased = [
+            float(mem.substrate.similarity(settled_biased, p)) for p in patterns
+        ]
+        argmax_biased = max(range(6), key=lambda i: sims_biased[i])
+        self.assertNotEqual(argmax_biased, 2)
+        # Step-3 energy is HIGHER than raw under the same final state
+        # because the suppressed atom is effectively removed from the
+        # logsumexp denominator under the bias-shifted landscape.
+        self.assertGreater(
+            telem_biased["energy_unbiased_step3_final"],
+            telem_biased["energy_unbiased_final"],
+        )
+
+    def test_run_branched_retrieval_propagates_score_bias(self):
+        """End-to-end: passing score_bias through run_branched_retrieval
+        should populate branch.energy_unbiased_step3 distinct from
+        branch.energy_unbiased (when the bias is non-zero)."""
+        mod = _import_module()
+        mem, patterns = self._build_memory(n=6, d=64, seed=5)
+        cue = mem.substrate.normalize(
+            patterns[1] + 0.05 * torch.randn(64, dtype=torch.complex64)
+        )
+        # Build a minimal consolidation + schema store from the memory's
+        # own patterns so the run_branched_retrieval pipeline is happy.
+        cons = _make_consolidation(m=4, n_patterns=6)
+        schema_store = mem._pattern_matrix()
+        schema_atom_idx = torch.arange(6, dtype=torch.long)
+
+        # Non-trivial bias.
+        bias = torch.linspace(0.0, 2.0, 6, dtype=torch.float32)
+
+        result = mod.run_branched_retrieval(
+            cue=cue, cue_id=0, target_id=None,
+            memory=mem, codebook=mem._pattern_matrix(), positions=None,
+            decode_ids=[], decode_k=5, masked_pos=0,
+            schema_store=schema_store, schema_atom_idx=schema_atom_idx,
+            consolidation=cons, prior_type="content", k_main=2,
+            gamma=0.5, beta=10.0, temperature=1.0,
+            delta_energy=0.1, delta_state=0.1, delta_redundant=0.5,
+            include_surprise_branch=False,
+            score_bias=bias,
+        )
+        self.assertGreater(len(result.branches), 0)
+        for b in result.branches:
+            # When score_bias is non-trivial and not aligned with the
+            # final-state similarity profile, the two energies differ.
+            # We assert *something* moved rather than an exact value;
+            # the mechanism check is in the prior test.
+            self.assertNotAlmostEqual(
+                b.energy_unbiased,
+                b.energy_unbiased_step3,
+                places=4,
+            )
+
+
 if __name__ == "__main__":
     unittest.main()

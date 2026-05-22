@@ -79,7 +79,10 @@ class BranchState:
     q_initial: torch.Tensor         # state at the start of settling
     q_settled: torch.Tensor         # state after retrieval converges
     # ---- diagnostics (logged, NOT used for selection) ----
-    energy_unbiased: float = 0.0    # E_k^unbiased(q_settled) — the selection score
+    energy_unbiased: float = 0.0    # E_k^unbiased(q_settled) — raw landscape (back-compat with reports 047-053)
+    energy_unbiased_step3: float = 0.0  # E_k^step3(q_settled) = -logsumexp(β·sim − score_bias)/β.
+                                    # Step-3-weighted landscape per report 046 / Phase 5 design.
+                                    # Equals energy_unbiased when score_bias is None.
     energy_biased: float = 0.0      # E_k(q_settled) - γ * Re(<q_settled, prior>)
     energy_drop: float = 0.0        # energy_unbiased(q_initial) - energy_unbiased(q_settled)
     prior_alignment: float = 0.0    # cos(q_settled, prior)
@@ -531,6 +534,7 @@ def settle_branch_with_prior(
     max_iter: int = 12,
     tol: float = 1e-8,
     formulation: str = "per_pattern",
+    score_bias: Optional[torch.Tensor] = None,
 ) -> Tuple[torch.Tensor, Dict[str, float]]:
     """Hopfield retrieval with prior bias. Two formulations are supported
     for the **decision #5 spike** (phase-5-unified-design.md §Open decisions):
@@ -587,13 +591,21 @@ def settle_branch_with_prior(
     state = cue.to(device)
     prior_dev = prior.to(device)
 
+    # Step-3 retrieval bias (from ConsolidationState.retrieval_weight_bias()):
+    # subtracted from β·scores per the trajectory.py:181 sign convention.
+    # When None, dynamics + telemetry are bit-identical to pre-step-3 baseline
+    # (load-bearing for back-compat with reports 047–053).
+    bias_dev = score_bias.to(device) if score_bias is not None else None
+
     # Per-formulation precomputation.
     if formulation == "per_pattern":
         prior_bias = gamma * substrate.similarity_matrix(prior_dev, patterns)  # [N]
     else:
         prior_bias = None  # global pull adds to update vector, not logits
 
-    # Initial unbiased entropy (diagnostic).
+    # Initial unbiased entropy (diagnostic). Uses RAW β·scores so the
+    # initial-vs-final entropy comparison stays comparable across runs and
+    # γ values; report 053-style telemetry preserved.
     init_scores = substrate.similarity_matrix(state, patterns)
     init_weights_unbiased = torch.softmax(beta * init_scores, dim=0)
     score_entropy_initial = _softmax_entropy(init_weights_unbiased)
@@ -607,15 +619,20 @@ def settle_branch_with_prior(
         # Compute logits (used for weighting) and biased energy (Lyapunov).
         if formulation == "per_pattern":
             biased_logits = beta * scores + prior_bias
+            if bias_dev is not None:
+                biased_logits = biased_logits - bias_dev
             weights = torch.softmax(biased_logits, dim=0)
             update_vec = (patterns * weights[:, None]).sum(dim=0)
-            # Biased energy under per-pattern: -logsumexp(beta*scores + prior_bias)/β
+            # Biased energy under per-pattern: -logsumexp(biased_logits)/β.
+            # When bias_dev is None this reduces to -logsumexp(β·scores + prior_bias)/β.
             biased_energy = -torch.logsumexp(biased_logits, dim=0) / beta
         else:  # global_pull
             unbiased_logits = beta * scores
+            if bias_dev is not None:
+                unbiased_logits = unbiased_logits - bias_dev
             weights = torch.softmax(unbiased_logits, dim=0)
             update_vec = (patterns * weights[:, None]).sum(dim=0) + gamma * prior_dev
-            # Biased energy under global pull: -logsumexp(beta*scores)/β - γ·Re(<q, prior>)
+            # Biased energy under global pull: -logsumexp(logits)/β - γ·Re(<q, prior>)
             q_prior_inner = (state.conj() * prior_dev).sum().real
             biased_energy = (
                 -torch.logsumexp(unbiased_logits, dim=0) / beta - gamma * q_prior_inner
@@ -650,9 +667,22 @@ def settle_branch_with_prior(
     energy_unbiased_final = float(
         (-torch.logsumexp(beta * final_scores, dim=0) / beta).detach().cpu()
     )
+    # Parallel step-3-weighted final energy. Equals energy_unbiased_final
+    # when score_bias is None (back-compat with reports 047–053). When
+    # provided, this is the load-bearing headline landscape per Phase 5
+    # design (report 046).
+    if bias_dev is not None:
+        energy_unbiased_step3_final = float(
+            (-torch.logsumexp(beta * final_scores - bias_dev, dim=0) / beta).detach().cpu()
+        )
+    else:
+        energy_unbiased_step3_final = energy_unbiased_final
     if formulation == "per_pattern":
+        biased_final_logits = beta * final_scores + prior_bias
+        if bias_dev is not None:
+            biased_final_logits = biased_final_logits - bias_dev
         energy_biased_final = float(
-            (-torch.logsumexp(beta * final_scores + prior_bias, dim=0) / beta).detach().cpu()
+            (-torch.logsumexp(biased_final_logits, dim=0) / beta).detach().cpu()
         )
     else:
         q_prior_inner_final = float((state.conj() * prior_dev).sum().real.detach().cpu())
@@ -664,6 +694,7 @@ def settle_branch_with_prior(
         "converged": converged,
         "iterations": len(biased_energies),
         "energy_unbiased_final": energy_unbiased_final,
+        "energy_unbiased_step3_final": energy_unbiased_step3_final,
         "energy_biased_final": energy_biased_final,
         "on_substrate_alignment": on_substrate_alignment,
         "formulation": formulation,
@@ -675,12 +706,26 @@ def settle_branch_with_prior(
 # =============================================================================
 
 def _unbiased_energy(
-    memory: TorchHopfieldMemory, state: torch.Tensor, beta: float,
+    memory: TorchHopfieldMemory,
+    state: torch.Tensor,
+    beta: float,
+    score_bias: Optional[torch.Tensor] = None,
 ) -> float:
-    """E(q) = -logsumexp(β · sim(X, q)) / β as a Python float."""
+    """E(q) = -logsumexp(β · sim(X, q) − score_bias) / β as a Python float.
+
+    With ``score_bias=None`` (default), this is the raw unbiased energy used
+    by reports 047–053 (back-compat). With ``score_bias`` provided, this is
+    the step-3-weighted energy that the Phase 5 design spec (per report 046)
+    defines as the load-bearing landscape — low-|E_i| atoms contribute
+    infinitesimally via ``softplus((ε − |E_i|)/τ)`` subtracted from
+    ``β · scores`` (sign convention per trajectory.py:181).
+    """
     patterns = memory._pattern_matrix()
     scores = memory.substrate.similarity_matrix(state.to(memory.substrate.device), patterns)
-    return float((-torch.logsumexp(beta * scores, dim=0) / beta).detach().cpu())
+    logits = beta * scores
+    if score_bias is not None:
+        logits = logits - score_bias.to(logits.device)
+    return float((-torch.logsumexp(logits, dim=0) / beta).detach().cpu())
 
 
 def compute_branch_diagnostics(
@@ -698,6 +743,7 @@ def compute_branch_diagnostics(
     masked_pos: int,
     cue_bindings: Optional[torch.Tensor] = None,
     settling_telemetry: Optional[Dict[str, float]] = None,
+    score_bias: Optional[torch.Tensor] = None,
 ) -> None:
     """Fill BranchState diagnostic fields in-place.
 
@@ -737,6 +783,19 @@ def compute_branch_diagnostics(
 
     # Energy fields ---------------------------------------------------------
     branch.energy_unbiased = _unbiased_energy(memory, q_star, beta)
+    # Step-3-weighted energy: equals energy_unbiased when score_bias is None.
+    # Prefer settling_telemetry's value (computed during the dynamics) over
+    # a fresh recomputation when available, to keep the dynamics-and-readout
+    # landscapes consistent within a single branch.
+    if (
+        settling_telemetry is not None
+        and "energy_unbiased_step3_final" in settling_telemetry
+    ):
+        branch.energy_unbiased_step3 = float(settling_telemetry["energy_unbiased_step3_final"])
+    else:
+        branch.energy_unbiased_step3 = _unbiased_energy(
+            memory, q_star, beta, score_bias=score_bias
+        )
     if settling_telemetry is not None and "energy_biased_final" in settling_telemetry:
         branch.energy_biased = float(settling_telemetry["energy_biased_final"])
     else:
@@ -853,6 +912,7 @@ def combine_bundle_resettle(
     temperature: float = 1.0,
     max_iter: int = 12,
     tol: float = 1e-8,
+    score_bias: Optional[torch.Tensor] = None,
 ) -> Tuple[torch.Tensor, List[float], bool]:
     """PREFERRED combination rule (anti-homunculus-clean).
 
@@ -886,6 +946,7 @@ def combine_bundle_resettle(
         memory=memory, cue=bundled, prior=zero_prior,
         beta=beta, gamma=0.0, max_iter=max_iter, tol=tol,
         formulation="per_pattern",
+        score_bias=score_bias,
     )
     return q_final, weights.detach().cpu().tolist(), bool(telem["converged"])
 
@@ -1000,6 +1061,7 @@ def run_branched_retrieval(
     max_settling_iter: int = 12,
     boltzmann_rng: Optional[torch.Generator] = None,
     random_prior_rng: Optional[torch.Generator] = None,
+    score_bias: Optional[torch.Tensor] = None,
 ) -> BranchedRetrievalResult:
     """One full branched retrieval over a single cue.
 
@@ -1041,6 +1103,7 @@ def run_branched_retrieval(
             memory=memory, cue=cue, prior=prior_vec,
             beta=beta, gamma=gamma, max_iter=max_settling_iter,
             formulation=formulation,
+            score_bias=score_bias,
         )
         b = BranchState(
             branch_id=i,
@@ -1054,6 +1117,7 @@ def run_branched_retrieval(
             target_id=target_id, codebook=codebook, positions=positions,
             decode_ids=decode_ids, decode_k=decode_k, masked_pos=masked_pos,
             cue_bindings=cue_bindings, settling_telemetry=telem,
+            score_bias=score_bias,
         )
         branches.append(b)
 
@@ -1063,6 +1127,7 @@ def run_branched_retrieval(
             memory=memory, cue=cue, prior=prior_vec,
             beta=beta, gamma=gamma, max_iter=max_settling_iter,
             formulation=formulation,
+            score_bias=score_bias,
         )
         b = BranchState(
             branch_id=len(branches),
@@ -1076,6 +1141,7 @@ def run_branched_retrieval(
             target_id=target_id, codebook=codebook, positions=positions,
             decode_ids=decode_ids, decode_k=decode_k, masked_pos=masked_pos,
             cue_bindings=cue_bindings, settling_telemetry=telem,
+            score_bias=score_bias,
         )
         branches.append(b)
 
@@ -1089,6 +1155,7 @@ def run_branched_retrieval(
         q_bundle, weights, _conv = combine_bundle_resettle(
             branches=branches, memory=memory, beta=beta,
             temperature=temperature, max_iter=max_settling_iter,
+            score_bias=score_bias,
         )
         result.q_bundle = q_bundle
         result.softmax_weights = weights
@@ -1303,7 +1370,19 @@ def _run_condition_over_cues(
     random_prior_rng: torch.Generator,
 ) -> Dict:
     """Run one condition across all cues; aggregate per-cue diagnostics."""
+    # Step-3 retrieval-weight bias from consolidation. When coverage_lambda=0
+    # this is None and the run is bit-identical to pre-walk-back behavior
+    # (back-compat with reports 047–053). When coverage_lambda > 0 (the
+    # Phase 5 design-spec configuration per report 046) this is the
+    # softplus((ε−|E_i|)/τ) per-atom bias, subtracted from β·scores in
+    # settling logits and final-energy telemetry.
+    step3_bias = (
+        cons.retrieval_weight_bias()
+        if cons.config.coverage_lambda > 0.0
+        else None
+    )
     per_cue_energy_unbiased_min = []
+    per_cue_energy_step3_min = []
     per_cue_branch_count = []
     per_cue_split_eligible = []
     per_cue_on_substrate_alignment = []
@@ -1320,15 +1399,18 @@ def _run_condition_over_cues(
             delta_redundant=delta_redundant, formulation=formulation,
             include_surprise_branch=True,
             boltzmann_rng=boltzmann_rng, random_prior_rng=random_prior_rng,
+            score_bias=step3_bias,
         )
         if not result.branches:
             continue
         e_min = min(b.energy_unbiased for b in result.branches)
+        e_step3_min = min(b.energy_unbiased_step3 for b in result.branches)
         align = max(
             float(mem.substrate.similarity(b.q_settled, p))
             for b in result.branches for p in patterns
         )
         per_cue_energy_unbiased_min.append(e_min)
+        per_cue_energy_step3_min.append(e_step3_min)
         per_cue_branch_count.append(len(result.branches))
         per_cue_split_eligible.append(int(result.split_eligible))
         per_cue_on_substrate_alignment.append(align)
@@ -1340,8 +1422,10 @@ def _run_condition_over_cues(
         "gamma": gamma,
         "k_main": k_main,
         "formulation": formulation,
+        "step3_bias_active": step3_bias is not None,
         "n_cues": len(per_cue_energy_unbiased_min),
         "mean_energy_unbiased_min": sum(per_cue_energy_unbiased_min) / n,
+        "mean_energy_step3_min": sum(per_cue_energy_step3_min) / n,
         "mean_branch_count": sum(per_cue_branch_count) / n,
         "split_eligibility_rate": sum(per_cue_split_eligible) / n,
         "mean_on_substrate_alignment": sum(per_cue_on_substrate_alignment) / n,
@@ -1520,6 +1604,30 @@ def main():
             substrate=mem.substrate, schemas=schema_store, positions=positions,
         )
 
+        # Step-3 retrieval-weight bias for the headline. Computed once
+        # per run (snapshot's consolidation state is frozen for headline
+        # mode). When coverage_lambda=0, step3_bias is None and the run
+        # reproduces reports 047–053 bit-identically (back-compat). When
+        # coverage_lambda > 0 (the design-spec configuration per report
+        # 046), the bias is softplus((ε−|E_i|)/τ) per atom, subtracted
+        # from β·scores in both settling dynamics and final-energy
+        # telemetry. See the 2026-05-21 STATUS walk-back.
+        step3_bias = (
+            cons.retrieval_weight_bias()
+            if cons.config.coverage_lambda > 0.0
+            else None
+        )
+        print(
+            f"[step3] coverage_lambda={cons.config.coverage_lambda}; "
+            f"score_bias active={step3_bias is not None}"
+            + (
+                f"; bias mean={float(step3_bias.mean()):.4f}, "
+                f"max={float(step3_bias.max()):.4f}, "
+                f"min={float(step3_bias.min()):.4f}"
+                if step3_bias is not None else ""
+            )
+        )
+
         # β prerequisites: when any fid_* condition runs, β operates over
         # the FULL pattern matrix (not the top-k pre-filter). Pre-compute
         # full-substrate bindings + fidelities once; reuse per cue.
@@ -1567,6 +1675,7 @@ def main():
                   + (f" (β: q={q_run})" if prior_type == "fidelity_weighted" else ""))
             per_cue_e_min = []
             per_cue_e_min_unbiased = []
+            per_cue_e_min_step3 = []
             per_cue_align = []
             per_cue_softmax_entropy = []
             per_cue_state_divergence = []
@@ -1594,16 +1703,19 @@ def main():
                     include_surprise_branch=False,
                     boltzmann_rng=boltzmann_rng,
                     random_prior_rng=random_prior_rng,
+                    score_bias=step3_bias,
                 )
                 if not result.branches:
                     continue
                 e_min = min(b.energy_unbiased for b in result.branches)
+                e_step3_min = min(b.energy_unbiased_step3 for b in result.branches)
                 align = max(
                     float(mem.substrate.similarity(b.q_settled, p))
                     for b in result.branches for p in patterns
                 )
                 per_cue_e_min.append(e_min)
                 per_cue_e_min_unbiased.append(e_min)
+                per_cue_e_min_step3.append(e_step3_min)
                 per_cue_align.append(align)
                 nb = len(result.branches)
                 per_cue_n_branches.append(nb)
@@ -1635,9 +1747,14 @@ def main():
                 "gamma": gamma,
                 "k_main": k_main,
                 "formulation": formulation,
+                "step3_bias_active": step3_bias is not None,
                 "n_cues": len(per_cue_e_min),
                 "per_cue_energy_unbiased_min": per_cue_e_min,
+                "per_cue_energy_step3_min": per_cue_e_min_step3,
                 "mean_energy_unbiased_min": sum(per_cue_e_min) / n,
+                "mean_energy_step3_min": (
+                    sum(per_cue_e_min_step3) / n if per_cue_e_min_step3 else 0.0
+                ),
                 "mean_on_substrate_alignment": sum(per_cue_align) / n,
                 "mean_n_branches": (
                     sum(per_cue_n_branches) / n if per_cue_n_branches else 0
@@ -1686,11 +1803,28 @@ def main():
             per_cue_delta = [ci - ri for ci, ri in zip(c, r)]
             n_pos = sum(1 for d in per_cue_delta if d > 0)
             mean_d = sum(per_cue_delta) / len(per_cue_delta)
+            # Step-3-weighted paired ΔE. When coverage_lambda=0 this equals
+            # the raw ΔE (bit-identical back-compat with reports 047–053).
+            # When > 0, this is the headline landscape per Phase 5 design.
+            c_step3 = named[content_name].get("per_cue_energy_step3_min", c)
+            r_step3 = named[role_name].get("per_cue_energy_step3_min", r)
+            per_cue_delta_step3 = [ci - ri for ci, ri in zip(c_step3, r_step3)]
+            n_pos_step3 = sum(1 for d in per_cue_delta_step3 if d > 0)
+            mean_d_step3 = (
+                sum(per_cue_delta_step3) / len(per_cue_delta_step3)
+                if per_cue_delta_step3 else 0.0
+            )
             deltas[tag] = {
                 "n_pairs": len(per_cue_delta),
                 "mean_delta_e_content_minus_role": mean_d,
                 "fraction_positive": n_pos / len(per_cue_delta),
                 "per_cue_delta": per_cue_delta,
+                "mean_delta_e_step3_content_minus_role": mean_d_step3,
+                "fraction_positive_step3": (
+                    n_pos_step3 / len(per_cue_delta_step3)
+                    if per_cue_delta_step3 else 0.0
+                ),
+                "per_cue_delta_step3": per_cue_delta_step3,
             }
 
         # β headline: ΔE = E_unbiased(fid_K1_q0) - E_unbiased(fid_K1_q1),
