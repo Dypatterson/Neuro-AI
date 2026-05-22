@@ -479,6 +479,299 @@ def _run_headline_beta_sweep(
     }
 
 
+def _basin_diagnostics(
+    *, q_settled: torch.Tensor, role_target_idx: int, patterns_matrix: torch.Tensor,
+    substrate,
+) -> Dict[str, float]:
+    """Per-cue basin-membership readout.
+
+    Computes the similarity of q_settled to every stored pattern, then
+    derives:
+      - role_target_basin_hit: 1.0 if argmax similarity == role_target_idx, else 0.0
+      - role_target_rank: 1-indexed rank of role_target_idx in
+        descending-similarity ordering (1 = top, N = worst)
+      - top_similarity: max similarity of q_settled to any pattern
+
+    These read out whether the K=1 settled state landed in the role
+    target's basin — independent of the paired ΔE energy comparison.
+    Per GPT's recommendation in the cue-regime aggregator brief:
+    paired ΔE may be reading basin DEPTH (random often wins on
+    energy); basin membership reads structural correctness directly.
+    """
+    sims = substrate.similarity_matrix(q_settled, patterns_matrix)
+    # Argmax for hit/miss.
+    argmax_idx = int(sims.argmax())
+    hit = 1.0 if argmax_idx == role_target_idx else 0.0
+    # Rank: 1 + (number of patterns with strictly higher sim than role-target).
+    sim_role_target = float(sims[role_target_idx])
+    rank = 1 + int((sims > sim_role_target).sum())
+    top_sim = float(sims.max())
+    return {
+        "role_target_basin_hit": hit,
+        "role_target_rank": float(rank),
+        "top_similarity": top_sim,
+    }
+
+
+def _run_headline_cue_regime_sweep(
+    *,
+    snapshot_path: Path,
+    device: str,
+    beta: float,
+    k_main: int,
+    gamma: float,
+    binding_noise_grid: List[float],
+    content_distortion_grid: List[float],
+    n_cues: int,
+    formulation: str,
+    cue_seed: int,
+    delta_energy: float,
+    delta_state: float,
+    delta_redundant: float,
+    temperature: float,
+    max_settling_iter: int,
+) -> Dict[str, Any]:
+    """Cue-regime sweep at fixed β, K, γ over the (binding_noise_std,
+    content_distortion) grid. Per cell: paired ΔE + basin membership
+    diagnostics + ordering counts.
+
+    Per the working agreement (GPT's recommendation 2026-05-21): paired
+    ΔE alone reads basin depth, not structural correctness — the
+    cross-seed β sweep showed role < content < random ordering happens
+    only 1/10 seeds even when ΔE > 0 9/10. Basin-membership diagnostics
+    (role-target hit rate, role-target rank) measure whether q_settled
+    landed in the role-target basin; ordering counts measure how often
+    random-prior produces the lowest energy (the pathology to watch).
+
+    Single-snapshot. Fixed β=10 + K=1 are GPT-confirmed best operating
+    points from reports 056 + 057; the goal here is to find whether
+    any cue cell moves ΔE toward the magnitude floor and/or improves
+    basin hit rate. No retuning of β/K/γ.
+    """
+    mem, cons, patterns, positions, info = _exp40._load_substrate_from_snapshot(
+        path=str(snapshot_path), device=device,
+    )
+    if positions is None:
+        raise SystemExit(
+            f"snapshot {snapshot_path} has no positions; cue-regime sweep "
+            "requires position vectors."
+        )
+
+    patterns_matrix = mem._pattern_matrix()
+    schema_store, atom_idx = _exp40.get_schema_store(
+        consolidation=cons, patterns=patterns_matrix,
+        selection_rule="top_k_by_effective_strength",
+        k=min(8, len(patterns)),
+    )
+    schema_bindings = _exp40.compute_schema_bindings(
+        substrate=mem.substrate, schemas=schema_store, positions=positions,
+    )
+    step3_bias = (
+        cons.retrieval_weight_bias()
+        if cons.config.coverage_lambda > 0.0 else None
+    )
+
+    condition_specs = [("role", "role"), ("content", "content"), ("random", "random")]
+    cells: List[Dict[str, Any]] = []
+
+    boltzmann_rng = torch.Generator().manual_seed(13)
+    random_prior_rng = torch.Generator().manual_seed(29)
+
+    for bns in binding_noise_grid:
+        for cd in content_distortion_grid:
+            # Rebuild cues per cell with the cell's (bns, cd) params.
+            cue_specs = _exp40._build_role_binding_cues(
+                substrate=mem.substrate,
+                positions=positions,
+                patterns=patterns,
+                n_cues=n_cues,
+                binding_noise_std=bns,
+                content_distortion=cd,
+                seed=cue_seed,
+            )
+
+            # Reset prior-side RNGs so the random-prior samples are
+            # comparable across cells (controls cell-to-cell variance
+            # in the "random" condition).
+            boltzmann_rng.manual_seed(13)
+            random_prior_rng.manual_seed(29)
+
+            per_condition: Dict[str, Dict[str, List[float]]] = {
+                name: {
+                    "e_min_raw": [], "e_min_step3": [],
+                    "softmax_entropy": [], "max_w_proxy": [],
+                    "role_target_basin_hit": [], "role_target_rank": [],
+                    "top_similarity": [],
+                } for name, _ in condition_specs
+            }
+
+            for spec in cue_specs:
+                # Per-cue energy of all three conditions (for ordering
+                # counts at the cue level).
+                cue_energies_raw: Dict[str, float] = {}
+                for name, prior_type in condition_specs:
+                    res = _exp40.run_branched_retrieval(
+                        cue=spec["cue"], cue_id=0, target_id=spec["role_target_idx"],
+                        memory=mem, codebook=patterns_matrix, positions=positions,
+                        decode_ids=[], decode_k=5, masked_pos=0,
+                        schema_store=schema_store, schema_atom_idx=atom_idx,
+                        consolidation=cons, prior_type=prior_type, k_main=k_main,
+                        gamma=gamma, beta=beta, temperature=temperature,
+                        delta_energy=delta_energy, delta_state=delta_state,
+                        delta_redundant=delta_redundant,
+                        formulation=formulation,
+                        cue_bindings=spec["cue_bindings"],
+                        schema_bindings=schema_bindings,
+                        include_surprise_branch=False,
+                        max_settling_iter=max_settling_iter,
+                        boltzmann_rng=boltzmann_rng,
+                        random_prior_rng=random_prior_rng,
+                        score_bias=step3_bias,
+                    )
+                    if not res.branches:
+                        cue_energies_raw[name] = float("nan")
+                        continue
+                    bs = res.branches
+                    nb = len(bs)
+                    e_raw = min(b.energy_unbiased for b in bs)
+                    e_step3 = min(b.energy_unbiased_step3 for b in bs)
+                    cue_energies_raw[name] = e_raw
+                    per_condition[name]["e_min_raw"].append(e_raw)
+                    per_condition[name]["e_min_step3"].append(e_step3)
+                    per_condition[name]["softmax_entropy"].append(
+                        float(res.softmax_entropy)
+                    )
+                    per_condition[name]["max_w_proxy"].append(
+                        max(
+                            float(mem.substrate.similarity(b.q_settled, p))
+                            for b in bs for p in patterns
+                        )
+                    )
+                    # Basin diagnostic: take the K=1 branch's q_settled
+                    # (or the bundle re-settle for K>1) and read off
+                    # role-target hit/rank.
+                    q_star = (
+                        res.q_bundle if res.q_bundle is not None
+                        else bs[0].q_settled
+                    )
+                    bd = _basin_diagnostics(
+                        q_settled=q_star.to(mem.substrate.device),
+                        role_target_idx=int(spec["role_target_idx"]),
+                        patterns_matrix=patterns_matrix,
+                        substrate=mem.substrate,
+                    )
+                    per_condition[name]["role_target_basin_hit"].append(
+                        bd["role_target_basin_hit"]
+                    )
+                    per_condition[name]["role_target_rank"].append(
+                        bd["role_target_rank"]
+                    )
+                    per_condition[name]["top_similarity"].append(
+                        bd["top_similarity"]
+                    )
+
+            def _mean(xs: List[float]) -> float:
+                return sum(xs) / len(xs) if xs else float("nan")
+
+            # Paired ΔE = E_content - E_role.
+            c = per_condition["content"]["e_min_raw"]
+            r = per_condition["role"]["e_min_raw"]
+            n_pairs = min(len(c), len(r))
+            per_cue_dE_raw = [c[i] - r[i] for i in range(n_pairs)]
+            cs3 = per_condition["content"]["e_min_step3"]
+            rs3 = per_condition["role"]["e_min_step3"]
+            per_cue_dE_step3 = [cs3[i] - rs3[i] for i in range(n_pairs)]
+
+            n_pos = sum(1 for x in per_cue_dE_raw if x > 0)
+            mean_dE = _mean(per_cue_dE_raw)
+            mean_dE_step3 = _mean(per_cue_dE_step3)
+
+            # Ordering counts at the cue level. For each cue, look at
+            # the three condition energies and rank them. Track:
+            #   - "role_lt_content_lt_random" (the headline-predicted ordering)
+            #   - "role_lt_content" (the weaker form: role beats content
+            #     regardless of where random sits)
+            #   - "random_lowest" (the pathology to watch: random-prior
+            #     produces the lowest energy state)
+            n_role_lt_content_lt_random = 0
+            n_role_lt_content = 0
+            n_random_lowest = 0
+            for i in range(n_pairs):
+                er = per_condition["role"]["e_min_raw"][i]
+                ec = per_condition["content"]["e_min_raw"][i]
+                ed = per_condition["random"]["e_min_raw"][i] if i < len(per_condition["random"]["e_min_raw"]) else float("inf")
+                if er < ec < ed:
+                    n_role_lt_content_lt_random += 1
+                if er < ec:
+                    n_role_lt_content += 1
+                if ed < er and ed < ec:
+                    n_random_lowest += 1
+
+            cells.append({
+                "binding_noise_std": bns,
+                "content_distortion": cd,
+                "n_pairs": n_pairs,
+                "mean_delta_e_raw": mean_dE,
+                "mean_delta_e_step3": mean_dE_step3,
+                "frac_positive_raw": n_pos / n_pairs if n_pairs else float("nan"),
+                "delta_e_over_floor": mean_dE / 5.5e-3 if n_pairs else float("nan"),
+                "frac_role_lt_content_lt_random": (
+                    n_role_lt_content_lt_random / n_pairs if n_pairs else float("nan")
+                ),
+                "frac_role_lt_content": (
+                    n_role_lt_content / n_pairs if n_pairs else float("nan")
+                ),
+                "frac_random_lowest": (
+                    n_random_lowest / n_pairs if n_pairs else float("nan")
+                ),
+                "per_condition_basin_hit_rate": {
+                    name: _mean(per_condition[name]["role_target_basin_hit"])
+                    for name, _ in condition_specs
+                },
+                "per_condition_mean_role_target_rank": {
+                    name: _mean(per_condition[name]["role_target_rank"])
+                    for name, _ in condition_specs
+                },
+                "per_condition_mean_softmax_entropy": {
+                    name: _mean(per_condition[name]["softmax_entropy"])
+                    for name, _ in condition_specs
+                },
+                "per_condition_mean_max_w_proxy": {
+                    name: _mean(per_condition[name]["max_w_proxy"])
+                    for name, _ in condition_specs
+                },
+                "per_condition_mean_top_similarity": {
+                    name: _mean(per_condition[name]["top_similarity"])
+                    for name, _ in condition_specs
+                },
+                "per_condition_mean_e_min_raw": {
+                    name: _mean(per_condition[name]["e_min_raw"])
+                    for name, _ in condition_specs
+                },
+            })
+
+    return {
+        "snapshot": str(snapshot_path),
+        "label": info.get("label"),
+        "n_atoms": len(patterns),
+        "dim": int(mem.substrate.dim),
+        "coverage_lambda": float(cons.config.coverage_lambda),
+        "step3_bias_active": step3_bias is not None,
+        "config": {
+            "beta": beta,
+            "k_main": k_main,
+            "gamma": gamma,
+            "n_cues_per_cell": n_cues,
+            "binding_noise_grid": binding_noise_grid,
+            "content_distortion_grid": content_distortion_grid,
+            "formulation": formulation,
+            "cue_seed": cue_seed,
+            "magnitude_floor": 5.5e-3,
+        },
+        "cells": cells,
+    }
+
+
 def _flatten_for_csv(record: Dict[str, Any], parent: str = "") -> Dict[str, Any]:
     """One-level flatten of nested dicts: {a: {b: 1}} → {a.b: 1}."""
     out: Dict[str, Any] = {}
@@ -548,6 +841,38 @@ def main() -> None:
     parser.add_argument("--headline-delta-state", type=float, default=0.3)
     parser.add_argument("--headline-delta-redundant", type=float, default=0.95)
     parser.add_argument("--headline-max-settling-iter", type=int, default=12)
+    # Cue-regime sweep mode (separate from --headline-beta-sweep):
+    # iterates (binding_noise_std × content_distortion) grid at FIXED
+    # β / K / γ (the GPT-recommended best operating point post-report
+    # 057: β=10, K=1, γ=0.5).
+    parser.add_argument(
+        "--cue-regime-sweep", action="store_true",
+        help="Run the (binding_noise_std × content_distortion) cue grid "
+        "at fixed β/K/γ. Single-snapshot only (use with --snapshot). "
+        "Per-cell stats include paired ΔE, basin-membership "
+        "(role-target hit rate, role-target rank), ordering counts "
+        "(role<content<random, role<content, random_lowest), entropy, "
+        "and max_w. Distinct from --headline-beta-sweep (which iterates "
+        "β at fixed cue regime).",
+    )
+    parser.add_argument(
+        "--cue-regime-binding-noise", type=str, default="0.01,0.05,0.10,0.20",
+        help="Comma-separated binding_noise_std grid.",
+    )
+    parser.add_argument(
+        "--cue-regime-content-distortion", type=str,
+        default="0.0,0.2,0.4,0.6,0.8,1.0",
+        help="Comma-separated content_distortion grid.",
+    )
+    parser.add_argument(
+        "--cue-regime-beta", type=float, default=10.0,
+        help="Fixed β for the cue-regime sweep. β=10 confirmed best by "
+        "[report 057]'s cross-seed n=10 audit.",
+    )
+    parser.add_argument(
+        "--cue-regime-n-cues", type=int, default=200,
+        help="Cues per cell. 200 matches reports 056/057 (K=1 single-snapshot).",
+    )
     parser.add_argument("--betas", type=str, default="1,3,5,10,30",
                         help="Comma-separated β values for preflight.")
     parser.add_argument("--n-cue-probes", type=int, default=4,
@@ -559,6 +884,15 @@ def main() -> None:
     if args.headline_beta_sweep and args.snapshot is None:
         raise SystemExit(
             "--headline-beta-sweep requires --snapshot (single-snapshot mode)"
+        )
+    if args.cue_regime_sweep and args.snapshot is None:
+        raise SystemExit(
+            "--cue-regime-sweep requires --snapshot (single-snapshot mode)"
+        )
+    if args.headline_beta_sweep and args.cue_regime_sweep:
+        raise SystemExit(
+            "--headline-beta-sweep and --cue-regime-sweep are mutually "
+            "exclusive (each iterates a different axis at fixed others)"
         )
 
     if args.snapshot is not None:
@@ -572,6 +906,48 @@ def main() -> None:
             snapshots = [Path(line.strip()) for line in f if line.strip()]
 
     betas = [float(b) for b in args.betas.split(",") if b.strip()]
+
+    if args.cue_regime_sweep:
+        bns_grid = [float(b) for b in args.cue_regime_binding_noise.split(",") if b.strip()]
+        cd_grid = [float(c) for c in args.cue_regime_content_distortion.split(",") if c.strip()]
+        print(
+            f"[cue-regime sweep] {snapshots[0]}  "
+            f"({len(bns_grid)} × {len(cd_grid)} = {len(bns_grid) * len(cd_grid)} cells, "
+            f"β={args.cue_regime_beta}, K={args.headline_k_main}, "
+            f"γ={args.headline_gamma}, n_cues={args.cue_regime_n_cues})",
+            flush=True,
+        )
+        sweep = _run_headline_cue_regime_sweep(
+            snapshot_path=snapshots[0],
+            device=args.device,
+            beta=args.cue_regime_beta,
+            k_main=args.headline_k_main,
+            gamma=args.headline_gamma,
+            binding_noise_grid=bns_grid,
+            content_distortion_grid=cd_grid,
+            n_cues=args.cue_regime_n_cues,
+            formulation=args.headline_formulation,
+            cue_seed=args.headline_cue_seed,
+            delta_energy=args.headline_delta_energy,
+            delta_state=args.headline_delta_state,
+            delta_redundant=args.headline_delta_redundant,
+            temperature=args.headline_temperature,
+            max_settling_iter=args.headline_max_settling_iter,
+        )
+        geometry = audit_snapshot(
+            snapshot_path=snapshots[0],
+            device=args.device,
+            beta_preflight=False,
+            betas=betas,
+            n_cue_probes=args.n_cue_probes,
+            preflight_seed=args.preflight_seed,
+        )
+        out_doc = {"geometry": geometry, "cue_regime_sweep": sweep}
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        with open(args.output, "w") as f:
+            json.dump(out_doc, f, indent=2)
+        print(f"[done] wrote {args.output}")
+        return
 
     # Headline β sweep is a separate output shape (per-β aggregates) so
     # we branch the writer here. The standard audit_snapshot loop still
