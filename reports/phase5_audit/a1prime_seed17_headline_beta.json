@@ -1,0 +1,242 @@
+{
+  "geometry": {
+    "snapshot": "reports/phase5_a1prime_pilot_seed17/snapshots/phase3_phase4_w4_step1800.pt",
+    "label": "phase3_phase4_w4_step1800",
+    "n_atoms": 1064,
+    "dim": 4096,
+    "coverage_lambda": 1.0,
+    "epsilon": 0.05,
+    "tau": 0.02,
+    "effective_strength": {
+      "min": 0.02510995976626873,
+      "median": 0.02510995976626873,
+      "mean": 0.025221828371286392,
+      "max": 0.058640602976083755,
+      "std": 0.0011413637548685074
+    },
+    "n_below_epsilon": 1063,
+    "n_above_epsilon": 1,
+    "retrieval_weight_bias": {
+      "min": 0.5002841353416443,
+      "median": 1.497658133506775,
+      "mean": 1.4936591386795044,
+      "max": 1.497658133506775,
+      "std": 0.035949643701314926
+    },
+    "bias_cv": 0.024068171090960447,
+    "n_bias_ge_1": 1063,
+    "n_bias_ge_0p5": 1064,
+    "step3_shift_invariant_likely": true
+  },
+  "headline_beta_sweep": {
+    "snapshot": "reports/phase5_a1prime_pilot_seed17/snapshots/phase3_phase4_w4_step1800.pt",
+    "label": "phase3_phase4_w4_step1800",
+    "n_atoms": 1064,
+    "dim": 4096,
+    "coverage_lambda": 1.0,
+    "step3_bias_active": true,
+    "config": {
+      "n_cues": 30,
+      "k_main": 4,
+      "gamma": 0.5,
+      "binding_noise_std": 0.05,
+      "content_distortion": 0.6,
+      "formulation": "per_pattern",
+      "cue_seed": 117,
+      "betas": [
+        1.0,
+        3.0,
+        5.0,
+        10.0,
+        30.0
+      ]
+    },
+    "by_beta": {
+      "beta_1": {
+        "n_cues": 30,
+        "delta_e_raw_mean": 0.0,
+        "delta_e_raw_frac_positive": 0.0,
+        "delta_e_step3_mean": 0.0,
+        "delta_e_step3_frac_positive": 0.0,
+        "per_condition_mean_e_min_raw": {
+          "role": -7.403166707356771,
+          "content": -7.403166707356771,
+          "random": -7.403166707356771
+        },
+        "per_condition_mean_e_min_step3": {
+          "role": -5.9125219821929935,
+          "content": -5.9125219821929935,
+          "random": -5.9125219821929935
+        },
+        "per_condition_mean_softmax_entropy": {
+          "role": 0.693147087097168,
+          "content": 0.6931470811367035,
+          "random": 0.6931470811367035
+        },
+        "per_condition_mean_max_w_proxy": {
+          "role": 0.8931288301944733,
+          "content": 0.8931283096472422,
+          "random": 0.8931292812029521
+        },
+        "per_condition_mean_state_divergence": {
+          "role": 0.0018765270709991456,
+          "content": 0.001876389980316162,
+          "random": 0.0018766383330027262
+        },
+        "energy_ordering_low_to_high_raw": [
+          "role",
+          "content",
+          "random"
+        ]
+      },
+      "beta_3": {
+        "n_cues": 30,
+        "delta_e_raw_mean": 0.0,
+        "delta_e_raw_frac_positive": 0.0,
+        "delta_e_step3_mean": 0.0,
+        "delta_e_step3_frac_positive": 0.0,
+        "per_condition_mean_e_min_raw": {
+          "role": -2.787489382425944,
+          "content": -2.787489382425944,
+          "random": -2.787489382425944
+        },
+        "per_condition_mean_e_min_step3": {
+          "role": -2.2944618542989095,
+          "content": -2.2944618542989095,
+          "random": -2.2944618542989095
+        },
+        "per_condition_mean_softmax_entropy": {
+          "role": 0.6931471824645996,
+          "content": 0.6931471824645996,
+          "random": 0.6931471824645996
+        },
+        "per_condition_mean_max_w_proxy": {
+          "role": 0.9878582298755646,
+          "content": 0.9878582755724589,
+          "random": 0.9878582417964935
+        },
+        "per_condition_mean_state_divergence": {
+          "role": 0.00014054179191589356,
+          "content": 0.0001405477523803711,
+          "random": 0.00014054576555887858
+        },
+        "energy_ordering_low_to_high_raw": [
+          "role",
+          "content",
+          "random"
+        ]
+      },
+      "beta_5": {
+        "n_cues": 30,
+        "delta_e_raw_mean": 0.0,
+        "delta_e_raw_frac_positive": 0.0,
+        "delta_e_step3_mean": 0.0,
+        "delta_e_step3_frac_positive": 0.0,
+        "per_condition_mean_e_min_raw": {
+          "role": -1.916398294766744,
+          "content": -1.916398294766744,
+          "random": -1.916398294766744
+        },
+        "per_condition_mean_e_min_step3": {
+          "role": -1.6241098403930665,
+          "content": -1.6241098403930665,
+          "random": -1.6241098403930665
+        },
+        "per_condition_mean_softmax_entropy": {
+          "role": 0.693140310049057,
+          "content": 0.693140310049057,
+          "random": 0.693140310049057
+        },
+        "per_condition_mean_max_w_proxy": {
+          "role": 0.9882581889629364,
+          "content": 0.9882581929365793,
+          "random": 0.9882581810156504
+        },
+        "per_condition_mean_state_divergence": {
+          "role": 0.00943029522895813,
+          "content": 0.009430283308029174,
+          "random": 0.009430277347564697
+        },
+        "energy_ordering_low_to_high_raw": [
+          "role",
+          "content",
+          "random"
+        ]
+      },
+      "beta_10": {
+        "n_cues": 30,
+        "delta_e_raw_mean": 0.0,
+        "delta_e_raw_frac_positive": 0.0,
+        "delta_e_step3_mean": 0.0,
+        "delta_e_step3_frac_positive": 0.0,
+        "per_condition_mean_e_min_raw": {
+          "role": -1.3423468629519144,
+          "content": -1.3423468629519144,
+          "random": -1.3423468669255574
+        },
+        "per_condition_mean_e_min_step3": {
+          "role": -1.1976530353228252,
+          "content": -1.1976530353228252,
+          "random": -1.1976530432701111
+        },
+        "per_condition_mean_softmax_entropy": {
+          "role": 0.6930718958377838,
+          "content": 0.6930718958377838,
+          "random": 0.6930718958377838
+        },
+        "per_condition_mean_max_w_proxy": {
+          "role": 0.9870030820369721,
+          "content": 0.9870030879974365,
+          "random": 0.987003097931544
+        },
+        "per_condition_mean_state_divergence": {
+          "role": 0.02017995019753774,
+          "content": 0.020179956158002218,
+          "random": 0.020179959138234456
+        },
+        "energy_ordering_low_to_high_raw": [
+          "random",
+          "role",
+          "content"
+        ]
+      },
+      "beta_30": {
+        "n_cues": 30,
+        "delta_e_raw_mean": 0.0,
+        "delta_e_raw_frac_positive": 0.0,
+        "delta_e_step3_mean": 0.0,
+        "delta_e_step3_frac_positive": 0.0,
+        "per_condition_mean_e_min_raw": {
+          "role": -1.0164674162864684,
+          "content": -1.0164674162864684,
+          "random": -1.0164674162864684
+        },
+        "per_condition_mean_e_min_step3": {
+          "role": -0.9669057726860046,
+          "content": -0.9669057726860046,
+          "random": -0.9669057726860046
+        },
+        "per_condition_mean_softmax_entropy": {
+          "role": 0.6931471824645996,
+          "content": 0.6931471824645996,
+          "random": 0.6931471824645996
+        },
+        "per_condition_mean_max_w_proxy": {
+          "role": 0.9999963541825613,
+          "content": 0.9999963541825613,
+          "random": 0.9999963541825613
+        },
+        "per_condition_mean_state_divergence": {
+          "role": -1.1920928955078126e-08,
+          "content": -1.1920928955078126e-08,
+          "random": -1.1920928955078126e-08
+        },
+        "energy_ordering_low_to_high_raw": [
+          "role",
+          "content",
+          "random"
+        ]
+      }
+    }
+  }
+}

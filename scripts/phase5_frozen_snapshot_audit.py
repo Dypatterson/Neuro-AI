@@ -263,6 +263,222 @@ def audit_snapshot(
     return record
 
 
+def _run_headline_beta_sweep(
+    *,
+    snapshot_path: Path,
+    device: str,
+    betas: List[float],
+    n_cues: int,
+    k_main: int,
+    gamma: float,
+    binding_noise_std: float,
+    content_distortion: float,
+    formulation: str,
+    cue_seed: int,
+    delta_energy: float,
+    delta_state: float,
+    delta_redundant: float,
+    temperature: float,
+    max_settling_iter: int,
+) -> Dict[str, Any]:
+    """Headline-cue β sweep: for each β, run the role/content/random
+    triplet from experiments/40's headline mode and report paired ΔE
+    (raw + step3) plus drill-downs.
+
+    Uses experiments/40's own cue builder, schema selector, and
+    `run_branched_retrieval`, so the sweep is on the same code path as
+    the production headline run — only β is varied.
+
+    Distinct from the random-cue β preflight: that one probes substrate
+    response geometry from random off-substrate cues; this one probes
+    the cued retrieval landscape using the exact cue distribution the
+    headline reports against.
+
+    No retuning, no graduation claim, no winner-cell selection.
+    """
+    mem, cons, patterns, positions, info = _exp40._load_substrate_from_snapshot(
+        path=str(snapshot_path), device=device,
+    )
+    if positions is None:
+        raise SystemExit(
+            f"snapshot {snapshot_path} has no positions; "
+            "headline β sweep requires position vectors (re-save with "
+            "--snapshot-steps positions support)."
+        )
+
+    # Build cues once. The cue_seed defaults to args.seed + 100 in
+    # experiments/40 main() — we mirror that convention for parity.
+    cue_specs = _exp40._build_role_binding_cues(
+        substrate=mem.substrate,
+        positions=positions,
+        patterns=patterns,
+        n_cues=n_cues,
+        binding_noise_std=binding_noise_std,
+        content_distortion=content_distortion,
+        seed=cue_seed,
+    )
+
+    # Schema store: top-k by effective_strength (same selector as headline).
+    schema_store, atom_idx = _exp40.get_schema_store(
+        consolidation=cons, patterns=mem._pattern_matrix(),
+        selection_rule="top_k_by_effective_strength",
+        k=min(8, len(patterns)),
+    )
+    schema_bindings = _exp40.compute_schema_bindings(
+        substrate=mem.substrate, schemas=schema_store, positions=positions,
+    )
+
+    step3_bias = (
+        cons.retrieval_weight_bias()
+        if cons.config.coverage_lambda > 0.0 else None
+    )
+
+    # The three conditions per β (headline core triplet). γ=0 controls
+    # and fid_* conditions are skipped for this sweep — adds noise to
+    # the β-axis signal we're trying to read. The fixed K_main is used
+    # for all three; this matches the production K4 cell.
+    condition_specs = [
+        ("role", "role"),
+        ("content", "content"),
+        ("random", "random"),
+    ]
+
+    # Per-β results.
+    results: Dict[str, Any] = {}
+    # RNGs identical across β so each cue's random_K branch uses the
+    # same sample at every β — keeps "random" interpretable as a per-β
+    # control rather than a per-β fresh sample.
+    boltzmann_rng = torch.Generator().manual_seed(13)
+    random_prior_rng = torch.Generator().manual_seed(29)
+
+    for beta in betas:
+        # Reset RNGs each β so the random-prior samples reproduce.
+        boltzmann_rng.manual_seed(13)
+        random_prior_rng.manual_seed(29)
+
+        per_condition: Dict[str, Dict[str, List[float]]] = {
+            name: {
+                "e_min_raw": [], "e_min_step3": [],
+                "softmax_entropy": [],
+                "max_w_proxy": [],   # max sim on substrate of q_settled — close to max_w under sharp dynamics
+                "state_divergence": [],
+            } for name, _ in condition_specs
+        }
+
+        for spec in cue_specs:
+            for name, prior_type in condition_specs:
+                res = _exp40.run_branched_retrieval(
+                    cue=spec["cue"], cue_id=0, target_id=spec["role_target_idx"],
+                    memory=mem, codebook=mem._pattern_matrix(), positions=positions,
+                    decode_ids=[], decode_k=5, masked_pos=0,
+                    schema_store=schema_store, schema_atom_idx=atom_idx,
+                    consolidation=cons, prior_type=prior_type, k_main=k_main,
+                    gamma=gamma, beta=beta, temperature=temperature,
+                    delta_energy=delta_energy, delta_state=delta_state,
+                    delta_redundant=delta_redundant,
+                    formulation=formulation,
+                    cue_bindings=spec["cue_bindings"],
+                    schema_bindings=schema_bindings,
+                    include_surprise_branch=False,
+                    max_settling_iter=max_settling_iter,
+                    boltzmann_rng=boltzmann_rng,
+                    random_prior_rng=random_prior_rng,
+                    score_bias=step3_bias,
+                )
+                if not res.branches:
+                    continue
+                bs = res.branches
+                e_raw = min(b.energy_unbiased for b in bs)
+                e_step3 = min(b.energy_unbiased_step3 for b in bs)
+                nb = len(bs)
+                per_condition[name]["e_min_raw"].append(e_raw)
+                per_condition[name]["e_min_step3"].append(e_step3)
+                per_condition[name]["softmax_entropy"].append(
+                    float(res.softmax_entropy)
+                )
+                per_condition[name]["max_w_proxy"].append(
+                    max(
+                        float(mem.substrate.similarity(b.q_settled, p))
+                        for b in bs for p in patterns
+                    )
+                )
+                per_condition[name]["state_divergence"].append(
+                    sum(b.final_state_divergence for b in bs) / nb
+                )
+
+        def _mean(xs: List[float]) -> float:
+            return sum(xs) / len(xs) if xs else float("nan")
+
+        # Paired ΔE = E_content - E_role (positive = role found lower energy).
+        c_raw = per_condition["content"]["e_min_raw"]
+        r_raw = per_condition["role"]["e_min_raw"]
+        c_s3 = per_condition["content"]["e_min_step3"]
+        r_s3 = per_condition["role"]["e_min_step3"]
+        if c_raw and r_raw and len(c_raw) == len(r_raw):
+            per_cue_dE_raw = [c - r for c, r in zip(c_raw, r_raw)]
+            per_cue_dE_step3 = [c - r for c, r in zip(c_s3, r_s3)]
+        else:
+            per_cue_dE_raw = []
+            per_cue_dE_step3 = []
+
+        def _frac_pos(xs: List[float]) -> float:
+            return sum(1 for x in xs if x > 0) / len(xs) if xs else float("nan")
+
+        # Ordering: rank role / content / random by mean min-energy.
+        ordering_raw = sorted(
+            ["role", "content", "random"],
+            key=lambda k: _mean(per_condition[k]["e_min_raw"]),
+        )
+
+        results[f"beta_{beta:g}"] = {
+            "n_cues": len(per_cue_dE_raw),
+            "delta_e_raw_mean": _mean(per_cue_dE_raw),
+            "delta_e_raw_frac_positive": _frac_pos(per_cue_dE_raw),
+            "delta_e_step3_mean": _mean(per_cue_dE_step3),
+            "delta_e_step3_frac_positive": _frac_pos(per_cue_dE_step3),
+            "per_condition_mean_e_min_raw": {
+                k: _mean(v["e_min_raw"]) for k, v in per_condition.items()
+            },
+            "per_condition_mean_e_min_step3": {
+                k: _mean(v["e_min_step3"]) for k, v in per_condition.items()
+            },
+            "per_condition_mean_softmax_entropy": {
+                k: _mean(v["softmax_entropy"]) for k, v in per_condition.items()
+            },
+            "per_condition_mean_max_w_proxy": {
+                k: _mean(v["max_w_proxy"]) for k, v in per_condition.items()
+            },
+            "per_condition_mean_state_divergence": {
+                k: _mean(v["state_divergence"]) for k, v in per_condition.items()
+            },
+            # Ordering low-to-high energy. The headline-intuitive ordering
+            # is role < content < random (role-prior finds the lowest
+            # energy state; random-prior finds the highest). Deviations
+            # are themselves a diagnostic.
+            "energy_ordering_low_to_high_raw": ordering_raw,
+        }
+
+    return {
+        "snapshot": str(snapshot_path),
+        "label": info.get("label"),
+        "n_atoms": len(patterns),
+        "dim": int(mem.substrate.dim),
+        "coverage_lambda": float(cons.config.coverage_lambda),
+        "step3_bias_active": step3_bias is not None,
+        "config": {
+            "n_cues": n_cues,
+            "k_main": k_main,
+            "gamma": gamma,
+            "binding_noise_std": binding_noise_std,
+            "content_distortion": content_distortion,
+            "formulation": formulation,
+            "cue_seed": cue_seed,
+            "betas": betas,
+        },
+        "by_beta": results,
+    }
+
+
 def _flatten_for_csv(record: Dict[str, Any], parent: str = "") -> Dict[str, Any]:
     """One-level flatten of nested dicts: {a: {b: 1}} → {a.b: 1}."""
     out: Dict[str, Any] = {}
@@ -300,8 +516,38 @@ def main() -> None:
                         help="Also write a flattened CSV next to the JSON.")
     parser.add_argument("--device", default="cpu", choices=["cpu", "mps", "cuda"])
     parser.add_argument("--beta-preflight", action="store_true",
-                        help="Run the β-sweep softmax sharpness probe "
-                        "(~30s per snapshot at D=4096).")
+                        help="Run the random-cue β-sweep softmax sharpness "
+                        "probe (~30s per snapshot at D=4096). Tests "
+                        "substrate response geometry from off-substrate cues.")
+    parser.add_argument(
+        "--headline-beta-sweep", action="store_true",
+        help="Run the headline-cue β sweep. Builds role-binding cues "
+        "with experiments/40's _build_role_binding_cues and runs the "
+        "role/content/random triplet through run_branched_retrieval at "
+        "each β. Single-snapshot only (use with --snapshot). "
+        "Distinct from --beta-preflight: cued retrievals vs random probes.",
+    )
+    parser.add_argument("--headline-n-cues", type=int, default=50,
+                        help="Cue count for --headline-beta-sweep.")
+    parser.add_argument("--headline-k-main", type=int, default=4,
+                        help="K_main for headline β sweep.")
+    parser.add_argument("--headline-gamma", type=float, default=0.5)
+    parser.add_argument("--binding-noise-std", type=float, default=0.05,
+                        help="Matches experiments/40 default.")
+    parser.add_argument("--content-distortion", type=float, default=0.6,
+                        help="Matches experiments/40 default.")
+    parser.add_argument("--headline-formulation", type=str,
+                        default="per_pattern",
+                        choices=["per_pattern", "global_pull"])
+    parser.add_argument("--headline-cue-seed", type=int, default=117,
+                        help="Cue-builder seed. experiments/40 uses "
+                        "args.seed + 100 (= 117 for seed 17) — match it "
+                        "for cue distribution parity.")
+    parser.add_argument("--headline-temperature", type=float, default=1.0)
+    parser.add_argument("--headline-delta-energy", type=float, default=0.1)
+    parser.add_argument("--headline-delta-state", type=float, default=0.3)
+    parser.add_argument("--headline-delta-redundant", type=float, default=0.95)
+    parser.add_argument("--headline-max-settling-iter", type=int, default=12)
     parser.add_argument("--betas", type=str, default="1,3,5,10,30",
                         help="Comma-separated β values for preflight.")
     parser.add_argument("--n-cue-probes", type=int, default=4,
@@ -309,6 +555,11 @@ def main() -> None:
     parser.add_argument("--preflight-seed", type=int, default=17,
                         help="RNG seed for the preflight's random cues.")
     args = parser.parse_args()
+
+    if args.headline_beta_sweep and args.snapshot is None:
+        raise SystemExit(
+            "--headline-beta-sweep requires --snapshot (single-snapshot mode)"
+        )
 
     if args.snapshot is not None:
         snapshots = [args.snapshot]
@@ -321,6 +572,46 @@ def main() -> None:
             snapshots = [Path(line.strip()) for line in f if line.strip()]
 
     betas = [float(b) for b in args.betas.split(",") if b.strip()]
+
+    # Headline β sweep is a separate output shape (per-β aggregates) so
+    # we branch the writer here. The standard audit_snapshot loop still
+    # runs underneath when --headline-beta-sweep is set, so the geometry
+    # measurements travel with the sweep results.
+    if args.headline_beta_sweep:
+        print(f"[headline β sweep] {snapshots[0]}", flush=True)
+        sweep = _run_headline_beta_sweep(
+            snapshot_path=snapshots[0],
+            device=args.device,
+            betas=betas,
+            n_cues=args.headline_n_cues,
+            k_main=args.headline_k_main,
+            gamma=args.headline_gamma,
+            binding_noise_std=args.binding_noise_std,
+            content_distortion=args.content_distortion,
+            formulation=args.headline_formulation,
+            cue_seed=args.headline_cue_seed,
+            delta_energy=args.headline_delta_energy,
+            delta_state=args.headline_delta_state,
+            delta_redundant=args.headline_delta_redundant,
+            temperature=args.headline_temperature,
+            max_settling_iter=args.headline_max_settling_iter,
+        )
+        # Also include the standard geometry audit for context.
+        geometry = audit_snapshot(
+            snapshot_path=snapshots[0],
+            device=args.device,
+            beta_preflight=args.beta_preflight,
+            betas=betas,
+            n_cue_probes=args.n_cue_probes,
+            preflight_seed=args.preflight_seed,
+        )
+        out_doc = {"geometry": geometry, "headline_beta_sweep": sweep}
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        with open(args.output, "w") as f:
+            json.dump(out_doc, f, indent=2)
+        print(f"[done] wrote {args.output}")
+        return
+
     records: List[Dict[str, Any]] = []
     for path in snapshots:
         print(f"[audit] {path}", flush=True)
