@@ -178,7 +178,7 @@ file specifies how cap-coverage is calculated for this project).
 ## Environment
 
 - Python: `.venv/bin/python` (has torch, MPS available)
-- Set `PYTHONPATH=/Users/dypatterson/Desktop/Neuro-AI/src` for imports
+- Set `PYTHONPATH="$(pwd)/src"` for imports (worktree-relative — works from either the `Neuro-AI-main/` worktree or the `Neuro-AI/` product-branch worktree without crossover)
 - Run tests: `PYTHONPATH=src .venv/bin/python -m unittest tests.<module> -v`
 - Heavy artifacts (`*.pt` files >50MB) are gitignored — don't try to commit them
 

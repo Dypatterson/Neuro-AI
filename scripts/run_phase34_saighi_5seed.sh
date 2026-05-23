@@ -3,8 +3,8 @@
 # Verification of report 034's seed-1 result across the canonical seed set.
 # See STATUS.md blocker #2 and reports/034_saighi_ak_seed1_prototype.md.
 set -u
-cd /Users/dypatterson/Desktop/Neuro-AI
-export PYTHONPATH=/Users/dypatterson/Desktop/Neuro-AI/src
+cd "$(git rev-parse --show-toplevel)"
+export PYTHONPATH="$(pwd)/src"
 
 SEEDS=(17 11 23 1 2)
 LOG_ROOT=reports/phase34_saighi_5seed
