@@ -568,6 +568,7 @@ def settle_branch_with_prior(
     telemetry : dict
       score_entropy_initial, score_entropy_final   (UNBIASED softmax, comparable)
       converged, iterations,
+      energy_unbiased_initial                      (raw scoring energy at cue)
       energy_unbiased_final                        (the scoring energy)
       energy_biased_final                          (the dynamics' Lyapunov value at q*)
       on_substrate_alignment                       (max sim(q*, X_i) — the
@@ -609,6 +610,9 @@ def settle_branch_with_prior(
     init_scores = substrate.similarity_matrix(state, patterns)
     init_weights_unbiased = torch.softmax(beta * init_scores, dim=0)
     score_entropy_initial = _softmax_entropy(init_weights_unbiased)
+    energy_unbiased_initial = float(
+        (-torch.logsumexp(beta * init_scores, dim=0) / beta).detach().cpu()
+    )
 
     prev_biased_energy: Optional[torch.Tensor] = None
     final_state = state
@@ -693,6 +697,7 @@ def settle_branch_with_prior(
         "score_entropy_final": score_entropy_final,
         "converged": converged,
         "iterations": len(biased_energies),
+        "energy_unbiased_initial": energy_unbiased_initial,
         "energy_unbiased_final": energy_unbiased_final,
         "energy_unbiased_step3_final": energy_unbiased_step3_final,
         "energy_biased_final": energy_biased_final,
@@ -782,7 +787,13 @@ def compute_branch_diagnostics(
     prior = branch.prior.to(substrate.device)
 
     # Energy fields ---------------------------------------------------------
-    branch.energy_unbiased = _unbiased_energy(memory, q_star, beta)
+    if (
+        settling_telemetry is not None
+        and "energy_unbiased_final" in settling_telemetry
+    ):
+        branch.energy_unbiased = float(settling_telemetry["energy_unbiased_final"])
+    else:
+        branch.energy_unbiased = _unbiased_energy(memory, q_star, beta)
     # Step-3-weighted energy: equals energy_unbiased when score_bias is None.
     # Prefer settling_telemetry's value (computed during the dynamics) over
     # a fresh recomputation when available, to keep the dynamics-and-readout
@@ -801,7 +812,14 @@ def compute_branch_diagnostics(
     else:
         q_prior_inner = float((q_star.conj() * prior).sum().real.detach().cpu())
         branch.energy_biased = branch.energy_unbiased - gamma * q_prior_inner
-    branch.energy_drop = _unbiased_energy(memory, q_init, beta) - branch.energy_unbiased
+    if (
+        settling_telemetry is not None
+        and "energy_unbiased_initial" in settling_telemetry
+    ):
+        energy_unbiased_initial = float(settling_telemetry["energy_unbiased_initial"])
+    else:
+        energy_unbiased_initial = _unbiased_energy(memory, q_init, beta)
+    branch.energy_drop = energy_unbiased_initial - branch.energy_unbiased
 
     # Prior alignment -------------------------------------------------------
     q_norm = float(q_star.norm().detach().cpu())
@@ -1062,6 +1080,7 @@ def run_branched_retrieval(
     boltzmann_rng: Optional[torch.Generator] = None,
     random_prior_rng: Optional[torch.Generator] = None,
     score_bias: Optional[torch.Tensor] = None,
+    run_combiners: bool = True,
 ) -> BranchedRetrievalResult:
     """One full branched retrieval over a single cue.
 
@@ -1074,6 +1093,10 @@ def run_branched_retrieval(
       5. Run all three combination rules: bundle-resettle (preferred),
          greedy-argmin (baseline), Boltzmann (FEP-clean comparison).
       6. Compute atom-split signal.
+
+    ``run_combiners=False`` is a measurement-only fast path for K=1
+    drill-down sweeps that consume per-branch energies and basin readouts
+    but do not interpret the combined retrieval state.
 
     Anti-homunculus: selection (which q* is the "answer") flows through
     the bundle-resettle combiner — energy-weighted sum + unbiased
@@ -1151,7 +1174,7 @@ def run_branched_retrieval(
     compute_pairwise_final_state_divergence(branches)
 
     # --- Step 5: all three combination rules ----------------------------
-    if branches:
+    if branches and run_combiners:
         q_bundle, weights, _conv = combine_bundle_resettle(
             branches=branches, memory=memory, beta=beta,
             temperature=temperature, max_iter=max_settling_iter,
@@ -1168,6 +1191,10 @@ def run_branched_retrieval(
             branches, temperature=temperature, rng=boltzmann_rng,
         )
         result.q_boltzmann = q_boltz
+    elif branches:
+        weights = _branch_softmax_weights(branches, temperature)
+        result.softmax_weights = weights.detach().cpu().tolist()
+        result.softmax_entropy = _softmax_entropy(weights)
 
     # --- Step 6: atom-split signal --------------------------------------
     ok, n_low, max_dist = atom_split_signal(

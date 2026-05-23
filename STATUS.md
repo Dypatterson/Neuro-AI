@@ -26,20 +26,34 @@ pilot instructions.
 
 1. **First Colab cell:** profile one cue-regime cell on CUDA: seed 17,
    `binding_noise_std=0.05`, `content_distortion=0.0`, `n_cues=100`,
-   fixed `β=10`, `γ=0.5`, `K=1`.
-2. **If the profile cell takes >30 sec:** optimize the harness before a
-   full sweep. Inspect the known hot spots first: redundant
-   `_unbiased_energy` calls in `compute_branch_diagnostics`, repeated
-   `similarity_matrix` calls in basin diagnostics, and opportunities to
-   batch similarity work.
-3. **If the profile cell is fast but parallel workers stall:** run the
+   fixed `β=10`, `γ=0.5`, `K=1`. The harness optimizations from
+   commits-after-19132e9 (telemetry-cached energies in
+   `compute_branch_diagnostics`, shared `similarity_matrix` for basin
+   diagnostics + `max_w_proxy`, K=1 skips `combine_bundle_resettle`)
+   should make this fast on CUDA; if it still exceeds 30 sec, the
+   bottleneck is upstream (substrate construction or Colab GPU class),
+   not the diagnostics path that was already addressed.
+2. **If the profile cell is fast but parallel workers stall:** run the
    cross-seed sweep one seed at a time. Each finished seed writes JSON
    under `/content`, validates `cue_regime_sweep.cells`, then publishes
    the completed `seed{N}.json` to Drive. Resume checks Drive final
    files only, not local runtime state.
-4. **If sequential Colab still fails:** stop. Harness/runtime
+3. **If sequential Colab still fails:** stop. Harness/runtime
    reliability is the blocker, and partial cue-regime numbers are not
    interpretable evidence.
+
+**K=1 basin-diagnostic semantics note:** the harness optimizations land
+`bs[0].q_settled` (not the unbiased re-settled `q_bundle`) as the basin
+diagnostic's measurement target for K=1. These are bit-identical
+*because* the cue-regime sweep targets sharp self-retrieving basin
+substrates where biased fixed points are already unbiased fixed points
+— the same substrate-saturation property responsible for the magnitude-
+floor failure in reports 050–057. A regression test in
+`tests/test_phase5_branching.py::test_k1_q_settled_equiv_q_bundle_on_sharp_basin_substrate`
+pins this equivalence; if a future substrate change (e.g., lower-D
+redesign per option 1) breaks the sharp-basin assumption, the test
+catches the silent semantic divergence before sweep results are
+interpreted.
 
 **Sweep scope is locked:** fixed `β=10`, `γ=0.5`, `K=1`, with the
 listed `binding_noise_std × content_distortion` grid

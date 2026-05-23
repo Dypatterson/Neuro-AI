@@ -946,6 +946,25 @@ class TestSettleBranchWithPrior(unittest.TestCase):
                 beta=10.0, gamma=0.5, max_iter=4, formulation="schemaforcing",
             )
 
+    def test_telemetry_energy_unbiased_initial_matches_unbiased_energy(self):
+        """Producer-side pin: settle_branch_with_prior must record an
+        energy_unbiased_initial value equal to _unbiased_energy(memory, cue,
+        beta) within FP tolerance. The diagnostics fast path reads this
+        instead of recomputing it, so the values must agree.
+        """
+        mod = _import_module()
+        mem, patterns = self._build_memory(n=6, d=64, seed=11)
+        cue = mem.substrate.normalize(
+            patterns[2] + 0.1 * torch.randn(64, dtype=torch.complex64)
+        )
+        _, telem = mod.settle_branch_with_prior(
+            memory=mem, cue=cue, prior=patterns[0],
+            beta=10.0, gamma=0.5, max_iter=12, formulation="per_pattern",
+        )
+        self.assertIn("energy_unbiased_initial", telem)
+        recomputed = mod._unbiased_energy(mem, cue, 10.0)
+        self.assertAlmostEqual(telem["energy_unbiased_initial"], recomputed, places=5)
+
 
 @unittest.skipIf(torch is None, "torch required")
 class TestComputeBranchDiagnostics(unittest.TestCase):
@@ -1119,6 +1138,37 @@ class TestComputeBranchDiagnostics(unittest.TestCase):
         self.assertAlmostEqual(
             b.energy_unbiased, telem["energy_unbiased_final"], places=5,
         )
+
+    def test_diagnostics_reuse_settling_energy_telemetry(self):
+        """Diagnostics should not recompute energies already measured
+        during settling; cue-regime profiling pays this cost per branch."""
+        mod = _import_module()
+        mem, patterns = self._build_memory(n=4, d=32, seed=7)
+        cue = patterns[0]
+        prior = torch.zeros(32, dtype=torch.complex64)
+        b = self._branch(q_init=cue, q_settled=patterns[1], prior=prior)
+        telem = {
+            "energy_unbiased_initial": 4.0,
+            "energy_unbiased_final": 1.5,
+            "energy_unbiased_step3_final": 1.25,
+            "energy_biased_final": 1.0,
+            "score_entropy_initial": 2.0,
+            "score_entropy_final": 0.5,
+            "converged": True,
+        }
+        mod.compute_branch_diagnostics(
+            branch=b, memory=mem, cue=cue, beta=10.0, gamma=0.0,
+            target_id=None, codebook=None, positions=None,
+            decode_ids=[], decode_k=5, masked_pos=0,
+            settling_telemetry=telem,
+        )
+        self.assertEqual(b.energy_unbiased, 1.5)
+        self.assertEqual(b.energy_unbiased_step3, 1.25)
+        self.assertEqual(b.energy_biased, 1.0)
+        self.assertEqual(b.energy_drop, 2.5)
+        self.assertEqual(b.score_entropy_initial, 2.0)
+        self.assertEqual(b.score_entropy_final, 0.5)
+        self.assertTrue(b.converged)
 
     def test_structural_match_uses_role_decomposition(self):
         """Build q* such that unbinding position 0 yields cue_bindings[0]
@@ -1479,6 +1529,74 @@ class TestRunBranchedRetrievalIntegration(unittest.TestCase):
         # The bundle is one branch re-settled (still unbiased) → same attractor.
         sim_bundle_baseline = float(mem.substrate.similarity(result.q_bundle, baseline.state))
         self.assertGreater(sim_bundle_baseline, 0.99)
+
+    def test_k1_q_settled_equiv_q_bundle_on_sharp_basin_substrate(self):
+        """The cue-regime-sweep optimization reads basin diagnostics off
+        branches[0].q_settled instead of q_bundle for K=1. This is bit-
+        identical only when q_settled is already a fixed point of the
+        unbiased dynamics — which holds on sharp self-retrieving basin
+        substrates (the substrate-saturation regime the sweep targets).
+        If a future substrate change breaks this property, this test
+        catches the silent semantic divergence.
+        """
+        mod = _import_module()
+        mem, cons, patterns = self._build(n_atoms=6, d=64, seed=42)
+        schema_store, atom_idx = mod.get_schema_store(
+            consolidation=cons, patterns=mem._pattern_matrix(),
+            selection_rule="top_k_by_effective_strength", k=5,
+        )
+        cue = mem.substrate.normalize(
+            patterns[2] + 0.15 * torch.randn(64, dtype=torch.complex64)
+        )
+        result = mod.run_branched_retrieval(
+            cue=cue, cue_id=0, target_id=None,
+            memory=mem, codebook=mem._pattern_matrix(), positions=None,
+            decode_ids=[], decode_k=5, masked_pos=0,
+            schema_store=schema_store, schema_atom_idx=atom_idx,
+            consolidation=cons, prior_type="content", k_main=1,
+            gamma=0.5, beta=10.0, temperature=1.0,
+            delta_energy=0.1, delta_state=0.3, delta_redundant=0.95,
+            include_surprise_branch=False, run_combiners=True,
+        )
+        self.assertEqual(len(result.branches), 1)
+        self.assertIsNotNone(result.q_bundle)
+        # q_bundle is settle(normalize(q_settled), γ=0). On a sharp-basin
+        # substrate where q_settled is already an unbiased fixed point,
+        # these match to FP precision; their basin diagnostics agree.
+        q_settled = result.branches[0].q_settled
+        q_bundle = result.q_bundle
+        sim = float(mem.substrate.similarity(q_settled, q_bundle))
+        self.assertAlmostEqual(sim, 1.0, places=4)
+        sims_s = mem.substrate.similarity_matrix(q_settled, mem._pattern_matrix())
+        sims_b = mem.substrate.similarity_matrix(q_bundle,  mem._pattern_matrix())
+        self.assertEqual(int(sims_s.argmax()), int(sims_b.argmax()))
+
+    def test_k1_drilldown_can_skip_combiner_states(self):
+        """Measurement-only K=1 sweeps can skip bundle/greedy/Boltzmann
+        states while retaining the branch weights/entropy diagnostics."""
+        mod = _import_module()
+        mem, cons, patterns = self._build(n_atoms=6, d=64, seed=11)
+        schema_store, atom_idx = mod.get_schema_store(
+            consolidation=cons, patterns=mem._pattern_matrix(),
+            selection_rule="top_k_by_effective_strength", k=5,
+        )
+        cue = mem.substrate.normalize(patterns[2] + 0.1 * torch.randn(64, dtype=torch.complex64))
+        result = mod.run_branched_retrieval(
+            cue=cue, cue_id=0, target_id=None,
+            memory=mem, codebook=mem._pattern_matrix(), positions=None,
+            decode_ids=[], decode_k=5, masked_pos=0,
+            schema_store=schema_store, schema_atom_idx=atom_idx,
+            consolidation=cons, prior_type="content", k_main=1,
+            gamma=0.5, beta=10.0, temperature=1.0,
+            delta_energy=0.1, delta_state=0.3, delta_redundant=0.95,
+            include_surprise_branch=False, run_combiners=False,
+        )
+        self.assertEqual(len(result.branches), 1)
+        self.assertIsNone(result.q_bundle)
+        self.assertIsNone(result.q_greedy)
+        self.assertIsNone(result.q_boltzmann)
+        self.assertEqual(result.softmax_weights, [1.0])
+        self.assertAlmostEqual(result.softmax_entropy, 0.0, places=6)
 
     def test_split_eligibility_is_property_of_branches_not_combiner(self):
         """atom_split_signal is computed once from `branches`. The

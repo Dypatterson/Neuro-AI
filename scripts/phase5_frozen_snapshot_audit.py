@@ -479,30 +479,22 @@ def _run_headline_beta_sweep(
     }
 
 
-def _basin_diagnostics(
-    *, q_settled: torch.Tensor, role_target_idx: int, patterns_matrix: torch.Tensor,
-    substrate,
+def _basin_diagnostics_from_sims(
+    *, sims: torch.Tensor, role_target_idx: int,
 ) -> Dict[str, float]:
-    """Per-cue basin-membership readout.
+    """Per-cue basin-membership readout from precomputed similarities.
 
-    Computes the similarity of q_settled to every stored pattern, then
-    derives:
+    Derives:
       - role_target_basin_hit: 1.0 if argmax similarity == role_target_idx, else 0.0
       - role_target_rank: 1-indexed rank of role_target_idx in
         descending-similarity ordering (1 = top, N = worst)
-      - top_similarity: max similarity of q_settled to any pattern
+      - top_similarity: max similarity to any pattern
 
-    These read out whether the K=1 settled state landed in the role
-    target's basin — independent of the paired ΔE energy comparison.
-    Per GPT's recommendation in the cue-regime aggregator brief:
-    paired ΔE may be reading basin DEPTH (random often wins on
-    energy); basin membership reads structural correctness directly.
+    This split lets the cue-regime sweep reuse one similarity_matrix call
+    for both basin metrics and K=1 max-similarity diagnostics.
     """
-    sims = substrate.similarity_matrix(q_settled, patterns_matrix)
-    # Argmax for hit/miss.
     argmax_idx = int(sims.argmax())
     hit = 1.0 if argmax_idx == role_target_idx else 0.0
-    # Rank: 1 + (number of patterns with strictly higher sim than role-target).
     sim_role_target = float(sims[role_target_idx])
     rank = 1 + int((sims > sim_role_target).sum())
     top_sim = float(sims.max())
@@ -511,6 +503,22 @@ def _basin_diagnostics(
         "role_target_rank": float(rank),
         "top_similarity": top_sim,
     }
+
+
+def _basin_diagnostics(
+    *, q_settled: torch.Tensor, role_target_idx: int, patterns_matrix: torch.Tensor,
+    substrate,
+) -> Dict[str, float]:
+    """Per-cue basin-membership readout.
+
+    Computes the similarity of q_settled to every stored pattern, then
+    reads out whether the K=1 settled state landed in the role target's
+    basin — independent of the paired ΔE energy comparison.
+    """
+    sims = substrate.similarity_matrix(q_settled, patterns_matrix)
+    return _basin_diagnostics_from_sims(
+        sims=sims, role_target_idx=role_target_idx,
+    )
 
 
 def _run_headline_cue_regime_sweep(
@@ -627,6 +635,7 @@ def _run_headline_cue_regime_sweep(
                         boltzmann_rng=boltzmann_rng,
                         random_prior_rng=random_prior_rng,
                         score_bias=step3_bias,
+                        run_combiners=(k_main > 1),
                     )
                     if not res.branches:
                         cue_energies_raw[name] = float("nan")
@@ -641,25 +650,29 @@ def _run_headline_cue_regime_sweep(
                     per_condition[name]["softmax_entropy"].append(
                         float(res.softmax_entropy)
                     )
-                    per_condition[name]["max_w_proxy"].append(
-                        max(
+                    # Basin diagnostic: take the K=1 branch's q_settled
+                    # (or the bundle re-settle for K>1) and read off
+                    # role-target hit/rank.
+                    use_bundle = k_main > 1 and res.q_bundle is not None
+                    q_star = (
+                        res.q_bundle if use_bundle
+                        else bs[0].q_settled
+                    )
+                    q_star_sims = mem.substrate.similarity_matrix(
+                        q_star.to(mem.substrate.device), patterns_matrix,
+                    )
+                    bd = _basin_diagnostics_from_sims(
+                        sims=q_star_sims,
+                        role_target_idx=int(spec["role_target_idx"]),
+                    )
+                    max_w_proxy = (
+                        bd["top_similarity"] if len(bs) == 1 and not use_bundle
+                        else max(
                             float(mem.substrate.similarity(b.q_settled, p))
                             for b in bs for p in patterns
                         )
                     )
-                    # Basin diagnostic: take the K=1 branch's q_settled
-                    # (or the bundle re-settle for K>1) and read off
-                    # role-target hit/rank.
-                    q_star = (
-                        res.q_bundle if res.q_bundle is not None
-                        else bs[0].q_settled
-                    )
-                    bd = _basin_diagnostics(
-                        q_settled=q_star.to(mem.substrate.device),
-                        role_target_idx=int(spec["role_target_idx"]),
-                        patterns_matrix=patterns_matrix,
-                        substrate=mem.substrate,
-                    )
+                    per_condition[name]["max_w_proxy"].append(max_w_proxy)
                     per_condition[name]["role_target_basin_hit"].append(
                         bd["role_target_basin_hit"]
                     )
