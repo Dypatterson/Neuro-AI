@@ -38,7 +38,7 @@ import json
 import math
 import statistics
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 
 def _t_critical(df: int) -> float:
@@ -81,9 +81,6 @@ def _aggregate(per_seed: Dict[int, Dict[str, Any]]) -> Dict[str, Any]:
                 f"{len(these_keys)} cells (or different ordering)"
             )
 
-    floor = canonical[0].get(
-        "delta_e_over_floor", float("nan")
-    )  # used to derive floor; not used downstream — recomputed below
     magnitude_floor = 5.5e-3
 
     cells_out: List[Dict[str, Any]] = []
@@ -163,7 +160,13 @@ def _aggregate(per_seed: Dict[int, Dict[str, Any]]) -> Dict[str, Any]:
 
 
 def _render_markdown(agg: Dict[str, Any]) -> str:
-    """Markdown summary: full cell table + decision-relevant rankings."""
+    """Markdown summary: full cell table + drill-down rankings.
+
+    The cue-regime grid is diagnostic-only. Even if a cell clears the
+    magnitude floor, this renderer must not invite post-hoc headline reruns
+    under those cue settings; that would convert a sensitivity sweep into
+    retuning.
+    """
     lines: List[str] = []
     lines.append(f"# Cross-Seed Cue-Regime Sweep — n={agg['n_seeds']} seeds")
     lines.append("")
@@ -194,7 +197,7 @@ def _render_markdown(agg: Dict[str, Any]) -> str:
         )
     lines.append("")
 
-    # Decision-relevant rankings.
+    # Drill-down rankings.
     lines.append("## Top-5 cells by basin hit rate (role)")
     lines.append("")
     lines.append("| bns | cd | hit_role | mean ΔE_raw | rank_role |")
@@ -223,12 +226,12 @@ def _render_markdown(agg: Dict[str, Any]) -> str:
         )
     lines.append("")
 
-    # Decision verdict.
+    # Drill-down readout.
     best_dE = max(agg["cells"], key=lambda c: c["mean_delta_e_raw"])
     best_hit = max(agg["cells"], key=lambda c: c["mean_basin_hit_role"])
     best_rank = min(agg["cells"], key=lambda c: c["mean_rank_role"])
 
-    lines.append("## Decision flags")
+    lines.append("## Drill-down flags")
     lines.append("")
     lines.append(f"- Best ΔE cell: bns={best_dE['binding_noise_std']}, "
                  f"cd={best_dE['content_distortion']} → "
@@ -241,37 +244,50 @@ def _render_markdown(agg: Dict[str, Any]) -> str:
                  f"cd={best_rank['content_distortion']} → "
                  f"rank_role = {best_rank['mean_rank_role']:.1f}")
     lines.append("")
-    lines.append("Decision rule (informal):")
+    lines.append("How to use this drill-down:")
     lines.append("")
-    lines.append(f"- If any cell has ΔE/floor ≥ 1.0 and basin hit rate ≥ 0.3 → "
-                 f"cue operating point was the bottleneck; rerun full headline "
-                 f"at that cell.")
-    lines.append(f"- If ΔE stays sub-floor but basin hit rate improves notably "
-                 f"(say, > 0.3 anywhere) → option 3 (reformulate headline to "
-                 f"basin-membership) becomes the leading path.")
-    lines.append(f"- If basin hit rate is ~0 across ALL cells → option 1 "
-                 f"(lower-D redesign) is the cleanest path.")
+    lines.append(
+        "- No cue-regime cell, including one above the magnitude floor, "
+        "is a graduation result; a favorable cell does not graduate Phase 5 "
+        "by itself or authorize post-hoc parameter selection. This sweep is "
+        "evidence about the measurement surface."
+    )
+    lines.append(
+        "- If ΔE/floor or basin hit improves in a region of the grid, record "
+        "that as support for a successor pre-committed cue distribution or "
+        "headline reformulation, not as a winning cell."
+    )
+    lines.append(
+        "- If all cells remain sub-floor and basin hit is near zero, that "
+        "strengthens lower-D redesign and weakens basin-shape priors."
+    )
+    lines.append(
+        "- If basin hit improves while paired ΔE stays sub-floor, that "
+        "strengthens a successor metric such as role-target basin membership."
+    )
+    lines.append(
+        "- If a cell looks favorable only because random-prior pathologies "
+        "move around, keep option 4 (basin-shape priors) under suspicion; "
+        "do not advance with a sub-floor caveat unless explicitly chosen."
+    )
 
     return "\n".join(lines)
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--sweep-root", type=Path, required=True,
-        help="Directory containing per-seed JSONs named seed{N}.json.",
-    )
-    parser.add_argument(
-        "--output", type=Path, required=True,
-        help="Output aggregate JSON path. Markdown companion at <output>.md.",
-    )
-    args = parser.parse_args()
+def _parse_expected_seeds(raw: str) -> Optional[List[int]]:
+    if not raw.strip():
+        return None
+    return [int(part.strip()) for part in raw.split(",") if part.strip()]
 
-    if not args.sweep_root.is_dir():
-        raise SystemExit(f"--sweep-root not a directory: {args.sweep_root}")
 
+def _load_per_seed_sweeps(
+    sweep_root: Path,
+    *,
+    expected_seeds: Optional[List[int]] = None,
+) -> Tuple[Dict[int, Dict[str, Any]], List[int]]:
+    """Load seed*.json files, skipping non-sweep files and reporting gaps."""
     per_seed: Dict[int, Dict[str, Any]] = {}
-    for p in sorted(args.sweep_root.glob("seed*.json")):
+    for p in sorted(sweep_root.glob("seed*.json")):
         name = p.stem  # "seed17"
         try:
             seed = int(name.replace("seed", ""))
@@ -285,6 +301,39 @@ def main() -> None:
             continue
         per_seed[seed] = d["cue_regime_sweep"]
         print(f"  loaded seed {seed} ({len(per_seed[seed]['cells'])} cells)")
+
+    missing = []
+    if expected_seeds is not None:
+        missing = [s for s in expected_seeds if s not in per_seed]
+        if missing:
+            print(f"  missing expected seeds: {missing}")
+    return per_seed, missing
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--sweep-root", type=Path, required=True,
+        help="Directory containing per-seed JSONs named seed{N}.json.",
+    )
+    parser.add_argument(
+        "--output", type=Path, required=True,
+        help="Output aggregate JSON path. Markdown companion at <output>.md.",
+    )
+    parser.add_argument(
+        "--expected-seeds", default="",
+        help="Optional comma-separated seed list. Missing seeds are reported "
+             "but are not fatal, so partial Colab runs can still aggregate.",
+    )
+    args = parser.parse_args()
+
+    if not args.sweep_root.is_dir():
+        raise SystemExit(f"--sweep-root not a directory: {args.sweep_root}")
+
+    per_seed, _missing = _load_per_seed_sweeps(
+        args.sweep_root,
+        expected_seeds=_parse_expected_seeds(args.expected_seeds),
+    )
 
     agg = _aggregate(per_seed)
     args.output.parent.mkdir(parents=True, exist_ok=True)
