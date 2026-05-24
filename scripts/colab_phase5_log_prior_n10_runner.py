@@ -124,10 +124,15 @@ for marker, rel, label in markers:
     print(f"[OK] {label}: {marker} in {rel}")
 
 os.chdir(repo)
-from google.colab import drive  # type: ignore
 
-drive.mount("/content/drive")
-drive_results = Path("/content/drive/MyDrive/neuro-ai/results")
+drive_root = Path("/content/drive/MyDrive")
+if drive_root.exists():
+    print("Google Drive already mounted at /content/drive")
+else:
+    from google.colab import drive  # type: ignore
+
+    drive.mount("/content/drive")
+drive_results = drive_root / "neuro-ai" / "results"
 drive_results.mkdir(parents=True, exist_ok=True)
 print("Drive results root:", drive_results)
 
