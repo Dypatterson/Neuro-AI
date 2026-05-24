@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import List, Sequence
+from typing import List, Sequence, Tuple
 
 try:
     import torch
@@ -26,11 +26,44 @@ def build_position_vectors(substrate: "TorchFHRR", count: int):
     return positions
 
 
-def encode_window(substrate: "TorchFHRR", positions, codebook, token_ids: Sequence[int]):
+def _window_terms(
+    substrate: "TorchFHRR",
+    positions,
+    codebook,
+    token_ids: Sequence[int],
+):
     if len(positions) < len(token_ids):
         raise ValueError("positions must cover the token sequence")
-    terms = [substrate.bind(positions[index], codebook[token_id]) for index, token_id in enumerate(token_ids)]
+    terms = [
+        substrate.bind(positions[index], codebook[token_id])
+        for index, token_id in enumerate(token_ids)
+    ]
+    encoder_terms = [
+        (index, int(token_id))
+        for index, token_id in enumerate(token_ids)
+    ]
+    return terms, encoder_terms
+
+
+def encode_window(substrate: "TorchFHRR", positions, codebook, token_ids: Sequence[int]):
+    terms, _encoder_terms = _window_terms(substrate, positions, codebook, token_ids)
     return substrate.bundle(terms)
+
+
+def encode_window_with_provenance(
+    substrate: "TorchFHRR",
+    positions,
+    codebook,
+    token_ids: Sequence[int],
+) -> Tuple["torch.Tensor", List[Tuple[int, int]]]:
+    """Encode a window and return the encoder-time (role, atom) tuples.
+
+    The provenance is a structural fact from the encoder: position index
+    and token/codebook row id before bundling. It is not recovered by
+    post-hoc unbinding.
+    """
+    terms, encoder_terms = _window_terms(substrate, positions, codebook, token_ids)
+    return substrate.bundle(terms), encoder_terms
 
 
 def masked_window(window: Sequence[int], masked_positions: Sequence[int], mask_id: int) -> List[int]:

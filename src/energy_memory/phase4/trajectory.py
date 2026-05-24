@@ -17,7 +17,7 @@ dynamics.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Generic, List, Optional, TypeVar
+from typing import Generic, List, Optional, Tuple, TypeVar
 
 try:
     import torch
@@ -62,6 +62,7 @@ class TrajectoryTrace:
     """
 
     query: "torch.Tensor"
+    encoder_terms: Optional[List[Tuple[int, int]]] = None
     snapshots: List[TrajectorySnapshot] = field(default_factory=list)
     final_state: Optional["torch.Tensor"] = None
     final_top_score: float = 0.0
@@ -127,6 +128,7 @@ class TracedHopfieldMemory(TorchHopfieldMemory, Generic[T]):
         max_iter: int = 10,
         tol: float = 1e-8,
         score_bias: Optional["torch.Tensor"] = None,
+        encoder_terms: Optional[List[Tuple[int, int]]] = None,
     ) -> tuple[TorchRetrievalResult[T], TrajectoryTrace]:
         """Settle the memory toward an attractor, returning state + trajectory.
 
@@ -262,6 +264,7 @@ class TracedHopfieldMemory(TorchHopfieldMemory, Generic[T]):
 
         trace = TrajectoryTrace(
             query=query.detach().clone(),
+            encoder_terms=None if encoder_terms is None else list(encoder_terms),
             snapshots=snapshots,
             final_state=state.detach().clone(),
             final_top_score=top_score,

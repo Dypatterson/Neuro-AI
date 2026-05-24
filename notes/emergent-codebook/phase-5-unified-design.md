@@ -266,6 +266,17 @@ path bit-identically. A positive spike result still requires explicit
 follow-up before any graduation claim; a negative result closes this
 prior-bias rescue path and supports Phase 5 closure / pivot planning.
 
+**2026-05-24 M1 branch note.** On branch
+`phase5-m1-role-energy-stack`, Path D / M1 is the active implementation
+scope: P1 per-role weighted MHN, D3 additive cross-K softmax, and P3
+fixed saliency composed as a single role-energy stack. This branch does
+not change the graduation metric above. It only creates the machinery
+needed to test whether role-target basins can be represented as
+first-class energy coordinates. Existing A+B+A1' snapshots predate S1
+encoder provenance, so a real M1 evidence run requires a new
+provenance-bearing substrate before the n>=10 control matrix can be
+interpreted.
+
 **Structural retrieval verified iff Δ final-state energy is CI-disjoint from
 zero, role-prior branches vs content-prior branches, on a held-out cue set
 designed for structural retrieval.**

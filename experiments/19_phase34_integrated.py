@@ -49,6 +49,7 @@ from energy_memory.phase2.encoding import (
     build_position_vectors,
     decode_position,
     encode_window,
+    encode_window_with_provenance,
     mask_positions as compute_mask_positions,
     masked_window,
 )
@@ -319,7 +320,7 @@ def stream_phase34(
             local_masked = masked_pos - sub_start
             cue_w = list(sub_window)
             cue_w[local_masked] = mask_id
-            cue_vec = encode_window(
+            cue_vec, encoder_terms = encode_window_with_provenance(
                 substrate, slot.positions, codebook_box[0], cue_w,
             )
 
@@ -338,6 +339,7 @@ def stream_phase34(
                 result, trace = unit.memory.retrieve_with_trace(
                     cue_vec, beta=beta, max_iter=12,
                     score_bias=cur_bias,
+                    encoder_terms=encoder_terms,
                 )
                 gate = trace.gate_signal()
                 # Pair #4: primary atom is the retrieval's top_index (a pure

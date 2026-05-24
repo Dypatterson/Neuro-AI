@@ -8,7 +8,14 @@ except ModuleNotFoundError:  # pragma: no cover - exercised when torch missing
     pass
 
 try:  # pragma: no cover - exercised only when torch is available
-    from .encoding import build_position_vectors, decode_position, encode_window, mask_positions, masked_window
+    from .encoding import (
+        build_position_vectors,
+        decode_position,
+        encode_window,
+        encode_window_with_provenance,
+        mask_positions,
+        masked_window,
+    )
 except ModuleNotFoundError:  # pragma: no cover - exercised when torch missing
     pass
 
@@ -26,6 +33,7 @@ for name in [
     "build_position_vectors",
     "decode_position",
     "encode_window",
+    "encode_window_with_provenance",
     "load_codebook",
     "load_vocabulary",
     "mask_positions",

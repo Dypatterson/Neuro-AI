@@ -56,6 +56,7 @@ from energy_memory.phase2.encoding import (
     build_position_vectors,
     decode_position,
     encode_window,
+    encode_window_with_provenance,
     mask_positions as compute_mask_positions,
 )
 from energy_memory.phase2.persistence import load_codebook
@@ -412,13 +413,16 @@ def stream_and_replay(
             local_masked = masked_pos - sub_start
             cue_w = list(sub_window)
             cue_w[local_masked] = mask_id
-            cue_vec = encode_window(
+            cue_vec, encoder_terms = encode_window_with_provenance(
                 substrate, slot.positions, slot.codebook, cue_w,
             )
 
             if phase4_units and scale in phase4_units:
                 unit = phase4_units[scale]
-                unit.retrieve_and_observe(cue_vec, beta=beta, max_iter=12)
+                unit.retrieve_and_observe(
+                    cue_vec, beta=beta, max_iter=12,
+                    encoder_terms=encoder_terms,
+                )
                 if unit.should_replay():
                     def make_handler(scale_idx, slot_ref):
                         def handler(trace):

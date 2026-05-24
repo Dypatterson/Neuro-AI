@@ -412,11 +412,12 @@ class UnifiedReplayMemory(Generic[T]):
         beta: float = 10.0,
         max_iter: int = 12,
         tol: float = 1e-8,
+        encoder_terms: Optional[List[Tuple[int, int]]] = None,
     ) -> Tuple[TorchRetrievalResult[T], TrajectoryTrace]:
         bias = self._score_bias()
         result, trace = self.memory.retrieve_with_trace(
             query=query, beta=beta, max_iter=max_iter, tol=tol,
-            score_bias=bias,
+            score_bias=bias, encoder_terms=encoder_terms,
         )
         gate = trace.gate_signal()
         # Pair #4: primary-atom index for this trace is the retrieval's
@@ -509,6 +510,7 @@ class UnifiedReplayMemory(Generic[T]):
             new_result, new_trace = self.memory.retrieve_with_trace(
                 query=trace.query, beta=beta, max_iter=max_iter,
                 score_bias=replay_bias,
+                encoder_terms=trace.encoder_terms,
             )
 
             # Pair #4 (Path 3): update m_i from the replay retrieval's

@@ -82,6 +82,24 @@ class TestTrajectoryTrace(unittest.TestCase):
         _, trace = self.memory.retrieve_with_trace(query, beta=10.0)
         self.assertTrue(torch.allclose(trace.query, query, atol=1e-6))
 
+    def test_trace_can_carry_encoder_terms(self):
+        from energy_memory.phase2.encoding import encode_window_with_provenance
+
+        query, terms = encode_window_with_provenance(
+            self.substrate, self.positions, self.codebook, (4, 5, 6),
+        )
+        _, trace = self.memory.retrieve_with_trace(
+            query, beta=10.0, encoder_terms=terms,
+        )
+        self.assertEqual(trace.encoder_terms, [(0, 4), (1, 5), (2, 6)])
+
+    def test_trace_encoder_terms_default_to_none(self):
+        from energy_memory.phase2.encoding import encode_window
+
+        query = encode_window(self.substrate, self.positions, self.codebook, (4, 5, 6))
+        _, trace = self.memory.retrieve_with_trace(query, beta=10.0)
+        self.assertIsNone(trace.encoder_terms)
+
     def test_retrieve_method_still_works(self):
         """The parent class retrieve() shouldn't be broken by the subclass."""
         from energy_memory.phase2.encoding import encode_window

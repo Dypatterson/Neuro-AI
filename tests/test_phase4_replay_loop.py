@@ -128,6 +128,17 @@ class TestUnifiedReplayMemory(unittest.TestCase):
         after = self.consolidation.u[target_idx, 0].item()
         self.assertGreater(after, before)
 
+    def test_retrieve_and_observe_preserves_encoder_terms(self):
+        from energy_memory.phase2.encoding import encode_window_with_provenance
+
+        query, terms = encode_window_with_provenance(
+            self.substrate, self.positions, self.codebook, self.windows[0],
+        )
+        _, trace = self.unified.retrieve_and_observe(
+            query, beta=10.0, encoder_terms=terms,
+        )
+        self.assertEqual(trace.encoder_terms, [(0, 1), (1, 2), (2, 3)])
+
     def test_replay_store_respects_threshold(self):
         """Traces with gate > store_threshold enter the store; those at/below don't."""
         from energy_memory.phase4.trajectory import (
