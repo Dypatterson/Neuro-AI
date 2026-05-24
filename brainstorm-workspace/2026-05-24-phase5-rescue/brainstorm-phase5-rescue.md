@@ -592,7 +592,32 @@ spec.
 
 ---
 
-## My recommended first move
+## Post-spike addendum (2026-05-24, written after the spike wave)
+
+The "My recommended first move" section below was written *before* the
+Tier-0 spike wave ran. It is now historically accurate but stale as
+guidance. **The spike wave executed the recommended D1 + D3 + S1 wave
+plus an additional E1 ("Path C done right") closure spike from a
+GPT-generated suggestion**:
+
+- D1 (pseudo-inverse storage swap) — null on `hit_role`; `rank_role` worsens 205→403 ([Report 062](../../reports/062_phase5_spikes_d1_d3_local_smoke.md))
+- D3 (cross-K softmax, additive form per [Lyapunov pass](../../notes/notes/2026-05-24-spike-D3-lyapunov-analytical.md)) — null on `hit_role`; ΔE negative 0/3 seeds ([Report 062](../../reports/062_phase5_spikes_d1_d3_local_smoke.md))
+- E1 (zero-mean role/content asymmetric logit field) — null on `hit_role` at every λ; `rank_role` monotonically worsens 205→498 ([Report 063](../../reports/063_phase5_spike_e1_centered_log_prior.md))
+- S1 (replay-trace schema check) — encoder-time provenance missing; P1 needs ~30 LOC schema extension ([note](../../notes/notes/2026-05-24-spike-S1-replay-trace-schema.md))
+
+The decision-recipe outcome routes to Tier-2 (Path D = training-time
+intervention). The single-source synthesis for the next session is
+[notes/notes/2026-05-24-phase5-session-close-and-next-moves.md](../../notes/notes/2026-05-24-phase5-session-close-and-next-moves.md),
+which captures the three remaining options (M2 RECOMMENDED, M1, closure
+paper) with reasoning. Read that and STATUS.md, not the section below,
+when picking up next session.
+
+The "My recommended first move" section below is preserved verbatim for
+historical traceability.
+
+---
+
+## My recommended first move (HISTORICAL — pre-spike; superseded by post-spike addendum above)
 
 **Day-1 work**: Implement D1 (pseudo-inverse storage swap) and D3
 (cross-branch softmax). These are orthogonal, each is a one-PR change,
