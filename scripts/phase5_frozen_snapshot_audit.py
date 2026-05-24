@@ -803,13 +803,16 @@ def _run_headline_log_prior_sweep(
     delta_redundant: float,
     temperature: float,
     max_settling_iter: int,
+    schema_source: str = "slow_store",
 ) -> Dict[str, Any]:
     """Varner-style log-prior spike over a predeclared gain grid.
 
-    Fixed operating point: beta=10, gamma=0.5, K=1, per-pattern
-    formulation, content_distortion=0.6, binding_noise_std=0.05. The
+    Default operating point: beta=10, gamma=0.5, K=1, per-pattern
+    formulation, content_distortion=0.6, binding_noise_std=0.05. Required
+    controls may intentionally override gamma (for example gamma=0). The
     sweep varies only the additive branch-local log-multiplicity boost
-    passed through experiments/40's production branch path.
+    passed through experiments/40's production branch path unless the caller
+    also changes the explicit control flags.
     """
     if formulation != "per_pattern":
         raise SystemExit("--log-prior-sweep requires --headline-formulation per_pattern")
@@ -824,11 +827,22 @@ def _run_headline_log_prior_sweep(
         )
 
     patterns_matrix = mem._pattern_matrix()
-    schema_store, atom_idx = _exp40.get_schema_store(
-        consolidation=cons, patterns=patterns_matrix,
-        selection_rule="top_k_by_effective_strength",
-        k=min(8, len(patterns)),
-    )
+    if schema_source == "slow_store":
+        schema_store, atom_idx = _exp40.get_schema_store(
+            consolidation=cons, patterns=patterns_matrix,
+            selection_rule="top_k_by_effective_strength",
+            k=min(8, len(patterns)),
+        )
+    elif schema_source == "full_codebook":
+        # No-schema-store control: draw priors directly from the stored
+        # pattern codebook instead of the filtered slow-store top-k.
+        schema_store = patterns_matrix
+        atom_idx = None
+    else:
+        raise SystemExit(
+            f"unknown log-prior schema_source {schema_source!r}; expected "
+            "'slow_store' or 'full_codebook'"
+        )
     schema_bindings = _exp40.compute_schema_bindings(
         substrate=mem.substrate, schemas=schema_store, positions=positions,
     )
@@ -1002,6 +1016,8 @@ def _run_headline_log_prior_sweep(
             "content_distortion": content_distortion,
             "formulation": formulation,
             "cue_seed": cue_seed,
+            "schema_source": schema_source,
+            "schema_store_size": int(schema_store.shape[0]),
             "magnitude_floor": 5.5e-3,
         },
         "cells": cells,
@@ -1107,6 +1123,13 @@ def main() -> None:
         "reports 057/058.",
     )
     parser.add_argument(
+        "--log-prior-schema-source", type=str, default="slow_store",
+        choices=["slow_store", "full_codebook"],
+        help="Schema source for --log-prior-sweep. slow_store preserves "
+        "the Phase 5 design default; full_codebook is the no-schema-store "
+        "control that draws priors directly from the codebook.",
+    )
+    parser.add_argument(
         "--cue-regime-binding-noise", type=str, default="0.01,0.05,0.10,0.20",
         help="Comma-separated binding_noise_std grid.",
     )
@@ -1194,6 +1217,7 @@ def main() -> None:
             delta_redundant=args.headline_delta_redundant,
             temperature=args.headline_temperature,
             max_settling_iter=args.headline_max_settling_iter,
+            schema_source=args.log_prior_schema_source,
         )
         geometry = audit_snapshot(
             snapshot_path=snapshots[0],
