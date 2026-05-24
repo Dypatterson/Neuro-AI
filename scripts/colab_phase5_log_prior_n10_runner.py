@@ -107,7 +107,7 @@ markers = [
         "branch-local log-prior gain",
     ),
     (
-        "TestLogPriorBias",
+        "test_log_prior_gain_zero_matches_default",
         "tests/test_phase5_branching.py",
         "log-prior regression tests",
     ),
