@@ -9,6 +9,7 @@ exact pattern rows M1 retrieves from. Old snapshots are expected to fail with
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import sys
@@ -23,6 +24,7 @@ if str(REPO_ROOT / "src") not in sys.path:
     sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from energy_memory.phase4.snapshot import load_substrate_snapshot  # noqa: E402
+from energy_memory.phase2.persistence import load_codebook  # noqa: E402
 from energy_memory.phase5.m1_role_energy import RoleBindingStats  # noqa: E402
 from energy_memory.substrate.torch_fhrr import TorchFHRR  # noqa: E402
 
@@ -32,6 +34,46 @@ UNIFORM_ROW_ENTROPY_THRESHOLD = 0.99
 UNIFORM_ROW_FRACTION_FAIL_THRESHOLD = 0.95
 MIN_ROLE_FRACTION = 1e-6
 EMPTY_ROW_FRACTION_FAIL_THRESHOLD = 0.5
+CODEBOOK_REQUIRED_MODES = {"codebook_prior_density", "codebook_prior"}
+
+
+def _canonical_geometric_mode(mode: str) -> str:
+    aliases = {
+        "per_role_pool": "same_role_filler_density",
+        "same_role_pool": "same_role_filler_density",
+        "codebook_prior": "codebook_prior_density",
+    }
+    return aliases.get(mode, mode)
+
+
+def _evidence_scope(metadata: Dict[str, Any]) -> Dict[str, Any]:
+    seed = metadata.get("seed")
+    try:
+        is_seed17 = seed is not None and int(seed) == 17
+    except (TypeError, ValueError):
+        is_seed17 = False
+    if is_seed17:
+        note = (
+            "Seed 17 is wiring/provenance/degen smoke only; "
+            "it is not representative Phase 5 evidence."
+        )
+    else:
+        note = (
+            "Single-snapshot audit output is a wiring/provenance diagnostic, "
+            "not representative Phase 5 evidence."
+        )
+    return {
+        "representative_phase5_evidence": False,
+        "note": note,
+    }
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _load_snapshot(path: Path, device: str):
@@ -173,18 +215,33 @@ def audit_snapshot(
     geometric_neighbor_k: int = 8,
     geometric_laplace: float = 1e-6,
     geometric_temperature: Optional[float] = 0.05,
+    codebook_path: Optional[str | Path] = None,
 ) -> Dict[str, Any]:
     if weight_source not in {"count", "geometric"}:
         raise ValueError("weight_source must be 'count' or 'geometric'")
     if geometric_temperature is not None and geometric_temperature <= 0.0:
         raise ValueError("geometric_temperature must be positive")
+    active_geometric_mode = _canonical_geometric_mode(geometric_mode)
     path = Path(snapshot_path)
     mem, cons, info = _load_snapshot(path, device=device)
     n_atoms = mem.stored_count
     metadata = info.get("metadata") or {}
+    evidence_scope = _evidence_scope(metadata)
     positions = info.get("positions")
     raw_terms = info.get("pattern_encoder_terms")
     raw_kinds = info.get("pattern_encoder_term_kinds")
+    codebook_arg_path = Path(codebook_path) if codebook_path is not None else None
+    geometric_config: Dict[str, Any] = {
+        "mode": geometric_mode,
+        "active_mode": active_geometric_mode,
+        "neighbor_k": geometric_neighbor_k,
+        "laplace": geometric_laplace,
+        "temperature": geometric_temperature,
+        "codebook_path": None if codebook_arg_path is None else str(codebook_arg_path),
+        "codebook_shape": None,
+        "codebook_dtype": None,
+        "codebook_fingerprint": None,
+    }
     if mask_token_id is None and metadata.get("mask_token_id") is not None:
         mask_token_id = int(metadata["mask_token_id"])
 
@@ -200,6 +257,9 @@ def audit_snapshot(
             "n_atoms": n_atoms,
             "n_roles": None,
             "metadata": metadata,
+            "evidence_scope": evidence_scope,
+            "weight_source": weight_source,
+            "geometric_config": geometric_config,
             "row_count_aligned": False,
             "pattern_encoder_terms_present": raw_terms is not None,
             "pattern_encoder_term_kinds_present": raw_kinds is not None,
@@ -329,33 +389,74 @@ def audit_snapshot(
         else:
             patterns = mem._pattern_matrix()
             role_vectors = [positions[i] for i in range(n_roles)]
-            geometric_scores = RoleBindingStats.geometric_row_role_scores(
-                mem.substrate,
-                patterns,
-                role_vectors,
-                mode=geometric_mode,
-                neighbor_k=geometric_neighbor_k,
-            )
-            if geometric_temperature is None:
-                geometric_weights = geometric_scores + float(geometric_laplace)
-                geometric_weights = geometric_weights / geometric_weights.sum(
-                    dim=1, keepdim=True,
-                ).clamp(min=1e-12)
+            reference_codebook = None
+            codebook_problem = None
+            if active_geometric_mode in CODEBOOK_REQUIRED_MODES:
+                if codebook_arg_path is None:
+                    codebook_problem = "codebook_required_for_mode"
+                else:
+                    try:
+                        reference_codebook = load_codebook(codebook_arg_path, device=device)
+                    except (FileNotFoundError, RuntimeError, ValueError) as exc:
+                        codebook_problem = "codebook_load_failed"
+                        warnings.append(f"codebook_load_error: {exc}")
+                    else:
+                        geometric_config["codebook_shape"] = [
+                            int(dim) for dim in reference_codebook.shape
+                        ]
+                        geometric_config["codebook_dtype"] = str(reference_codebook.dtype)
+                        geometric_config["codebook_fingerprint"] = {
+                            "sha256": _sha256_file(codebook_arg_path),
+                        }
+                        if (
+                            reference_codebook.ndim != 2
+                            or reference_codebook.shape[1] != patterns.shape[1]
+                        ):
+                            codebook_problem = "codebook_dim_mismatch"
+                        elif reference_codebook.shape[0] == 0:
+                            codebook_problem = "codebook_empty"
+
+            if codebook_problem is not None:
+                if weight_source == "geometric":
+                    failures.append(codebook_problem)
+                else:
+                    warnings.append(codebook_problem)
             else:
-                geometric_weights = torch.softmax(
-                    geometric_scores / float(geometric_temperature),
-                    dim=1,
-                )
-            geometric_summary = _role_summary(geometric_weights)
-            geometric_degeneracy_reasons = _degeneracy_reasons(
-                entropy=geometric_summary["entropy"],
-                role_coverage=geometric_summary["role_coverage"],
-                role_fractions=geometric_summary["role_fractions"],
-                n_roles=n_roles,
-                prefix="geometric_",
-            )
-            if weight_source == "geometric":
-                failures.extend(geometric_degeneracy_reasons)
+                try:
+                    geometric_scores = RoleBindingStats.geometric_row_role_scores(
+                        mem.substrate,
+                        patterns,
+                        role_vectors,
+                        mode=active_geometric_mode,
+                        neighbor_k=geometric_neighbor_k,
+                        reference_codebook=reference_codebook,
+                    )
+                except ValueError as exc:
+                    if weight_source == "geometric":
+                        failures.append(str(exc))
+                    else:
+                        warnings.append(str(exc))
+                else:
+                    if geometric_temperature is None:
+                        geometric_weights = geometric_scores + float(geometric_laplace)
+                        geometric_weights = geometric_weights / geometric_weights.sum(
+                            dim=1, keepdim=True,
+                        ).clamp(min=1e-12)
+                    else:
+                        geometric_weights = torch.softmax(
+                            geometric_scores / float(geometric_temperature),
+                            dim=1,
+                        )
+                    geometric_summary = _role_summary(geometric_weights)
+                    geometric_degeneracy_reasons = _degeneracy_reasons(
+                        entropy=geometric_summary["entropy"],
+                        role_coverage=geometric_summary["role_coverage"],
+                        role_fractions=geometric_summary["role_fractions"],
+                        n_roles=n_roles,
+                        prefix="geometric_",
+                    )
+                    if weight_source == "geometric":
+                        failures.extend(geometric_degeneracy_reasons)
 
     if weight_source == "geometric" and count_degeneracy_reasons:
         warnings.append("count_role_weights_degenerate")
@@ -375,13 +476,9 @@ def audit_snapshot(
         "n_atoms": n_atoms,
         "n_roles": n_roles,
         "metadata": metadata,
+        "evidence_scope": evidence_scope,
         "weight_source": weight_source,
-        "geometric_config": {
-            "mode": geometric_mode,
-            "neighbor_k": geometric_neighbor_k,
-            "laplace": geometric_laplace,
-            "temperature": geometric_temperature,
-        },
+        "geometric_config": geometric_config,
         "row_count_aligned": row_count_aligned,
         "kind_counts": {str(k): int(v) for k, v in kind_counts.items()},
         "term_checks": {
@@ -444,6 +541,20 @@ def write_report(payload: Dict[str, Any], path: str | Path) -> None:
         f"- Row alignment: {payload.get('row_count_aligned')}",
         f"- Role coverage: {payload.get('role_coverage')}/{payload.get('n_roles')}",
     ]
+    evidence_scope = payload.get("evidence_scope") or {}
+    if evidence_scope:
+        lines.append(
+            f"- Representative Phase 5 evidence: "
+            f"{evidence_scope.get('representative_phase5_evidence')}"
+        )
+        lines.append(f"- Evidence scope: {evidence_scope.get('note')}")
+    geometric_config = payload.get("geometric_config") or {}
+    if geometric_config:
+        lines.append(
+            f"- Geometric mode: {geometric_config.get('active_mode')}"
+        )
+        if geometric_config.get("codebook_path"):
+            lines.append(f"- Codebook: `{geometric_config.get('codebook_path')}`")
     entropy = payload.get("entropy") or {}
     if entropy:
         lines.extend([
@@ -476,6 +587,7 @@ def main() -> None:
     parser.add_argument("--geometric-neighbor-k", type=int, default=8)
     parser.add_argument("--geometric-laplace", type=float, default=1e-6)
     parser.add_argument("--geometric-temperature", type=float, default=0.05)
+    parser.add_argument("--codebook", default=None)
     args = parser.parse_args()
 
     payload = audit_snapshot(
@@ -487,6 +599,7 @@ def main() -> None:
         geometric_neighbor_k=args.geometric_neighbor_k,
         geometric_laplace=args.geometric_laplace,
         geometric_temperature=args.geometric_temperature,
+        codebook_path=args.codebook,
     )
     out_path = Path(args.output)
     out_path.parent.mkdir(parents=True, exist_ok=True)

@@ -2,12 +2,12 @@
   "status": "fail",
   "snapshot": "reports/phase5_m1_provenance_seed17/snapshots/phase3_phase4_w4_step1800.pt",
   "failure_reasons": [
-    "mean_role_entropy_degenerate",
-    "uniform_role_rows_degenerate"
+    "geometric_mean_role_entropy_degenerate",
+    "geometric_uniform_role_rows_degenerate"
   ],
   "warnings": [
     "mask_token_participates_in_row_provenance",
-    "geometric_role_weights_degenerate"
+    "count_role_weights_degenerate"
   ],
   "n_atoms": 1064,
   "n_roles": 4,
@@ -25,10 +25,10 @@
     "representative_phase5_evidence": false,
     "note": "Seed 17 is wiring/provenance/degen smoke only; it is not representative Phase 5 evidence."
   },
-  "weight_source": "count",
+  "weight_source": "geometric",
   "geometric_config": {
-    "mode": "unbind_density",
-    "active_mode": "unbind_density",
+    "mode": "same_role_filler_density",
+    "active_mode": "same_role_filler_density",
     "neighbor_k": 8,
     "laplace": 1e-06,
     "temperature": 0.05,
@@ -53,22 +53,22 @@
     "mask_token_terms": 40
   },
   "role_counts": [
-    1064.0,
-    1064.0,
-    1064.0,
-    1064.0
+    266.0,
+    266.00006103515625,
+    265.99981689453125,
+    266.0001525878906
   ],
   "role_fractions": [
     0.25,
-    0.25,
-    0.25,
-    0.25
+    0.25000005736386866,
+    0.24999982790839403,
+    0.25000014340967164
   ],
   "role_coverage": 4,
   "entropy": {
-    "mean_normalized": 1.0,
+    "mean_normalized": 1.0000000042014552,
     "median_normalized": 1.0,
-    "max_normalized": 1.0,
+    "max_normalized": 1.0000001192092896,
     "uniform_row_fraction": 1.0,
     "uniform_rows": 1064,
     "empty_row_fraction": 0.0,
@@ -101,24 +101,24 @@
     "uniform_role_rows_degenerate"
   ],
   "geometric_role_counts": [
-    265.6326904296875,
-    266.4127197265625,
-    266.41253662109375,
-    265.54205322265625
+    266.0,
+    266.00006103515625,
+    265.99981689453125,
+    266.0001525878906
   ],
   "geometric_role_fractions": [
-    0.2496547842384281,
-    0.250387894479852,
-    0.250387722388246,
-    0.2495695988934739
+    0.25,
+    0.25000005736386866,
+    0.24999982790839403,
+    0.25000014340967164
   ],
   "geometric_role_coverage": 4,
   "geometric_entropy": {
-    "mean_normalized": 0.9999075451291594,
+    "mean_normalized": 1.0000000042014552,
     "median_normalized": 1.0,
     "max_normalized": 1.0000001192092896,
-    "uniform_row_fraction": 0.9971804511278195,
-    "uniform_rows": 1061,
+    "uniform_row_fraction": 1.0,
+    "uniform_rows": 1064,
     "empty_row_fraction": 0.0,
     "empty_rows": 0
   },
@@ -129,10 +129,10 @@
   "geometric_score_range": {
     "min": 0.3092706799507141,
     "max": 1.000002145767212,
-    "mean": 0.5993894338607788,
-    "row_spread_mean": 0.000334327746378748,
-    "row_spread_median": 5.364418029785156e-07,
-    "row_spread_max": 0.02776879072189331
+    "mean": 0.599132776260376,
+    "row_spread_mean": 6.556510925292969e-07,
+    "row_spread_median": 4.76837158203125e-07,
+    "row_spread_max": 3.516674041748047e-06
   },
   "thresholds": {
     "mean_entropy_fail": 0.95,
