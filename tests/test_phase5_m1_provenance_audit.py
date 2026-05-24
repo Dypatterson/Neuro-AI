@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -10,6 +12,14 @@ try:
     import torch
 except ModuleNotFoundError:
     torch = None
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _build_snapshot(
@@ -290,6 +300,7 @@ class TestM1ProvenanceAudit(unittest.TestCase):
             self.assertIn("codebook_dim_mismatch", payload["failure_reasons"])
             self.assertEqual(payload["geometric_config"]["codebook_shape"], [8, 128])
             self.assertIsNotNone(payload["geometric_config"]["codebook_fingerprint"])
+            self.assertIsNotNone(payload["geometric_config"]["codebook_identity"])
 
     def test_codebook_prior_audit_uses_explicit_codebook(self):
         from energy_memory.phase2.persistence import save_codebook
@@ -318,6 +329,173 @@ class TestM1ProvenanceAudit(unittest.TestCase):
             )
             self.assertEqual(payload["geometric_config"]["codebook_shape"], [90, 256])
             self.assertIsNotNone(payload["geometric_config"]["codebook_fingerprint"])
+            self.assertEqual(
+                payload["geometric_config"]["codebook_identity"]["basename"],
+                "codebook.pt",
+            )
+            self.assertIn("codebook_registry_not_supplied", payload["warnings"])
+            self.assertIn("codebook_path_outside_repo", payload["warnings"])
+
+    def test_codebook_prior_registry_match_suppresses_unknown_sha_warning(self):
+        from energy_memory.phase2.persistence import save_codebook
+        from scripts.phase5_m1_provenance_audit import audit_snapshot
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            path = tmp_path / "snap.pt"
+            codebook_path = tmp_path / "codebook.pt"
+            registry_path = tmp_path / "registry.json"
+            codebook = _build_role_specialized_encoded_snapshot(path)
+            save_codebook(codebook, codebook_path)
+            sha256 = _sha256_file(codebook_path)
+            registry_path.write_text(
+                json.dumps({
+                    "schema_version": 1,
+                    "entries": [
+                        {
+                            "sha256": sha256,
+                            "basename": "codebook.pt",
+                            "size_bytes": codebook_path.stat().st_size,
+                            "provenance": "synthetic test fixture",
+                        },
+                    ],
+                }),
+                encoding="utf-8",
+            )
+
+            payload = audit_snapshot(
+                path,
+                weight_source="geometric",
+                geometric_mode="codebook_prior_density",
+                codebook_path=codebook_path,
+                codebook_registry_path=registry_path,
+            )
+
+            self.assertEqual(payload["status"], "pass")
+            self.assertNotIn("codebook_registry_not_supplied", payload["warnings"])
+            self.assertNotIn("codebook_not_in_registry", payload["warnings"])
+            self.assertTrue(
+                payload["geometric_config"]["codebook_registry"]["matched"]
+            )
+            self.assertEqual(
+                payload["geometric_config"]["codebook_registry"]["entry"]["sha256"],
+                sha256,
+            )
+
+    def test_codebook_prior_registry_unknown_sha_warns_without_failing(self):
+        from energy_memory.phase2.persistence import save_codebook
+        from scripts.phase5_m1_provenance_audit import audit_snapshot
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            path = tmp_path / "snap.pt"
+            codebook_path = tmp_path / "codebook.pt"
+            registry_path = tmp_path / "registry.json"
+            codebook = _build_role_specialized_encoded_snapshot(path)
+            save_codebook(codebook, codebook_path)
+            registry_path.write_text(
+                json.dumps({
+                    "entries": [
+                        {
+                            "sha256": "0" * 64,
+                            "basename": "other.pt",
+                            "provenance": "synthetic non-match",
+                        },
+                    ],
+                }),
+                encoding="utf-8",
+            )
+
+            payload = audit_snapshot(
+                path,
+                weight_source="geometric",
+                geometric_mode="codebook_prior_density",
+                codebook_path=codebook_path,
+                codebook_registry_path=registry_path,
+            )
+
+            self.assertEqual(payload["status"], "pass")
+            self.assertIn("codebook_not_in_registry", payload["warnings"])
+            self.assertFalse(
+                payload["geometric_config"]["codebook_registry"]["matched"]
+            )
+
+    def test_codebook_prior_malformed_registry_fails_active_geometric_gate(self):
+        from energy_memory.phase2.persistence import save_codebook
+        from scripts.phase5_m1_provenance_audit import audit_snapshot
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            path = tmp_path / "snap.pt"
+            codebook_path = tmp_path / "codebook.pt"
+            registry_path = tmp_path / "registry.json"
+            codebook = _build_role_specialized_encoded_snapshot(path)
+            save_codebook(codebook, codebook_path)
+            registry_path.write_text("not json", encoding="utf-8")
+
+            payload = audit_snapshot(
+                path,
+                weight_source="geometric",
+                geometric_mode="codebook_prior_density",
+                codebook_path=codebook_path,
+                codebook_registry_path=registry_path,
+            )
+
+            self.assertEqual(payload["status"], "fail")
+            self.assertIn(
+                "codebook_registry_load_failed",
+                payload["failure_reasons"],
+            )
+            self.assertIn("codebook_registry_load_failed", payload["warnings"])
+            self.assertTrue(
+                any(
+                    warning.startswith("codebook_registry_load_error:")
+                    for warning in payload["warnings"]
+                )
+            )
+
+    def test_codebook_prior_identity_is_content_stable_across_paths(self):
+        from energy_memory.phase2.persistence import save_codebook
+        from scripts.phase5_m1_provenance_audit import audit_snapshot
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            path = tmp_path / "snap.pt"
+            first_dir = tmp_path / "first"
+            second_dir = tmp_path / "second"
+            first_dir.mkdir()
+            second_dir.mkdir()
+            first_codebook = first_dir / "codebook.pt"
+            second_codebook = second_dir / "codebook.pt"
+            codebook = _build_role_specialized_encoded_snapshot(path)
+            save_codebook(codebook, first_codebook)
+            second_codebook.write_bytes(first_codebook.read_bytes())
+
+            first_payload = audit_snapshot(
+                path,
+                weight_source="geometric",
+                geometric_mode="codebook_prior_density",
+                codebook_path=first_codebook,
+            )
+            second_payload = audit_snapshot(
+                path,
+                weight_source="geometric",
+                geometric_mode="codebook_prior_density",
+                codebook_path=second_codebook,
+            )
+
+            self.assertEqual(first_payload["status"], "pass")
+            self.assertEqual(second_payload["status"], "pass")
+            self.assertEqual(
+                first_payload["geometric_config"]["codebook_identity"],
+                second_payload["geometric_config"]["codebook_identity"],
+            )
+            self.assertNotEqual(
+                first_payload["geometric_config"]["codebook_location"]["resolved_path"],
+                second_payload["geometric_config"]["codebook_location"]["resolved_path"],
+            )
+            self.assertIn("codebook_path_outside_repo", first_payload["warnings"])
+            self.assertIn("codebook_path_outside_repo", second_payload["warnings"])
 
     def test_seed17_evidence_scope_reported_in_payload_and_markdown(self):
         from scripts.phase5_m1_provenance_audit import audit_snapshot, write_report

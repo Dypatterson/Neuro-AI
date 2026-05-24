@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "entries": [
+    {
+      "sha256": "863d2ae49c8baf33e8041fe8cc0cf54939ac338f23296fb0be783db4e0412aa6",
+      "basename": "phase3c_codebook_reconstruction.pt",
+      "size_bytes": 67176273,
+      "source": "phase3c_reconstruction",
+      "provenance": "pending protocol-note audit",
+      "notes": "External Phase 3c reconstruction bytes observed for codebook-prior diagnostic reruns; selection and lineage remain protocol-reviewed."
+    }
+  ]
+}
