@@ -76,6 +76,89 @@ def _sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _is_relative_to(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return False
+    return True
+
+
+def _codebook_location(path: Path) -> Dict[str, Any]:
+    resolved = path.expanduser().resolve()
+    repo_root = REPO_ROOT.resolve()
+    relpath = (
+        str(resolved.relative_to(repo_root))
+        if _is_relative_to(resolved, repo_root)
+        else None
+    )
+    return {
+        "path": str(path),
+        "resolved_path": str(resolved),
+        "relpath_from_repo_root": relpath,
+        "inside_repo": relpath is not None,
+    }
+
+
+def _codebook_identity(path: Path, sha256: str) -> Dict[str, Any]:
+    resolved = path.expanduser().resolve()
+    return {
+        "sha256": sha256,
+        "basename": resolved.name,
+        "size_bytes": int(resolved.stat().st_size),
+    }
+
+
+def _looks_like_sha256(value: Any) -> bool:
+    if not isinstance(value, str) or len(value) != 64:
+        return False
+    return all(char in "0123456789abcdefABCDEF" for char in value)
+
+
+def _normalize_registry_entry(entry: Any) -> Optional[Dict[str, Any]]:
+    if not isinstance(entry, dict):
+        return None
+    sha256 = entry.get("sha256")
+    if not _looks_like_sha256(sha256):
+        return None
+    normalized = dict(entry)
+    normalized["sha256"] = str(sha256).lower()
+    return normalized
+
+
+def _load_codebook_registry(path: Path) -> Dict[str, Dict[str, Any]]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    raw_entries: List[Any]
+    if isinstance(payload, list):
+        raw_entries = payload
+    elif isinstance(payload, dict) and isinstance(payload.get("entries"), list):
+        raw_entries = payload["entries"]
+    elif isinstance(payload, dict) and isinstance(payload.get("codebooks"), list):
+        raw_entries = payload["codebooks"]
+    elif isinstance(payload, dict):
+        raw_entries = []
+        for key, value in payload.items():
+            if not _looks_like_sha256(key):
+                continue
+            if isinstance(value, dict):
+                entry = dict(value)
+                entry.setdefault("sha256", key)
+            else:
+                entry = {"sha256": key, "value": value}
+            raw_entries.append(entry)
+    else:
+        raise ValueError("codebook registry must be a list or object")
+
+    entries: Dict[str, Dict[str, Any]] = {}
+    for raw_entry in raw_entries:
+        entry = _normalize_registry_entry(raw_entry)
+        if entry is not None:
+            entries[entry["sha256"]] = entry
+    if not entries:
+        raise ValueError("codebook registry has no valid sha256 entries")
+    return entries
+
+
 def _load_snapshot(path: Path, device: str):
     state = torch.load(path, map_location="cpu", weights_only=False)
     patterns = state["patterns"]
@@ -216,6 +299,7 @@ def audit_snapshot(
     geometric_laplace: float = 1e-6,
     geometric_temperature: Optional[float] = 0.05,
     codebook_path: Optional[str | Path] = None,
+    codebook_registry_path: Optional[str | Path] = None,
 ) -> Dict[str, Any]:
     if weight_source not in {"count", "geometric"}:
         raise ValueError("weight_source must be 'count' or 'geometric'")
@@ -231,6 +315,9 @@ def audit_snapshot(
     raw_terms = info.get("pattern_encoder_terms")
     raw_kinds = info.get("pattern_encoder_term_kinds")
     codebook_arg_path = Path(codebook_path) if codebook_path is not None else None
+    codebook_registry_arg_path = (
+        Path(codebook_registry_path) if codebook_registry_path is not None else None
+    )
     geometric_config: Dict[str, Any] = {
         "mode": geometric_mode,
         "active_mode": active_geometric_mode,
@@ -241,6 +328,19 @@ def audit_snapshot(
         "codebook_shape": None,
         "codebook_dtype": None,
         "codebook_fingerprint": None,
+        "codebook_identity": None,
+        "codebook_location": (
+            None if codebook_arg_path is None else _codebook_location(codebook_arg_path)
+        ),
+        "codebook_registry": {
+            "path": (
+                None
+                if codebook_registry_arg_path is None
+                else str(codebook_registry_arg_path)
+            ),
+            "matched": None,
+            "entry": None,
+        },
     }
     if mask_token_id is None and metadata.get("mask_token_id") is not None:
         mask_token_id = int(metadata["mask_token_id"])
@@ -391,7 +491,26 @@ def audit_snapshot(
             role_vectors = [positions[i] for i in range(n_roles)]
             reference_codebook = None
             codebook_problem = None
+            codebook_registry = None
+            codebook_registry_problem = None
             if active_geometric_mode in CODEBOOK_REQUIRED_MODES:
+                codebook_location = geometric_config.get("codebook_location")
+                if (
+                    codebook_location is not None
+                    and not codebook_location.get("inside_repo", False)
+                ):
+                    warnings.append("codebook_path_outside_repo")
+                if weight_source == "geometric" and codebook_registry_arg_path is None:
+                    warnings.append("codebook_registry_not_supplied")
+                elif codebook_registry_arg_path is not None:
+                    try:
+                        codebook_registry = _load_codebook_registry(
+                            codebook_registry_arg_path
+                        )
+                    except (OSError, json.JSONDecodeError, ValueError) as exc:
+                        codebook_registry_problem = "codebook_registry_load_failed"
+                        warnings.append("codebook_registry_load_failed")
+                        warnings.append(f"codebook_registry_load_error: {exc}")
                 if codebook_arg_path is None:
                     codebook_problem = "codebook_required_for_mode"
                 else:
@@ -405,9 +524,24 @@ def audit_snapshot(
                             int(dim) for dim in reference_codebook.shape
                         ]
                         geometric_config["codebook_dtype"] = str(reference_codebook.dtype)
+                        codebook_sha256 = _sha256_file(codebook_arg_path)
                         geometric_config["codebook_fingerprint"] = {
-                            "sha256": _sha256_file(codebook_arg_path),
+                            "sha256": codebook_sha256,
                         }
+                        geometric_config["codebook_identity"] = _codebook_identity(
+                            codebook_arg_path,
+                            codebook_sha256,
+                        )
+                        if codebook_registry is not None:
+                            registry_entry = codebook_registry.get(codebook_sha256)
+                            if registry_entry is None:
+                                warnings.append("codebook_not_in_registry")
+                                geometric_config["codebook_registry"]["matched"] = False
+                            else:
+                                geometric_config["codebook_registry"]["matched"] = True
+                                geometric_config["codebook_registry"]["entry"] = (
+                                    registry_entry
+                                )
                         if (
                             reference_codebook.ndim != 2
                             or reference_codebook.shape[1] != patterns.shape[1]
@@ -416,6 +550,11 @@ def audit_snapshot(
                         elif reference_codebook.shape[0] == 0:
                             codebook_problem = "codebook_empty"
 
+            if (
+                codebook_registry_problem is not None
+                and weight_source == "geometric"
+            ):
+                failures.append(codebook_registry_problem)
             if codebook_problem is not None:
                 if weight_source == "geometric":
                     failures.append(codebook_problem)
@@ -555,6 +694,24 @@ def write_report(payload: Dict[str, Any], path: str | Path) -> None:
         )
         if geometric_config.get("codebook_path"):
             lines.append(f"- Codebook: `{geometric_config.get('codebook_path')}`")
+        codebook_identity = geometric_config.get("codebook_identity") or {}
+        if codebook_identity:
+            lines.append(f"- Codebook SHA-256: `{codebook_identity.get('sha256')}`")
+            lines.append(
+                f"- Codebook size bytes: {codebook_identity.get('size_bytes')}"
+            )
+        codebook_location = geometric_config.get("codebook_location") or {}
+        if codebook_location:
+            lines.append(
+                "- Codebook repo-relative path: "
+                f"`{codebook_location.get('relpath_from_repo_root')}`"
+            )
+        codebook_registry = geometric_config.get("codebook_registry") or {}
+        if codebook_registry.get("path"):
+            lines.append(f"- Codebook registry: `{codebook_registry.get('path')}`")
+            lines.append(
+                f"- Codebook registry match: {codebook_registry.get('matched')}"
+            )
     entropy = payload.get("entropy") or {}
     if entropy:
         lines.extend([
@@ -588,6 +745,7 @@ def main() -> None:
     parser.add_argument("--geometric-laplace", type=float, default=1e-6)
     parser.add_argument("--geometric-temperature", type=float, default=0.05)
     parser.add_argument("--codebook", default=None)
+    parser.add_argument("--codebook-registry", default=None)
     args = parser.parse_args()
 
     payload = audit_snapshot(
@@ -600,6 +758,7 @@ def main() -> None:
         geometric_laplace=args.geometric_laplace,
         geometric_temperature=args.geometric_temperature,
         codebook_path=args.codebook,
+        codebook_registry_path=args.codebook_registry,
     )
     out_path = Path(args.output)
     out_path.parent.mkdir(parents=True, exist_ok=True)

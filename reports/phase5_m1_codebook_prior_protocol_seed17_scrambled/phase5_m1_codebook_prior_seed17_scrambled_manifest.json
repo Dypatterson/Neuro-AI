@@ -1,0 +1,29 @@
+{
+  "artifact": "phase5_m1_codebook_scramble",
+  "dtype": "torch.complex64",
+  "global_norm_abs_diff": 0.0,
+  "input_codebook": {
+    "basename": "phase3c_codebook_reconstruction.pt",
+    "path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase3c_reconstruction/phase3c_codebook_reconstruction.pt",
+    "resolved_path": "/Users/dypatterson/Desktop/Neuro-AI/reports/phase3c_reconstruction/phase3c_codebook_reconstruction.pt",
+    "sha256": "863d2ae49c8baf33e8041fe8cc0cf54939ac338f23296fb0be783db4e0412aa6",
+    "size_bytes": 67176273
+  },
+  "method": "rowwise_coordinate_permutation",
+  "output_codebook": {
+    "basename": "phase5_m1_codebook_prior_seed17_scrambled_codebook.pt",
+    "path": "/private/tmp/phase5_m1_codebook_prior_seed17_scrambled_codebook.pt",
+    "resolved_path": "/private/tmp/phase5_m1_codebook_prior_seed17_scrambled_codebook.pt",
+    "sha256": "771649bac28fe2d9da969fbdb3459e33244347180424c7baf7abc153a8046980",
+    "size_bytes": 67176406
+  },
+  "registry_policy": "scrambled controls are intentionally not added to config/phase5_m1_codebook_registry.json; codebook_not_in_registry is the expected warning",
+  "row_norm_max_abs_diff": 0.0,
+  "row_norm_mean_abs_diff": 0.0,
+  "schema_version": 1,
+  "seed": 4242,
+  "shape": [
+    2050,
+    4096
+  ]
+}
