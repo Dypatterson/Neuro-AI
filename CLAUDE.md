@@ -54,6 +54,17 @@ blocker surfaces, an audit fails), update `STATUS.md` and the checklist
 **before** ending the session. The walk-back is the first edit, not the
 last.
 
+**STATUS.md banner discipline.** `STATUS.md` is a *bookmark*, not a log.
+Each session adds one "Recent updates" entry of ~5 lines max: one-line
+summary + link to the per-session report + link to the monthly archive
+section. Long-form narrative, walk-back chains, and nested audits live
+in the per-session report or in the monthly archive at
+[notes/status-log/](notes/status-log/) (e.g.
+[notes/status-log/2026-05.md](notes/status-log/2026-05.md)). Do not
+inline multi-paragraph banners into `STATUS.md` itself — it grew to
+87 KB / one-line-per-banner before the 2026-05-24 restructure and
+became unreadable for both humans and the Read tool.
+
 ## Experiment preamble requirement
 
 Before running any experiment that produces a numbered report or that
