@@ -164,6 +164,24 @@ class TestSnapshotRoundTrip(unittest.TestCase):
             )
             self.assertEqual(info["label"], "post_death")
             self.assertEqual(info["metadata"], meta)
+            self.assertEqual(info["version"], 2)
+
+    def test_legacy_version_one_snapshot_still_loads(self):
+        from energy_memory.phase4.snapshot import (
+            save_substrate_snapshot, load_substrate_snapshot,
+        )
+        from energy_memory.substrate.torch_fhrr import TorchFHRR
+        substrate, mem, cons = _build_substrate_with_state(seed=41)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "snap.pt"
+            save_substrate_snapshot(memory=mem, consolidation=cons, path=path)
+            state = torch.load(path, map_location="cpu", weights_only=False)
+            state["version"] = 1
+            torch.save(state, path)
+            new_substrate = TorchFHRR(dim=substrate.dim, device="cpu")
+            _, _, info = load_substrate_snapshot(
+                path=path, substrate=new_substrate,
+            )
             self.assertEqual(info["version"], 1)
 
     def test_save_refuses_misaligned_state(self):

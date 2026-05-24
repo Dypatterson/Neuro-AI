@@ -6,7 +6,8 @@
     "uniform_role_rows_degenerate"
   ],
   "warnings": [
-    "mask_token_participates_in_row_provenance"
+    "mask_token_participates_in_row_provenance",
+    "geometric_role_weights_degenerate"
   ],
   "n_atoms": 1064,
   "n_roles": 4,
@@ -19,6 +20,13 @@
     "mask_token_id": 1,
     "unk_token_id": 0,
     "pattern_encoder_terms_schema": "v1"
+  },
+  "weight_source": "count",
+  "geometric_config": {
+    "mode": "unbind_density",
+    "neighbor_k": 8,
+    "laplace": 1e-06,
+    "temperature": 0.05
   },
   "row_count_aligned": true,
   "kind_counts": {
@@ -53,12 +61,75 @@
     "median_normalized": 1.0,
     "max_normalized": 1.0,
     "uniform_row_fraction": 1.0,
-    "uniform_rows": 1064
+    "uniform_rows": 1064,
+    "empty_row_fraction": 0.0,
+    "empty_rows": 0
+  },
+  "count_role_counts": [
+    1064.0,
+    1064.0,
+    1064.0,
+    1064.0
+  ],
+  "count_role_fractions": [
+    0.25,
+    0.25,
+    0.25,
+    0.25
+  ],
+  "count_role_coverage": 4,
+  "count_entropy": {
+    "mean_normalized": 1.0,
+    "median_normalized": 1.0,
+    "max_normalized": 1.0,
+    "uniform_row_fraction": 1.0,
+    "uniform_rows": 1064,
+    "empty_row_fraction": 0.0,
+    "empty_rows": 0
+  },
+  "count_degeneracy_reasons": [
+    "mean_role_entropy_degenerate",
+    "uniform_role_rows_degenerate"
+  ],
+  "geometric_role_counts": [
+    265.6326904296875,
+    266.4127197265625,
+    266.41253662109375,
+    265.54205322265625
+  ],
+  "geometric_role_fractions": [
+    0.2496547842384281,
+    0.250387894479852,
+    0.250387722388246,
+    0.2495695988934739
+  ],
+  "geometric_role_coverage": 4,
+  "geometric_entropy": {
+    "mean_normalized": 0.9999075451291594,
+    "median_normalized": 1.0,
+    "max_normalized": 1.0000001192092896,
+    "uniform_row_fraction": 0.9971804511278195,
+    "uniform_rows": 1061,
+    "empty_row_fraction": 0.0,
+    "empty_rows": 0
+  },
+  "geometric_degeneracy_reasons": [
+    "geometric_mean_role_entropy_degenerate",
+    "geometric_uniform_role_rows_degenerate"
+  ],
+  "geometric_score_range": {
+    "min": 0.3092706799507141,
+    "max": 1.000002145767212,
+    "mean": 0.5993894338607788,
+    "row_spread_mean": 0.000334327746378748,
+    "row_spread_median": 5.364418029785156e-07,
+    "row_spread_max": 0.02776879072189331
   },
   "thresholds": {
     "mean_entropy_fail": 0.95,
     "uniform_row_entropy": 0.99,
     "uniform_row_fraction_fail": 0.95,
-    "min_role_fraction": 1e-06
+    "min_role_fraction": 1e-06,
+    "empty_row_fraction_fail": 0.5
   }
 }

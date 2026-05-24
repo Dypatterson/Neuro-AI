@@ -100,11 +100,24 @@ def run_snapshot_smoke(
     d3_mix: float = 0.5,
     p3_saliency_gain: float = 0.0,
     laplace_count: float = 1.0,
+    weight_source: str = "count",
+    geometric_mode: str = "unbind_density",
+    geometric_neighbor_k: int = 8,
+    geometric_laplace: float = 1e-6,
+    geometric_temperature: float = 0.05,
     binding_noise_std: float = 0.05,
     content_distortion: float = 0.6,
 ) -> Dict[str, Any]:
     snapshot = Path(snapshot)
-    audit = audit_snapshot(snapshot, device=device)
+    audit = audit_snapshot(
+        snapshot,
+        device=device,
+        weight_source=weight_source,
+        geometric_mode=geometric_mode,
+        geometric_neighbor_k=geometric_neighbor_k,
+        geometric_laplace=geometric_laplace,
+        geometric_temperature=geometric_temperature,
+    )
     if audit["status"] != "pass":
         raise ValueError(
             "snapshot failed M1 provenance audit: "
@@ -116,15 +129,26 @@ def run_snapshot_smoke(
     if positions is None:
         raise ValueError("snapshot smoke requires saved positions")
     role_vectors = [positions[i] for i in range(int(positions.shape[0]))]
-    pattern_terms = info["pattern_encoder_terms"]
     patterns = mem._pattern_matrix()
-    stats = RoleBindingStats.from_pattern_encoder_terms(
-        pattern_terms,
-        n_roles=len(role_vectors),
-        device=device,
-        require_complete=True,
-    )
-    atom_role_weights = stats.atom_role_weights(laplace=laplace_count)
+    if weight_source == "count":
+        stats = RoleBindingStats.from_pattern_encoder_terms(
+            info["pattern_encoder_terms"],
+            n_roles=len(role_vectors),
+            device=device,
+        )
+        atom_role_weights = stats.atom_role_weights(laplace=laplace_count)
+    elif weight_source == "geometric":
+        atom_role_weights = RoleBindingStats.geometric_row_role_weights(
+            mem.substrate,
+            patterns,
+            role_vectors,
+            mode=geometric_mode,
+            neighbor_k=geometric_neighbor_k,
+            laplace=geometric_laplace,
+            temperature=geometric_temperature,
+        )
+    else:
+        raise ValueError("weight_source must be 'count' or 'geometric'")
 
     cue_specs = _exp40._build_role_binding_cues(
         substrate=mem.substrate,
@@ -253,6 +277,11 @@ def run_snapshot_smoke(
             "d3_mix": d3_mix,
             "p3_saliency_gain": p3_saliency_gain,
             "laplace_count": laplace_count,
+            "role_weight_source": weight_source,
+            "geometric_mode": geometric_mode,
+            "geometric_neighbor_k": geometric_neighbor_k,
+            "geometric_laplace": geometric_laplace,
+            "geometric_temperature": geometric_temperature,
             "binding_noise_std": binding_noise_std,
             "content_distortion": content_distortion,
         },
@@ -318,6 +347,11 @@ def main() -> None:
     parser.add_argument("--d3-mix", type=float, default=0.5)
     parser.add_argument("--p3-saliency-gain", type=float, default=0.0)
     parser.add_argument("--laplace-count", type=float, default=1.0)
+    parser.add_argument("--weight-source", choices=("count", "geometric"), default="count")
+    parser.add_argument("--geometric-mode", default="unbind_density")
+    parser.add_argument("--geometric-neighbor-k", type=int, default=8)
+    parser.add_argument("--geometric-laplace", type=float, default=1e-6)
+    parser.add_argument("--geometric-temperature", type=float, default=0.05)
     parser.add_argument("--binding-noise-std", type=float, default=0.05)
     parser.add_argument("--content-distortion", type=float, default=0.6)
     args = parser.parse_args()
@@ -335,6 +369,11 @@ def main() -> None:
         d3_mix=args.d3_mix,
         p3_saliency_gain=args.p3_saliency_gain,
         laplace_count=args.laplace_count,
+        weight_source=args.weight_source,
+        geometric_mode=args.geometric_mode,
+        geometric_neighbor_k=args.geometric_neighbor_k,
+        geometric_laplace=args.geometric_laplace,
+        geometric_temperature=args.geometric_temperature,
         binding_noise_std=args.binding_noise_std,
         content_distortion=args.content_distortion,
     )

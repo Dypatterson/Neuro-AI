@@ -168,8 +168,25 @@ class ScaleSlot:
             self.pattern_encoder_term_kinds.append("source_window")
 
         self.landscape_size = actual_l
+        self._assert_metadata_aligned(include_memory=True)
+
+    def _assert_metadata_aligned(self, *, include_memory: bool = False) -> None:
+        lengths = (
+            len(self.source_windows),
+            len(self.discovered_queries),
+            len(self.pattern_encoder_terms),
+            len(self.pattern_encoder_term_kinds),
+        )
+        if len(set(lengths)) != 1:
+            raise RuntimeError(f"ScaleSlot metadata lists are misaligned: {lengths}")
+        if include_memory and lengths[0] != self.memory.stored_count:
+            raise RuntimeError(
+                "ScaleSlot metadata row count does not match memory: "
+                f"{lengths[0]} vs {self.memory.stored_count}"
+            )
 
     def append_replay_pattern(self, trace, *, scale: int) -> int:
+        self._assert_metadata_aligned(include_memory=True)
         new_idx = self.memory.stored_count
         self.memory.store(
             trace.final_state.clone(),
@@ -181,17 +198,25 @@ class ScaleSlot:
             None if trace.encoder_terms is None else list(trace.encoder_terms)
         )
         self.pattern_encoder_term_kinds.append("replay_query")
+        self._assert_metadata_aligned(include_memory=True)
         return new_idx
 
     def pop_pattern_metadata(self, idx: int) -> None:
-        if idx < len(self.source_windows):
-            self.source_windows.pop(idx)
-        if idx < len(self.discovered_queries):
-            self.discovered_queries.pop(idx)
-        if idx < len(self.pattern_encoder_terms):
-            self.pattern_encoder_terms.pop(idx)
-        if idx < len(self.pattern_encoder_term_kinds):
-            self.pattern_encoder_term_kinds.pop(idx)
+        """Remove row metadata after the matching memory row has been removed.
+
+        Garbage collection can remove a batch of memory rows before we pop the
+        parallel metadata rows. This method therefore checks only metadata-list
+        alignment; callers that pop a batch should verify memory alignment once
+        the whole batch is synchronized.
+        """
+        self._assert_metadata_aligned()
+        if not 0 <= int(idx) < len(self.source_windows):
+            raise IndexError(f"metadata row index {idx} out of range")
+        self.source_windows.pop(idx)
+        self.discovered_queries.pop(idx)
+        self.pattern_encoder_terms.pop(idx)
+        self.pattern_encoder_term_kinds.pop(idx)
+        self._assert_metadata_aligned()
 
 
 def evaluate_combined(
@@ -475,6 +500,8 @@ def stream_phase34(
                 deaths_total += len(dead)
                 for idx in sorted(dead, reverse=True):
                     slot.pop_pattern_metadata(idx)
+                if dead:
+                    slot._assert_metadata_aligned(include_memory=True)
 
         # Periodic re-encoding (condition C). Two passes:
         #   1. reencode_patterns refreshes original (token-window) patterns
@@ -671,8 +698,14 @@ def stream_phase34(
                 snap_path = (
                     snapshot_dir / f"{condition}_w{s}_step{cues_seen}.pt"
                 )
-                snap_slot = slots[s]
-                slot_positions = snap_slot.positions
+                snap_slot = slots.get(s)
+                slot_positions = None if snap_slot is None else snap_slot.positions
+                pattern_encoder_terms = (
+                    None if snap_slot is None else snap_slot.pattern_encoder_terms
+                )
+                pattern_encoder_term_kinds = (
+                    None if snap_slot is None else snap_slot.pattern_encoder_term_kinds
+                )
                 save_substrate_snapshot(
                     memory=unit.memory,
                     consolidation=unit.consolidation,
@@ -689,8 +722,8 @@ def stream_phase34(
                         "pattern_encoder_terms_schema": "v1",
                     },
                     positions=slot_positions,
-                    pattern_encoder_terms=snap_slot.pattern_encoder_terms,
-                    pattern_encoder_term_kinds=snap_slot.pattern_encoder_term_kinds,
+                    pattern_encoder_terms=pattern_encoder_terms,
+                    pattern_encoder_term_kinds=pattern_encoder_term_kinds,
                 )
                 print(
                     f"  [snapshot] w={s} step={cues_seen} "

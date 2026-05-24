@@ -5,6 +5,7 @@ from __future__ import annotations
 import unittest
 import importlib.util
 import sys
+from pathlib import Path
 
 try:
     import torch
@@ -183,8 +184,10 @@ class TestPhase34PatternProvenance(unittest.TestCase):
     @staticmethod
     def _exp19():
         if "experiments_19" not in sys.modules:
+            repo_root = Path(__file__).resolve().parents[1]
             spec = importlib.util.spec_from_file_location(
-                "experiments_19", "experiments/19_phase34_integrated.py"
+                "experiments_19",
+                repo_root / "experiments" / "19_phase34_integrated.py",
             )
             mod = importlib.util.module_from_spec(spec)
             sys.modules["experiments_19"] = mod
@@ -246,6 +249,64 @@ class TestPhase34PatternProvenance(unittest.TestCase):
         self.assertEqual(len(slot.pattern_encoder_terms), 2)
         self.assertEqual(len(slot.source_windows), 2)
         self.assertEqual(len(slot.discovered_queries), 2)
+        self.assertEqual(slot.pattern_encoder_term_kinds[1], "replay_query")
+
+    def test_batch_metadata_pop_allows_memory_rows_removed_first(self):
+        from energy_memory.substrate.torch_fhrr import TorchFHRR
+
+        exp19 = self._exp19()
+        substrate = TorchFHRR(dim=64, seed=20, device="cpu")
+        codebook = substrate.random_vectors(20)
+        slot = exp19.ScaleSlot(
+            substrate=substrate,
+            train_windows=[
+                (1, 2, 3),
+                (4, 5, 6),
+                (7, 8, 9),
+                (10, 11, 12),
+            ],
+            window_size=3,
+            landscape_size=4,
+            codebook=codebook,
+            seed=1,
+            traced=True,
+        )
+
+        dead = [1, 3]
+        for idx in sorted(dead, reverse=True):
+            slot.memory.remove_pattern(idx)
+        for idx in sorted(dead, reverse=True):
+            slot.pop_pattern_metadata(idx)
+
+        slot._assert_metadata_aligned(include_memory=True)
+        self.assertEqual(slot.memory.stored_count, 2)
+        self.assertEqual(len(slot.pattern_encoder_terms), 2)
+        self.assertEqual(slot.pattern_encoder_term_kinds, ["source_window", "source_window"])
+
+    def test_replay_append_without_encoder_terms_preserves_missing_row(self):
+        from energy_memory.phase4.trajectory import TrajectoryTrace
+        from energy_memory.substrate.torch_fhrr import TorchFHRR
+
+        exp19 = self._exp19()
+        substrate = TorchFHRR(dim=64, seed=19, device="cpu")
+        codebook = substrate.random_vectors(20)
+        slot = exp19.ScaleSlot(
+            substrate=substrate,
+            train_windows=[(1, 2, 3)],
+            window_size=3,
+            landscape_size=1,
+            codebook=codebook,
+            seed=1,
+            traced=True,
+        )
+        trace = TrajectoryTrace(
+            query=substrate.random_vector(),
+            encoder_terms=None,
+            final_state=substrate.random_vector(),
+        )
+        new_idx = slot.append_replay_pattern(trace, scale=3)
+        self.assertEqual(new_idx, 1)
+        self.assertIsNone(slot.pattern_encoder_terms[1])
         self.assertEqual(slot.pattern_encoder_term_kinds[1], "replay_query")
 
 
