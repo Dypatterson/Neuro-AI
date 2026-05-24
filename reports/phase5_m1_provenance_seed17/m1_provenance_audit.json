@@ -1,0 +1,64 @@
+{
+  "status": "fail",
+  "snapshot": "reports/phase5_m1_provenance_seed17/snapshots/phase3_phase4_w4_step1800.pt",
+  "failure_reasons": [
+    "mean_role_entropy_degenerate",
+    "uniform_role_rows_degenerate"
+  ],
+  "warnings": [
+    "mask_token_participates_in_row_provenance"
+  ],
+  "n_atoms": 1064,
+  "n_roles": 4,
+  "metadata": {
+    "condition": "phase3_phase4",
+    "scale": 4,
+    "cues_seen": 1800,
+    "seed": 17,
+    "n_patterns": 1064,
+    "mask_token_id": 1,
+    "unk_token_id": 0,
+    "pattern_encoder_terms_schema": "v1"
+  },
+  "row_count_aligned": true,
+  "kind_counts": {
+    "source_window": 1024,
+    "replay_query": 40
+  },
+  "term_checks": {
+    "missing_rows": 0,
+    "empty_rows": 0,
+    "malformed_terms": 0,
+    "role_out_of_bounds": 0,
+    "negative_token_ids": 0,
+    "mask_token_id": 1,
+    "rows_with_mask_token": 40,
+    "mask_token_terms": 40
+  },
+  "role_counts": [
+    1064.0,
+    1064.0,
+    1064.0,
+    1064.0
+  ],
+  "role_fractions": [
+    0.25,
+    0.25,
+    0.25,
+    0.25
+  ],
+  "role_coverage": 4,
+  "entropy": {
+    "mean_normalized": 1.0,
+    "median_normalized": 1.0,
+    "max_normalized": 1.0,
+    "uniform_row_fraction": 1.0,
+    "uniform_rows": 1064
+  },
+  "thresholds": {
+    "mean_entropy_fail": 0.95,
+    "uniform_row_entropy": 0.99,
+    "uniform_row_fraction_fail": 0.95,
+    "min_role_fraction": 1e-06
+  }
+}

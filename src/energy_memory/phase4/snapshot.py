@@ -18,6 +18,8 @@ The snapshot is a single .pt file via `torch.save`:
       "label": str,                          # optional tag (e.g. "post_death")
       "patterns": Tensor [N, D] complex,     # stacked stored patterns
       "pattern_labels": list,                # parallel to patterns; may contain Nones
+      "pattern_encoder_terms": list|None,    # optional per-pattern encoder terms
+      "pattern_encoder_term_kinds": list|None,
       "consolidation": {
         "u": Tensor [N, m] float32,
         "below_threshold_steps": Tensor [N] int32,
@@ -37,7 +39,7 @@ from __future__ import annotations
 
 import dataclasses
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Sequence, Tuple
 
 try:
     import torch
@@ -60,6 +62,8 @@ def save_substrate_snapshot(
     label: Optional[str] = None,
     metadata: Optional[Dict[str, Any]] = None,
     positions: Optional[Any] = None,
+    pattern_encoder_terms: Optional[Sequence[Any]] = None,
+    pattern_encoder_term_kinds: Optional[Sequence[Optional[str]]] = None,
 ) -> Path:
     """Save (memory, consolidation) to `path`.
 
@@ -80,6 +84,22 @@ def save_substrate_snapshot(
             f"memory has {memory.stored_count} patterns but consolidation has "
             f"{consolidation.n_patterns}; substrate is out of sync, refusing "
             "to save a snapshot that would scramble Phase 5's schema store"
+        )
+    if (
+        pattern_encoder_terms is not None
+        and len(pattern_encoder_terms) != memory.stored_count
+    ):
+        raise ValueError(
+            "pattern_encoder_terms must have one entry per stored pattern "
+            f"({memory.stored_count}), got {len(pattern_encoder_terms)}"
+        )
+    if (
+        pattern_encoder_term_kinds is not None
+        and len(pattern_encoder_term_kinds) != memory.stored_count
+    ):
+        raise ValueError(
+            "pattern_encoder_term_kinds must have one entry per stored pattern "
+            f"({memory.stored_count}), got {len(pattern_encoder_term_kinds)}"
         )
 
     path = Path(path)
@@ -107,11 +127,30 @@ def save_substrate_snapshot(
                 [p.detach().cpu() for p in positions], dim=0,
             )
 
+    encoder_terms_payload = None
+    if pattern_encoder_terms is not None:
+        encoder_terms_payload = [
+            None if terms is None else [
+                (int(role_index), int(atom_or_token_id))
+                for role_index, atom_or_token_id in terms
+            ]
+            for terms in pattern_encoder_terms
+        ]
+
+    encoder_term_kinds_payload = None
+    if pattern_encoder_term_kinds is not None:
+        encoder_term_kinds_payload = [
+            None if kind is None else str(kind)
+            for kind in pattern_encoder_term_kinds
+        ]
+
     state = {
         "version": SNAPSHOT_VERSION,
         "label": label,
         "patterns": patterns_tensor,
         "pattern_labels": list(memory.labels),
+        "pattern_encoder_terms": encoder_terms_payload,
+        "pattern_encoder_term_kinds": encoder_term_kinds_payload,
         "positions": positions_tensor,
         "consolidation": {
             "u": consolidation.u.detach().cpu(),
@@ -186,5 +225,7 @@ def load_substrate_snapshot(
         "metadata": dict(state.get("metadata") or {}),
         "version": state["version"],
         "positions": positions,
+        "pattern_encoder_terms": state.get("pattern_encoder_terms"),
+        "pattern_encoder_term_kinds": state.get("pattern_encoder_term_kinds"),
     }
     return mem, cons, info

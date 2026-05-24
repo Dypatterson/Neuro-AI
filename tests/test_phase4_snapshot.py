@@ -232,6 +232,49 @@ class TestSnapshotRoundTrip(unittest.TestCase):
                 path=path, substrate=new_substrate,
             )
             self.assertIsNone(info["positions"])
+            self.assertIsNone(info["pattern_encoder_terms"])
+            self.assertIsNone(info["pattern_encoder_term_kinds"])
+
+    def test_pattern_encoder_terms_round_trip(self):
+        from energy_memory.phase4.snapshot import (
+            save_substrate_snapshot, load_substrate_snapshot,
+        )
+        from energy_memory.substrate.torch_fhrr import TorchFHRR
+        substrate, mem, cons = _build_substrate_with_state(seed=10, n_atoms=3)
+        terms = [
+            [(0, 4), (1, 5)],
+            [(0, 6), (1, 7)],
+            [(0, 8), (1, 9)],
+        ]
+        kinds = ["source_window", "source_window", "replay_query"]
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "snap.pt"
+            save_substrate_snapshot(
+                memory=mem,
+                consolidation=cons,
+                path=path,
+                pattern_encoder_terms=terms,
+                pattern_encoder_term_kinds=kinds,
+            )
+            new_substrate = TorchFHRR(dim=substrate.dim, device="cpu")
+            _, _, info = load_substrate_snapshot(
+                path=path, substrate=new_substrate,
+            )
+            self.assertEqual(info["pattern_encoder_terms"], terms)
+            self.assertEqual(info["pattern_encoder_term_kinds"], kinds)
+
+    def test_save_refuses_misaligned_pattern_encoder_terms(self):
+        from energy_memory.phase4.snapshot import save_substrate_snapshot
+        _substrate, mem, cons = _build_substrate_with_state(seed=11, n_atoms=3)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "snap.pt"
+            with self.assertRaises(ValueError):
+                save_substrate_snapshot(
+                    memory=mem,
+                    consolidation=cons,
+                    path=path,
+                    pattern_encoder_terms=[[(0, 1)]],
+                )
 
     def test_empty_substrate_round_trips(self):
         """Edge case: a substrate with zero atoms saves and loads cleanly."""

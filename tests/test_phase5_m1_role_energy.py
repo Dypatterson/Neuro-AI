@@ -46,6 +46,35 @@ class TestRoleBindingStats(unittest.TestCase):
                 traces, n_atoms=4, n_roles=2, device="cpu",
             )
 
+    def test_from_pattern_encoder_terms_counts_roles_on_pattern_rows(self):
+        from energy_memory.phase5.m1_role_energy import RoleBindingStats
+
+        stats = RoleBindingStats.from_pattern_encoder_terms(
+            [
+                [(0, 10), (0, 11), (1, 12)],
+                [(1, 10), (2, 12)],
+                [(2, 99), (2, 100)],
+            ],
+            n_roles=3,
+            device="cpu",
+        )
+        self.assertTrue(torch.equal(
+            stats.counts.cpu(),
+            torch.tensor([
+                [2.0, 1.0, 0.0],
+                [0.0, 1.0, 1.0],
+                [0.0, 0.0, 2.0],
+            ]),
+        ))
+
+    def test_from_pattern_encoder_terms_requires_complete_by_default(self):
+        from energy_memory.phase5.m1_role_energy import RoleBindingStats
+
+        with self.assertRaises(ValueError):
+            RoleBindingStats.from_pattern_encoder_terms(
+                [[(0, 1)], None], n_roles=2, device="cpu",
+            )
+
 
 @unittest.skipIf(torch is None, "torch required")
 class TestM1RoleEnergy(unittest.TestCase):
@@ -116,6 +145,7 @@ class TestM1RoleEnergy(unittest.TestCase):
         for branch in result.branches:
             self.assertGreaterEqual(branch.top_index, 0)
             self.assertLess(branch.top_index, self.patterns.shape[0])
+            self.assertEqual(len(branch.energy_trace), 5)
 
 
 if __name__ == "__main__":

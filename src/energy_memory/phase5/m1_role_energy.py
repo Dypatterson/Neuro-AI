@@ -128,6 +128,38 @@ class RoleBindingStats:
             raise ValueError(f"{missing} traces are missing encoder_terms provenance")
         return stats
 
+    @classmethod
+    def from_pattern_encoder_terms(
+        cls,
+        pattern_encoder_terms: Sequence[Optional[Sequence[EncoderTerm]]],
+        *,
+        n_roles: int,
+        device: Optional[str] = None,
+        require_complete: bool = True,
+    ) -> "RoleBindingStats":
+        """Build row-role counts from per-pattern encoder provenance.
+
+        ``encode_window_with_provenance`` records ``(role_index, token_id)``.
+        M1 retrieves over pattern rows, not token-codebook rows, so this
+        adapter intentionally uses the outer list index as the atom row and
+        only uses each term's role index as the count source.
+        """
+        stats = cls.empty(
+            n_atoms=len(pattern_encoder_terms), n_roles=n_roles, device=device,
+        )
+        missing = 0
+        for atom_row, terms in enumerate(pattern_encoder_terms):
+            if terms is None:
+                missing += 1
+                continue
+            for role_index, _token_id in terms:
+                if not 0 <= int(role_index) < stats.n_roles:
+                    raise IndexError(f"role_index {role_index} out of range")
+                stats.counts[atom_row, int(role_index)] += 1.0
+        if require_complete and missing:
+            raise ValueError(f"{missing} pattern rows are missing encoder provenance")
+        return stats
+
     @property
     def n_atoms(self) -> int:
         return int(self.counts.shape[0])
@@ -278,7 +310,11 @@ def d3_additive_cross_k_settle(
     mix: float = 0.5,
     branch_score_bias: Optional["torch.Tensor"] = None,
     normalize_weighted_rows: bool = False,
-) -> Tuple[List["torch.Tensor"], List[float]]:
+    return_branch_traces: bool = False,
+) -> (
+    Tuple[List["torch.Tensor"], List[float]]
+    | Tuple[List["torch.Tensor"], List[float], List[List[float]]]
+):
     """Settle K branches with D3's additive cross-K softmax update."""
     _require_torch()
     if not 0.0 <= mix <= 1.0:
@@ -302,6 +338,7 @@ def d3_additive_cross_k_settle(
         for k in range(k_branches)
     ], dim=0)
     joint_energy_trace: List[float] = []
+    branch_energy_traces: List[List[float]] = [[] for _ in range(k_branches)]
     for _ in range(max_iter):
         score_rows = []
         for k in range(k_branches):
@@ -310,6 +347,9 @@ def d3_additive_cross_k_settle(
         logits = beta * scores
         if branch_score_bias is not None:
             logits = logits + branch_score_bias.to(logits.device)
+        for k in range(k_branches):
+            branch_energy = -torch.logsumexp(logits[k], dim=0) / beta
+            branch_energy_traces[k].append(float(branch_energy.detach().cpu()))
         pi = torch.softmax(logits, dim=1)
         alpha = torch.softmax(logits, dim=0)
         combined = (1.0 - mix) * pi + mix * alpha
@@ -322,6 +362,8 @@ def d3_additive_cross_k_settle(
             updates.append(substrate.normalize(update))
         states = torch.stack(updates, dim=0)
         joint_energy_trace.append(_joint_d3_energy(logits, beta, mix))
+    if return_branch_traces:
+        return [states[k] for k in range(k_branches)], joint_energy_trace, branch_energy_traces
     return [states[k] for k in range(k_branches)], joint_energy_trace
 
 
@@ -371,7 +413,7 @@ def run_m1_stack(
         field = centered_idp_saliency(substrate, cue, patterns, role_vectors)
         branch_bias = config.p3_saliency_gain * field[None, :].repeat(len(roles), 1)
 
-    states, joint_trace = d3_additive_cross_k_settle(
+    states, joint_trace, branch_energy_traces = d3_additive_cross_k_settle(
         substrate,
         init_states,
         patterns,
@@ -381,10 +423,11 @@ def run_m1_stack(
         mix=config.d3_mix,
         branch_score_bias=branch_bias,
         normalize_weighted_rows=config.normalize_weighted_rows,
+        return_branch_traces=True,
     )
 
     branches: List[M1BranchTelemetry] = []
-    for role, state in zip(roles, states):
+    for role, state, energy_trace in zip(roles, states, branch_energy_traces):
         wp = weighted_patterns(
             substrate,
             patterns,
@@ -401,6 +444,7 @@ def run_m1_stack(
             energy=energy,
             top_index=top_index,
             top_score=top_score,
+            energy_trace=energy_trace,
         ))
     return M1Result(branches=branches, joint_energy_trace=joint_trace)
 

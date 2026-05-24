@@ -149,18 +149,49 @@ class ScaleSlot:
         # the cue vector that produced them so reencode_discovered_patterns
         # can re-settle them when the codebook drifts.
         self.discovered_queries: List[Optional[torch.Tensor]] = [None] * actual_l
+        # Parallel to memory rows: encoder-time provenance for the row.
+        # Original rows carry full source-window terms; replay/discovery rows
+        # carry the query terms that produced the replay trace.
+        self.pattern_encoder_terms: List[Optional[List[tuple[int, int]]]] = []
+        self.pattern_encoder_term_kinds: List[Optional[str]] = []
 
         if traced:
             self.memory = TracedHopfieldMemory(substrate, snapshot_k=8)
         else:
             self.memory = TorchHopfieldMemory(substrate)
         for idx, w in enumerate(self.source_windows):
-            self.memory.store(
-                encode_window(substrate, self.positions, codebook, w),
-                label=f"w_{idx}",
+            encoded, encoder_terms = encode_window_with_provenance(
+                substrate, self.positions, codebook, w,
             )
+            self.memory.store(encoded, label=f"w_{idx}")
+            self.pattern_encoder_terms.append(list(encoder_terms))
+            self.pattern_encoder_term_kinds.append("source_window")
 
         self.landscape_size = actual_l
+
+    def append_replay_pattern(self, trace, *, scale: int) -> int:
+        new_idx = self.memory.stored_count
+        self.memory.store(
+            trace.final_state.clone(),
+            label=f"discovered_w{scale}_{new_idx}",
+        )
+        self.source_windows.append(None)
+        self.discovered_queries.append(trace.query.detach().clone())
+        self.pattern_encoder_terms.append(
+            None if trace.encoder_terms is None else list(trace.encoder_terms)
+        )
+        self.pattern_encoder_term_kinds.append("replay_query")
+        return new_idx
+
+    def pop_pattern_metadata(self, idx: int) -> None:
+        if idx < len(self.source_windows):
+            self.source_windows.pop(idx)
+        if idx < len(self.discovered_queries):
+            self.discovered_queries.pop(idx)
+        if idx < len(self.pattern_encoder_terms):
+            self.pattern_encoder_terms.pop(idx)
+        if idx < len(self.pattern_encoder_term_kinds):
+            self.pattern_encoder_term_kinds.pop(idx)
 
 
 def evaluate_combined(
@@ -423,19 +454,10 @@ def stream_phase34(
 
                 def make_handler(sc, sl):
                     def handler(trace):
-                        new_idx = sl.memory.stored_count
-                        sl.memory.store(
-                            trace.final_state.clone(),
-                            label=f"discovered_w{sc}_{new_idx}",
-                        )
-                        sl.source_windows.append(None)
-                        # Cache the cue vector so this pattern can be
-                        # refreshed by reencode_discovered_patterns when
-                        # the codebook drifts. Without this, discovered
-                        # patterns go stale under online Hebbian updates
-                        # (report 029 §Top1 regression).
-                        sl.discovered_queries.append(trace.query.detach().clone())
-                        return new_idx
+                        # Appends the row and all parallel row metadata:
+                        # source_windows, discovered_queries, and M1
+                        # encoder provenance.
+                        return sl.append_replay_pattern(trace, scale=sc)
                     return handler
 
                 cycle = unit.run_replay_cycle(
@@ -452,10 +474,7 @@ def stream_phase34(
                 dead = unit.garbage_collect()
                 deaths_total += len(dead)
                 for idx in sorted(dead, reverse=True):
-                    if idx < len(slot.source_windows):
-                        slot.source_windows.pop(idx)
-                    if idx < len(slot.discovered_queries):
-                        slot.discovered_queries.pop(idx)
+                    slot.pop_pattern_metadata(idx)
 
         # Periodic re-encoding (condition C). Two passes:
         #   1. reencode_patterns refreshes original (token-window) patterns
@@ -652,7 +671,8 @@ def stream_phase34(
                 snap_path = (
                     snapshot_dir / f"{condition}_w{s}_step{cues_seen}.pt"
                 )
-                slot_positions = slots[s].positions if s in slots else None
+                snap_slot = slots[s]
+                slot_positions = snap_slot.positions
                 save_substrate_snapshot(
                     memory=unit.memory,
                     consolidation=unit.consolidation,
@@ -664,8 +684,13 @@ def stream_phase34(
                         "cues_seen": cues_seen,
                         "seed": snapshot_seed,
                         "n_patterns": unit.consolidation.n_patterns,
+                        "mask_token_id": int(mask_id),
+                        "unk_token_id": int(unk_id),
+                        "pattern_encoder_terms_schema": "v1",
                     },
                     positions=slot_positions,
+                    pattern_encoder_terms=snap_slot.pattern_encoder_terms,
+                    pattern_encoder_term_kinds=snap_slot.pattern_encoder_term_kinds,
                 )
                 print(
                     f"  [snapshot] w={s} step={cues_seen} "

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import unittest
+import importlib.util
+import sys
 
 try:
     import torch
@@ -173,6 +175,78 @@ class TestReencoding(unittest.TestCase):
         )
         drift = codebook_drift(self.codebook, perturbed)
         self.assertGreater(drift, 0.01)
+
+
+@unittest.skipIf(torch is None, "torch required")
+class TestPhase34PatternProvenance(unittest.TestCase):
+
+    @staticmethod
+    def _exp19():
+        if "experiments_19" not in sys.modules:
+            spec = importlib.util.spec_from_file_location(
+                "experiments_19", "experiments/19_phase34_integrated.py"
+            )
+            mod = importlib.util.module_from_spec(spec)
+            sys.modules["experiments_19"] = mod
+            spec.loader.exec_module(mod)
+        return sys.modules["experiments_19"]
+
+    def test_scale_slot_initial_rows_have_source_window_provenance(self):
+        from energy_memory.substrate.torch_fhrr import TorchFHRR
+
+        exp19 = self._exp19()
+        substrate = TorchFHRR(dim=64, seed=17, device="cpu")
+        codebook = substrate.random_vectors(20)
+        windows = [(1, 2, 3), (4, 5, 6)]
+        slot = exp19.ScaleSlot(
+            substrate=substrate,
+            train_windows=windows,
+            window_size=3,
+            landscape_size=2,
+            codebook=codebook,
+            seed=1,
+            traced=True,
+        )
+        self.assertEqual(slot.memory.stored_count, 2)
+        self.assertEqual(len(slot.pattern_encoder_terms), 2)
+        self.assertEqual(slot.pattern_encoder_term_kinds, ["source_window", "source_window"])
+        for terms in slot.pattern_encoder_terms:
+            self.assertEqual([r for r, _token in terms], [0, 1, 2])
+
+    def test_replay_append_and_metadata_pop_stay_aligned(self):
+        from energy_memory.phase4.trajectory import TrajectoryTrace
+        from energy_memory.substrate.torch_fhrr import TorchFHRR
+
+        exp19 = self._exp19()
+        substrate = TorchFHRR(dim=64, seed=18, device="cpu")
+        codebook = substrate.random_vectors(20)
+        slot = exp19.ScaleSlot(
+            substrate=substrate,
+            train_windows=[(1, 2, 3), (4, 5, 6)],
+            window_size=3,
+            landscape_size=2,
+            codebook=codebook,
+            seed=1,
+            traced=True,
+        )
+        trace = TrajectoryTrace(
+            query=substrate.random_vector(),
+            encoder_terms=[(0, 9), (1, 10), (2, 11)],
+            final_state=substrate.random_vector(),
+        )
+        new_idx = slot.append_replay_pattern(trace, scale=3)
+        self.assertEqual(new_idx, 2)
+        self.assertEqual(slot.memory.stored_count, 3)
+        self.assertEqual(slot.pattern_encoder_term_kinds[2], "replay_query")
+        self.assertEqual(slot.pattern_encoder_terms[2], [(0, 9), (1, 10), (2, 11)])
+
+        slot.memory.remove_pattern(1)
+        slot.pop_pattern_metadata(1)
+        self.assertEqual(slot.memory.stored_count, 2)
+        self.assertEqual(len(slot.pattern_encoder_terms), 2)
+        self.assertEqual(len(slot.source_windows), 2)
+        self.assertEqual(len(slot.discovered_queries), 2)
+        self.assertEqual(slot.pattern_encoder_term_kinds[1], "replay_query")
 
 
 if __name__ == "__main__":
