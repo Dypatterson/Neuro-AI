@@ -6,8 +6,8 @@
       "basename": "phase3c_codebook_reconstruction.pt",
       "size_bytes": 67176273,
       "source": "phase3c_reconstruction",
-      "provenance": "pending protocol-note audit",
-      "notes": "External Phase 3c reconstruction bytes observed for codebook-prior diagnostic reruns; selection and lineage remain protocol-reviewed."
+      "provenance": "same-lineage audit documented in reports/phase5_m1_codebook_prior_protocol_lineage/phase3c_lineage_audit.md",
+      "notes": "External Phase 3c reconstruction bytes observed for codebook-prior diagnostic reruns; acceptable as same-lineage reference, not lineage-independent evidence."
     }
   ]
 }

@@ -1,0 +1,167 @@
+{
+  "status": "fail",
+  "snapshot": "reports/phase5_m1_provenance_seed17/snapshots/phase3_phase4_w4_step1800.pt",
+  "failure_reasons": [
+    "geometric_mean_role_entropy_degenerate",
+    "geometric_uniform_role_rows_degenerate"
+  ],
+  "warnings": [
+    "mask_token_participates_in_row_provenance",
+    "codebook_path_outside_repo",
+    "codebook_not_in_registry",
+    "count_role_weights_degenerate"
+  ],
+  "n_atoms": 1064,
+  "n_roles": 4,
+  "metadata": {
+    "condition": "phase3_phase4",
+    "scale": 4,
+    "cues_seen": 1800,
+    "seed": 17,
+    "n_patterns": 1064,
+    "mask_token_id": 1,
+    "unk_token_id": 0,
+    "pattern_encoder_terms_schema": "v1"
+  },
+  "evidence_scope": {
+    "representative_phase5_evidence": false,
+    "note": "Seed 17 is wiring/provenance/degen smoke only; it is not representative Phase 5 evidence."
+  },
+  "weight_source": "geometric",
+  "geometric_config": {
+    "mode": "codebook_prior_density",
+    "active_mode": "codebook_prior_density",
+    "neighbor_k": 8,
+    "laplace": 1e-06,
+    "temperature": 0.05,
+    "codebook_path": "/private/tmp/phase5_m1_codebook_prior_seed17_random_unit_codebook.pt",
+    "codebook_shape": [
+      2050,
+      4096
+    ],
+    "codebook_dtype": "torch.complex64",
+    "codebook_fingerprint": {
+      "sha256": "2feb8dda399f755372855a6b3d49d5bce4fc85c5ddf20851fed24fa1720aa643"
+    },
+    "codebook_identity": {
+      "sha256": "2feb8dda399f755372855a6b3d49d5bce4fc85c5ddf20851fed24fa1720aa643",
+      "basename": "phase5_m1_codebook_prior_seed17_random_unit_codebook.pt",
+      "size_bytes": 67176420
+    },
+    "codebook_location": {
+      "path": "/private/tmp/phase5_m1_codebook_prior_seed17_random_unit_codebook.pt",
+      "resolved_path": "/private/tmp/phase5_m1_codebook_prior_seed17_random_unit_codebook.pt",
+      "relpath_from_repo_root": null,
+      "inside_repo": false
+    },
+    "codebook_registry": {
+      "path": "config/phase5_m1_codebook_registry.json",
+      "matched": false,
+      "entry": null
+    }
+  },
+  "row_count_aligned": true,
+  "kind_counts": {
+    "source_window": 1024,
+    "replay_query": 40
+  },
+  "term_checks": {
+    "missing_rows": 0,
+    "empty_rows": 0,
+    "malformed_terms": 0,
+    "role_out_of_bounds": 0,
+    "negative_token_ids": 0,
+    "mask_token_id": 1,
+    "rows_with_mask_token": 40,
+    "mask_token_terms": 40
+  },
+  "role_counts": [
+    267.265380859375,
+    268.0457458496094,
+    263.51214599609375,
+    265.1767272949219
+  ],
+  "role_fractions": [
+    0.2511892677249765,
+    0.251922693467678,
+    0.24766179134971217,
+    0.24922624745763333
+  ],
+  "role_coverage": 4,
+  "entropy": {
+    "mean_normalized": 0.9996990434321246,
+    "median_normalized": 0.9997761845588684,
+    "max_normalized": 0.9999976754188538,
+    "uniform_row_fraction": 1.0,
+    "uniform_rows": 1064,
+    "empty_row_fraction": 0.0,
+    "empty_rows": 0
+  },
+  "count_role_counts": [
+    1064.0,
+    1064.0,
+    1064.0,
+    1064.0
+  ],
+  "count_role_fractions": [
+    0.25,
+    0.25,
+    0.25,
+    0.25
+  ],
+  "count_role_coverage": 4,
+  "count_entropy": {
+    "mean_normalized": 1.0,
+    "median_normalized": 1.0,
+    "max_normalized": 1.0,
+    "uniform_row_fraction": 1.0,
+    "uniform_rows": 1064,
+    "empty_row_fraction": 0.0,
+    "empty_rows": 0
+  },
+  "count_degeneracy_reasons": [
+    "mean_role_entropy_degenerate",
+    "uniform_role_rows_degenerate"
+  ],
+  "geometric_role_counts": [
+    267.265380859375,
+    268.0457458496094,
+    263.51214599609375,
+    265.1767272949219
+  ],
+  "geometric_role_fractions": [
+    0.2511892677249765,
+    0.251922693467678,
+    0.24766179134971217,
+    0.24922624745763333
+  ],
+  "geometric_role_coverage": 4,
+  "geometric_entropy": {
+    "mean_normalized": 0.9996990434321246,
+    "median_normalized": 0.9997761845588684,
+    "max_normalized": 0.9999976754188538,
+    "uniform_row_fraction": 1.0,
+    "uniform_rows": 1064,
+    "empty_row_fraction": 0.0,
+    "empty_rows": 0
+  },
+  "geometric_degeneracy_reasons": [
+    "geometric_mean_role_entropy_degenerate",
+    "geometric_uniform_role_rows_degenerate"
+  ],
+  "geometric_score_range": {
+    "min": 0.02764049358665943,
+    "max": 0.03898407518863678,
+    "mean": 0.03250901401042938,
+    "row_spread_mean": 0.003430512131548914,
+    "row_spread_median": 0.003208717331290245,
+    "row_spread_max": 0.00803154706954956
+  },
+  "thresholds": {
+    "mean_entropy_fail": 0.95,
+    "uniform_row_entropy": 0.99,
+    "uniform_row_fraction_fail": 0.95,
+    "min_role_fraction": 1e-06,
+    "empty_row_fraction_fail": 0.5
+  }
+}
