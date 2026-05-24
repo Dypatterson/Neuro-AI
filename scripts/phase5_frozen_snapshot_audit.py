@@ -785,6 +785,229 @@ def _run_headline_cue_regime_sweep(
     }
 
 
+def _run_headline_log_prior_sweep(
+    *,
+    snapshot_path: Path,
+    device: str,
+    beta: float,
+    k_main: int,
+    gamma: float,
+    gains: List[float],
+    binding_noise_std: float,
+    content_distortion: float,
+    n_cues: int,
+    formulation: str,
+    cue_seed: int,
+    delta_energy: float,
+    delta_state: float,
+    delta_redundant: float,
+    temperature: float,
+    max_settling_iter: int,
+) -> Dict[str, Any]:
+    """Varner-style log-prior spike over a predeclared gain grid.
+
+    Fixed operating point: beta=10, gamma=0.5, K=1, per-pattern
+    formulation, content_distortion=0.6, binding_noise_std=0.05. The
+    sweep varies only the additive branch-local log-multiplicity boost
+    passed through experiments/40's production branch path.
+    """
+    if formulation != "per_pattern":
+        raise SystemExit("--log-prior-sweep requires --headline-formulation per_pattern")
+
+    mem, cons, patterns, positions, info = _exp40._load_substrate_from_snapshot(
+        path=str(snapshot_path), device=device,
+    )
+    if positions is None:
+        raise SystemExit(
+            f"snapshot {snapshot_path} has no positions; log-prior sweep "
+            "requires position vectors."
+        )
+
+    patterns_matrix = mem._pattern_matrix()
+    schema_store, atom_idx = _exp40.get_schema_store(
+        consolidation=cons, patterns=patterns_matrix,
+        selection_rule="top_k_by_effective_strength",
+        k=min(8, len(patterns)),
+    )
+    schema_bindings = _exp40.compute_schema_bindings(
+        substrate=mem.substrate, schemas=schema_store, positions=positions,
+    )
+    step3_bias = (
+        cons.retrieval_weight_bias()
+        if cons.config.coverage_lambda > 0.0 else None
+    )
+    cue_specs = _exp40._build_role_binding_cues(
+        substrate=mem.substrate,
+        positions=positions,
+        patterns=patterns,
+        n_cues=n_cues,
+        binding_noise_std=binding_noise_std,
+        content_distortion=content_distortion,
+        seed=cue_seed,
+    )
+
+    condition_specs = [("role", "role"), ("content", "content"), ("random", "random")]
+    cells: List[Dict[str, Any]] = []
+    boltzmann_rng = torch.Generator().manual_seed(13)
+    random_prior_rng = torch.Generator().manual_seed(29)
+
+    for gain in gains:
+        boltzmann_rng.manual_seed(13)
+        random_prior_rng.manual_seed(29)
+        per_condition: Dict[str, Dict[str, List[float]]] = {
+            name: {
+                "e_min_raw": [], "e_min_step3": [],
+                "role_target_basin_hit": [], "role_target_rank": [],
+                "top_similarity": [],
+                "selected_atom_index": [],
+            } for name, _ in condition_specs
+        }
+
+        for spec in cue_specs:
+            for name, prior_type in condition_specs:
+                res = _exp40.run_branched_retrieval(
+                    cue=spec["cue"], cue_id=0, target_id=spec["role_target_idx"],
+                    memory=mem, codebook=patterns_matrix, positions=positions,
+                    decode_ids=[], decode_k=5, masked_pos=0,
+                    schema_store=schema_store, schema_atom_idx=atom_idx,
+                    consolidation=cons, prior_type=prior_type, k_main=k_main,
+                    gamma=gamma, beta=beta, temperature=temperature,
+                    delta_energy=delta_energy, delta_state=delta_state,
+                    delta_redundant=delta_redundant,
+                    formulation=formulation,
+                    cue_bindings=spec["cue_bindings"],
+                    schema_bindings=schema_bindings,
+                    include_surprise_branch=False,
+                    max_settling_iter=max_settling_iter,
+                    boltzmann_rng=boltzmann_rng,
+                    random_prior_rng=random_prior_rng,
+                    score_bias=step3_bias,
+                    log_prior_gain=gain,
+                    run_combiners=(k_main > 1),
+                )
+                if not res.branches:
+                    continue
+                bs = res.branches
+                e_raw = min(b.energy_unbiased for b in bs)
+                e_step3 = min(b.energy_unbiased_step3 for b in bs)
+                per_condition[name]["e_min_raw"].append(e_raw)
+                per_condition[name]["e_min_step3"].append(e_step3)
+                for b in bs:
+                    if b.schema_atom_index is not None:
+                        per_condition[name]["selected_atom_index"].append(
+                            float(b.schema_atom_index)
+                        )
+
+                use_bundle = k_main > 1 and res.q_bundle is not None
+                q_star = res.q_bundle if use_bundle else bs[0].q_settled
+                q_star_sims = mem.substrate.similarity_matrix(
+                    q_star.to(mem.substrate.device), patterns_matrix,
+                )
+                bd = _basin_diagnostics_from_sims(
+                    sims=q_star_sims,
+                    role_target_idx=int(spec["role_target_idx"]),
+                )
+                per_condition[name]["role_target_basin_hit"].append(
+                    bd["role_target_basin_hit"]
+                )
+                per_condition[name]["role_target_rank"].append(
+                    bd["role_target_rank"]
+                )
+                per_condition[name]["top_similarity"].append(
+                    bd["top_similarity"]
+                )
+
+        def _mean(xs: List[float]) -> float:
+            return sum(xs) / len(xs) if xs else float("nan")
+
+        c = per_condition["content"]["e_min_raw"]
+        r = per_condition["role"]["e_min_raw"]
+        n_pairs = min(len(c), len(r))
+        per_cue_dE_raw = [c[i] - r[i] for i in range(n_pairs)]
+        cs3 = per_condition["content"]["e_min_step3"]
+        rs3 = per_condition["role"]["e_min_step3"]
+        per_cue_dE_step3 = [cs3[i] - rs3[i] for i in range(n_pairs)]
+
+        n_role_lt_content_lt_random = 0
+        n_role_lt_content = 0
+        n_random_lowest = 0
+        for i in range(n_pairs):
+            er = per_condition["role"]["e_min_raw"][i]
+            ec = per_condition["content"]["e_min_raw"][i]
+            ed = (
+                per_condition["random"]["e_min_raw"][i]
+                if i < len(per_condition["random"]["e_min_raw"])
+                else float("inf")
+            )
+            if er < ec < ed:
+                n_role_lt_content_lt_random += 1
+            if er < ec:
+                n_role_lt_content += 1
+            if ed < er and ed < ec:
+                n_random_lowest += 1
+
+        mean_dE = _mean(per_cue_dE_raw)
+        gain_cell = {
+            "log_prior_gain": gain,
+            "n_pairs": n_pairs,
+            "mean_delta_e_raw": mean_dE,
+            "mean_delta_e_step3": _mean(per_cue_dE_step3),
+            "frac_positive_raw": (
+                sum(1 for x in per_cue_dE_raw if x > 0) / n_pairs
+                if n_pairs else float("nan")
+            ),
+            "delta_e_over_floor": mean_dE / 5.5e-3 if n_pairs else float("nan"),
+            "frac_role_lt_content_lt_random": (
+                n_role_lt_content_lt_random / n_pairs if n_pairs else float("nan")
+            ),
+            "frac_role_lt_content": (
+                n_role_lt_content / n_pairs if n_pairs else float("nan")
+            ),
+            "frac_random_lowest": (
+                n_random_lowest / n_pairs if n_pairs else float("nan")
+            ),
+            "per_condition_basin_hit_rate": {
+                name: _mean(per_condition[name]["role_target_basin_hit"])
+                for name, _ in condition_specs
+            },
+            "per_condition_mean_role_target_rank": {
+                name: _mean(per_condition[name]["role_target_rank"])
+                for name, _ in condition_specs
+            },
+            "per_condition_mean_e_min_raw": {
+                name: _mean(per_condition[name]["e_min_raw"])
+                for name, _ in condition_specs
+            },
+            "per_condition_mean_top_similarity": {
+                name: _mean(per_condition[name]["top_similarity"])
+                for name, _ in condition_specs
+            },
+        }
+        cells.append(gain_cell)
+
+    return {
+        "snapshot": str(snapshot_path),
+        "label": info.get("label"),
+        "n_atoms": len(patterns),
+        "dim": int(mem.substrate.dim),
+        "coverage_lambda": float(cons.config.coverage_lambda),
+        "step3_bias_active": step3_bias is not None,
+        "config": {
+            "beta": beta,
+            "k_main": k_main,
+            "gamma": gamma,
+            "gains": gains,
+            "n_cues": n_cues,
+            "binding_noise_std": binding_noise_std,
+            "content_distortion": content_distortion,
+            "formulation": formulation,
+            "cue_seed": cue_seed,
+            "magnitude_floor": 5.5e-3,
+        },
+        "cells": cells,
+    }
+
+
 def _flatten_for_csv(record: Dict[str, Any], parent: str = "") -> Dict[str, Any]:
     """One-level flatten of nested dicts: {a: {b: 1}} → {a.b: 1}."""
     out: Dict[str, Any] = {}
@@ -869,6 +1092,21 @@ def main() -> None:
         "β at fixed cue regime).",
     )
     parser.add_argument(
+        "--log-prior-sweep", action="store_true",
+        help="Run the C-first Varner-style log-prior gain sweep at the "
+        "locked Phase 5 operating point. Single-snapshot only (use with "
+        "--snapshot). Varies only --log-prior-gains.",
+    )
+    parser.add_argument(
+        "--log-prior-gains", type=str, default="0,1,2,4,6",
+        help="Comma-separated additive logit gains for --log-prior-sweep.",
+    )
+    parser.add_argument(
+        "--log-prior-beta", type=float, default=10.0,
+        help="Fixed beta for --log-prior-sweep. Default 10.0 is locked by "
+        "reports 057/058.",
+    )
+    parser.add_argument(
         "--cue-regime-binding-noise", type=str, default="0.01,0.05,0.10,0.20",
         help="Comma-separated binding_noise_std grid.",
     )
@@ -902,10 +1140,20 @@ def main() -> None:
         raise SystemExit(
             "--cue-regime-sweep requires --snapshot (single-snapshot mode)"
         )
-    if args.headline_beta_sweep and args.cue_regime_sweep:
+    if args.log_prior_sweep and args.snapshot is None:
         raise SystemExit(
-            "--headline-beta-sweep and --cue-regime-sweep are mutually "
-            "exclusive (each iterates a different axis at fixed others)"
+            "--log-prior-sweep requires --snapshot (single-snapshot mode)"
+        )
+    active_sweeps = [
+        args.headline_beta_sweep,
+        args.cue_regime_sweep,
+        args.log_prior_sweep,
+    ]
+    if sum(bool(x) for x in active_sweeps) > 1:
+        raise SystemExit(
+            "--headline-beta-sweep, --cue-regime-sweep, and "
+            "--log-prior-sweep are mutually exclusive (each iterates a "
+            "different axis at fixed others)"
         )
 
     if args.snapshot is not None:
@@ -919,6 +1167,48 @@ def main() -> None:
             snapshots = [Path(line.strip()) for line in f if line.strip()]
 
     betas = [float(b) for b in args.betas.split(",") if b.strip()]
+
+    if args.log_prior_sweep:
+        gains = [float(g) for g in args.log_prior_gains.split(",") if g.strip()]
+        print(
+            f"[log-prior sweep] {snapshots[0]}  "
+            f"(gains={gains}, beta={args.log_prior_beta}, "
+            f"K={args.headline_k_main}, gamma={args.headline_gamma}, "
+            f"n_cues={args.headline_n_cues})",
+            flush=True,
+        )
+        sweep = _run_headline_log_prior_sweep(
+            snapshot_path=snapshots[0],
+            device=args.device,
+            beta=args.log_prior_beta,
+            k_main=args.headline_k_main,
+            gamma=args.headline_gamma,
+            gains=gains,
+            binding_noise_std=args.binding_noise_std,
+            content_distortion=args.content_distortion,
+            n_cues=args.headline_n_cues,
+            formulation=args.headline_formulation,
+            cue_seed=args.headline_cue_seed,
+            delta_energy=args.headline_delta_energy,
+            delta_state=args.headline_delta_state,
+            delta_redundant=args.headline_delta_redundant,
+            temperature=args.headline_temperature,
+            max_settling_iter=args.headline_max_settling_iter,
+        )
+        geometry = audit_snapshot(
+            snapshot_path=snapshots[0],
+            device=args.device,
+            beta_preflight=False,
+            betas=betas,
+            n_cue_probes=args.n_cue_probes,
+            preflight_seed=args.preflight_seed,
+        )
+        out_doc = {"geometry": geometry, "log_prior_sweep": sweep}
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        with open(args.output, "w") as f:
+            json.dump(out_doc, f, indent=2)
+        print(f"[done] wrote {args.output}")
+        return
 
     if args.cue_regime_sweep:
         bns_grid = [float(b) for b in args.cue_regime_binding_noise.split(",") if b.strip()]

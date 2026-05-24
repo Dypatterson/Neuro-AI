@@ -255,6 +255,17 @@ at high energy. Both axes are needed.
 
 ## Headline metric
 
+**2026-05-24 C-first diagnostic note.** The Varner-style log-prior
+softmax-bias spike is an exploratory Phase 5' diagnostic, not a
+graduation retune. It keeps the locked headline setup (`beta=10`,
+`gamma=0.5`, `K=1`, `content_distortion=0.6`, `binding_noise_std=0.05`)
+and tests only whether an opt-in per-pattern log-multiplicity boost can
+move the existing A+B+A1' substrate toward the pre-committed magnitude
+floor. The default gain is zero and must reproduce the current headline
+path bit-identically. A positive spike result still requires explicit
+follow-up before any graduation claim; a negative result closes this
+prior-bias rescue path and supports Phase 5 closure / pivot planning.
+
 **Structural retrieval verified iff Δ final-state energy is CI-disjoint from
 zero, role-prior branches vs content-prior branches, on a held-out cue set
 designed for structural retrieval.**

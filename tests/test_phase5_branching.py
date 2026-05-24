@@ -1694,6 +1694,144 @@ class TestStep3ScoreBias(unittest.TestCase):
             patterns.append(p)
         return mem, patterns
 
+    def test_log_prior_zero_tensor_bit_identical_to_none(self):
+        """A zero log-prior bias is an exact no-op for settle_branch_with_prior."""
+        mod = _import_module()
+        mem, patterns = self._build_memory(n=6, d=64, seed=21)
+        cue = mem.substrate.normalize(
+            patterns[2] + 0.1 * torch.randn(64, dtype=torch.complex64)
+        )
+        prior = patterns[4]
+        zero_log_bias = torch.zeros(len(patterns), dtype=torch.float32)
+
+        settled_none, telem_none = mod.settle_branch_with_prior(
+            memory=mem, cue=cue, prior=prior,
+            beta=10.0, gamma=0.5, max_iter=12, formulation="per_pattern",
+            log_prior_bias=None,
+        )
+        settled_zero, telem_zero = mod.settle_branch_with_prior(
+            memory=mem, cue=cue, prior=prior,
+            beta=10.0, gamma=0.5, max_iter=12, formulation="per_pattern",
+            log_prior_bias=zero_log_bias,
+        )
+
+        self.assertLess((settled_none - settled_zero).abs().max().item(), 1e-6)
+        self.assertAlmostEqual(
+            telem_none["energy_biased_final"],
+            telem_zero["energy_biased_final"],
+            places=5,
+        )
+
+    def test_log_prior_bias_targets_only_designated_atom(self):
+        """Helper builds a one-hot additive logit boost at schema_atom_idx."""
+        mod = _import_module()
+        schema_atom_idx = torch.tensor([4, 2, 1], dtype=torch.long)
+        bias, atom_index = mod._branch_log_prior_bias(
+            n_patterns=6,
+            schema_index=1,
+            schema_atom_idx=schema_atom_idx,
+            log_prior_gain=3.5,
+            device=torch.device("cpu"),
+        )
+
+        self.assertEqual(atom_index, 2)
+        self.assertIsNotNone(bias)
+        self.assertAlmostEqual(float(bias.sum()), 3.5, places=5)
+        self.assertAlmostEqual(float(bias[2]), 3.5, places=5)
+        self.assertEqual(int((bias != 0).sum()), 1)
+
+    def test_run_branched_log_prior_gain_zero_matches_default(self):
+        """log_prior_gain=0 preserves run_branched_retrieval outputs."""
+        mod = _import_module()
+        mem, patterns = self._build_memory(n=6, d=64, seed=22)
+        cue = mem.substrate.normalize(
+            patterns[2] + 0.05 * torch.randn(64, dtype=torch.complex64)
+        )
+        cons = _make_consolidation(m=4, n_patterns=6)
+        schema_store = torch.stack([patterns[4], patterns[2], patterns[1]])
+        schema_atom_idx = torch.tensor([4, 2, 1], dtype=torch.long)
+
+        baseline = mod.run_branched_retrieval(
+            cue=cue, cue_id=0, target_id=None,
+            memory=mem, codebook=mem._pattern_matrix(), positions=None,
+            decode_ids=[], decode_k=5, masked_pos=0,
+            schema_store=schema_store, schema_atom_idx=schema_atom_idx,
+            consolidation=cons, prior_type="content", k_main=1,
+            gamma=0.5, beta=10.0, temperature=1.0,
+            delta_energy=0.1, delta_state=0.1, delta_redundant=1.0,
+            include_surprise_branch=False, run_combiners=False,
+        )
+        zero_gain = mod.run_branched_retrieval(
+            cue=cue, cue_id=0, target_id=None,
+            memory=mem, codebook=mem._pattern_matrix(), positions=None,
+            decode_ids=[], decode_k=5, masked_pos=0,
+            schema_store=schema_store, schema_atom_idx=schema_atom_idx,
+            consolidation=cons, prior_type="content", k_main=1,
+            gamma=0.5, beta=10.0, temperature=1.0,
+            delta_energy=0.1, delta_state=0.1, delta_redundant=1.0,
+            include_surprise_branch=False, run_combiners=False,
+            log_prior_gain=0.0,
+        )
+
+        self.assertEqual(len(baseline.branches), 1)
+        self.assertEqual(len(zero_gain.branches), 1)
+        self.assertLess(
+            (baseline.branches[0].q_settled - zero_gain.branches[0].q_settled)
+            .abs().max().item(),
+            1e-6,
+        )
+        self.assertAlmostEqual(
+            baseline.branches[0].energy_unbiased,
+            zero_gain.branches[0].energy_unbiased,
+            places=5,
+        )
+
+    def test_log_prior_gain_propagates_schema_atom_idx_for_prior_types(self):
+        """content, role, and random branches carry the mapped full atom id."""
+        mod = _import_module()
+        mem, patterns = self._build_memory(n=6, d=64, seed=23)
+        cons = _make_consolidation(m=4, n_patterns=6)
+        schema_store = torch.stack([patterns[4], patterns[2], patterns[1]])
+        schema_atom_idx = torch.tensor([4, 2, 1], dtype=torch.long)
+        cue = mem.substrate.normalize(
+            patterns[2] + 0.05 * torch.randn(64, dtype=torch.complex64)
+        )
+
+        # Role case: make schema row 2 the role-binding winner.
+        cue_bindings = torch.stack([patterns[1]])
+        schema_bindings = torch.stack([
+            torch.stack([patterns[4]]),
+            torch.stack([patterns[0]]),
+            torch.stack([patterns[1]]),
+        ])
+
+        cases = [
+            ("content", {}),
+            ("role", {"cue_bindings": cue_bindings, "schema_bindings": schema_bindings}),
+            ("random", {"random_prior_rng": torch.Generator().manual_seed(99)}),
+        ]
+        for prior_type, extra in cases:
+            result = mod.run_branched_retrieval(
+                cue=cue, cue_id=0, target_id=None,
+                memory=mem, codebook=mem._pattern_matrix(), positions=None,
+                decode_ids=[], decode_k=5, masked_pos=0,
+                schema_store=schema_store, schema_atom_idx=schema_atom_idx,
+                consolidation=cons, prior_type=prior_type, k_main=1,
+                gamma=0.5, beta=10.0, temperature=1.0,
+                delta_energy=0.1, delta_state=0.1, delta_redundant=1.0,
+                include_surprise_branch=False, run_combiners=False,
+                log_prior_gain=2.0,
+                **extra,
+            )
+            self.assertEqual(len(result.branches), 1)
+            branch = result.branches[0]
+            self.assertEqual(
+                branch.schema_atom_index,
+                int(schema_atom_idx[branch.schema_index]),
+                prior_type,
+            )
+            self.assertEqual(branch.log_prior_gain, 2.0)
+
     def test_score_bias_none_matches_pre_walkback_path(self):
         """settle_branch_with_prior(score_bias=None) is bit-identical to
         the pre-walk-back code path that omitted the parameter entirely."""

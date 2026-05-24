@@ -30,7 +30,7 @@ readout metric are not "verified."
 
 ## A. Headline metric
 
-The single graduation criterion. Per [phase-5-unified-design.md:258-277](phase-5-unified-design.md)
+The single graduation criterion. Per [phase-5-unified-design.md:269-288](phase-5-unified-design.md)
 and the [2026-05-16 substrate-vs-readout discipline note](../notes/2026-05-16-substrate-vs-readout-metric-discipline.md):
 energy, not readout.
 

@@ -78,6 +78,9 @@ class BranchState:
     prior: torch.Tensor             # FHRR vector used to seed this branch
     q_initial: torch.Tensor         # state at the start of settling
     q_settled: torch.Tensor         # state after retrieval converges
+    schema_index: int = -1          # row selected from schema_store, when applicable
+    schema_atom_index: Optional[int] = None  # row in the full pattern matrix, when known
+    log_prior_gain: float = 0.0     # opt-in Varner-style logit boost for schema_atom_index
     # ---- diagnostics (logged, NOT used for selection) ----
     energy_unbiased: float = 0.0    # E_k^unbiased(q_settled) — raw landscape (back-compat with reports 047-053)
     energy_unbiased_step3: float = 0.0  # E_k^step3(q_settled) = -logsumexp(β·sim − score_bias)/β.
@@ -524,6 +527,44 @@ def _softmax_entropy(weights: torch.Tensor) -> float:
 FORMULATIONS = ("per_pattern", "global_pull")
 
 
+def _branch_log_prior_bias(
+    *,
+    n_patterns: int,
+    schema_index: int,
+    schema_atom_idx: Optional[torch.Tensor],
+    log_prior_gain: float,
+    device: torch.device,
+) -> Tuple[Optional[torch.Tensor], Optional[int]]:
+    """Build the opt-in branch-specific log-prior bias vector.
+
+    The Varner-style spike adds a log-multiplicity term to exactly one
+    stored-pattern logit: the full-substrate atom backing the selected
+    schema row. ``log_prior_gain=0`` returns ``None`` so the legacy path
+    is bit-identical.
+    """
+    if log_prior_gain < 0.0:
+        raise ValueError(f"log_prior_gain must be non-negative, got {log_prior_gain}")
+    if log_prior_gain == 0.0 or schema_index < 0:
+        return None, None
+    if schema_atom_idx is None:
+        atom_index = int(schema_index)
+    else:
+        if schema_index >= int(schema_atom_idx.numel()):
+            raise ValueError(
+                f"schema_index {schema_index} outside schema_atom_idx "
+                f"of length {schema_atom_idx.numel()}"
+            )
+        atom_index = int(schema_atom_idx[schema_index].detach().cpu())
+    if atom_index < 0 or atom_index >= n_patterns:
+        raise ValueError(
+            f"schema atom index {atom_index} outside full pattern matrix "
+            f"of length {n_patterns}"
+        )
+    bias = torch.zeros(n_patterns, dtype=torch.float32, device=device)
+    bias[atom_index] = float(log_prior_gain)
+    return bias, atom_index
+
+
 def settle_branch_with_prior(
     *,
     memory: TorchHopfieldMemory,
@@ -535,6 +576,7 @@ def settle_branch_with_prior(
     tol: float = 1e-8,
     formulation: str = "per_pattern",
     score_bias: Optional[torch.Tensor] = None,
+    log_prior_bias: Optional[torch.Tensor] = None,
 ) -> Tuple[torch.Tensor, Dict[str, float]]:
     """Hopfield retrieval with prior bias. Two formulations are supported
     for the **decision #5 spike** (phase-5-unified-design.md §Open decisions):
@@ -585,6 +627,8 @@ def settle_branch_with_prior(
         )
     if not memory.stored_count:
         raise ValueError("cannot settle on an empty Hopfield memory")
+    if log_prior_bias is not None and formulation != "per_pattern":
+        raise ValueError("log_prior_bias is only defined for formulation='per_pattern'")
 
     patterns = memory._pattern_matrix()
     substrate = memory.substrate
@@ -597,6 +641,14 @@ def settle_branch_with_prior(
     # When None, dynamics + telemetry are bit-identical to pre-step-3 baseline
     # (load-bearing for back-compat with reports 047–053).
     bias_dev = score_bias.to(device) if score_bias is not None else None
+    log_prior_dev = (
+        log_prior_bias.to(device) if log_prior_bias is not None else None
+    )
+    if log_prior_dev is not None and log_prior_dev.shape != (patterns.shape[0],):
+        raise ValueError(
+            f"log_prior_bias must have shape ({patterns.shape[0]},), "
+            f"got {tuple(log_prior_dev.shape)}"
+        )
 
     # Per-formulation precomputation.
     if formulation == "per_pattern":
@@ -623,6 +675,8 @@ def settle_branch_with_prior(
         # Compute logits (used for weighting) and biased energy (Lyapunov).
         if formulation == "per_pattern":
             biased_logits = beta * scores + prior_bias
+            if log_prior_dev is not None:
+                biased_logits = biased_logits + log_prior_dev
             if bias_dev is not None:
                 biased_logits = biased_logits - bias_dev
             weights = torch.softmax(biased_logits, dim=0)
@@ -683,6 +737,8 @@ def settle_branch_with_prior(
         energy_unbiased_step3_final = energy_unbiased_final
     if formulation == "per_pattern":
         biased_final_logits = beta * final_scores + prior_bias
+        if log_prior_dev is not None:
+            biased_final_logits = biased_final_logits + log_prior_dev
         if bias_dev is not None:
             biased_final_logits = biased_final_logits - bias_dev
         energy_biased_final = float(
@@ -703,6 +759,7 @@ def settle_branch_with_prior(
         "energy_biased_final": energy_biased_final,
         "on_substrate_alignment": on_substrate_alignment,
         "formulation": formulation,
+        "log_prior_bias_active": log_prior_dev is not None,
     }
 
 
@@ -1080,6 +1137,7 @@ def run_branched_retrieval(
     boltzmann_rng: Optional[torch.Generator] = None,
     random_prior_rng: Optional[torch.Generator] = None,
     score_bias: Optional[torch.Tensor] = None,
+    log_prior_gain: float = 0.0,
     run_combiners: bool = True,
 ) -> BranchedRetrievalResult:
     """One full branched retrieval over a single cue.
@@ -1087,7 +1145,9 @@ def run_branched_retrieval(
     Steps (per design §"Architectural diagram"):
       1. Pick K_main schemas (via prior_type) + optional surprise branch.
       2. Settle each branch with γ-biased energy (formulation per
-         decision #5).
+         decision #5). If ``log_prior_gain`` is positive, the selected
+         schema atom also receives an additive log-multiplicity boost in
+         the per-pattern logits.
       3. Score unbiased; log per-branch diagnostics.
       4. Compute pairwise final-state divergence (post-pass).
       5. Run all three combination rules: bundle-resettle (preferred),
@@ -1104,6 +1164,8 @@ def run_branched_retrieval(
     comparison only; they are NOT the production combiner.
     """
     result = BranchedRetrievalResult(cue_id=cue_id, cue=cue, target_id=target_id)
+    if log_prior_gain < 0.0:
+        raise ValueError(f"log_prior_gain must be non-negative, got {log_prior_gain}")
 
     # --- Step 1: pick K_main schemas + surprise branch -------------------
     picks = select_schema_priors(
@@ -1122,11 +1184,19 @@ def run_branched_retrieval(
     # --- Step 2 + 3: settle each branch and fill diagnostics ------------
     branches: List[BranchState] = []
     for i, (schema_idx, prior_vec) in enumerate(picks):
+        log_prior_bias, schema_atom_index = _branch_log_prior_bias(
+            n_patterns=memory.stored_count,
+            schema_index=schema_idx,
+            schema_atom_idx=schema_atom_idx,
+            log_prior_gain=log_prior_gain,
+            device=memory.substrate.device,
+        )
         q_settled, telem = settle_branch_with_prior(
             memory=memory, cue=cue, prior=prior_vec,
             beta=beta, gamma=gamma, max_iter=max_settling_iter,
             formulation=formulation,
             score_bias=score_bias,
+            log_prior_bias=log_prior_bias,
         )
         b = BranchState(
             branch_id=i,
@@ -1134,6 +1204,9 @@ def run_branched_retrieval(
             prior=prior_vec,
             q_initial=cue,
             q_settled=q_settled,
+            schema_index=schema_idx,
+            schema_atom_index=schema_atom_index,
+            log_prior_gain=log_prior_gain if schema_atom_index is not None else 0.0,
         )
         compute_branch_diagnostics(
             branch=b, memory=memory, cue=cue, beta=beta, gamma=gamma,
@@ -1151,6 +1224,7 @@ def run_branched_retrieval(
             beta=beta, gamma=gamma, max_iter=max_settling_iter,
             formulation=formulation,
             score_bias=score_bias,
+            log_prior_bias=None,
         )
         b = BranchState(
             branch_id=len(branches),
@@ -1503,6 +1577,9 @@ def main():
                         choices=list(FORMULATIONS),
                         help="prior formulation for headline mode")
     parser.add_argument("--beta", type=float, default=10.0)
+    parser.add_argument("--log-prior-gain", type=float, default=0.0,
+                        help="Opt-in Varner-style per-selected-schema logit "
+                        "boost. Default 0.0 preserves the locked baseline.")
     parser.add_argument("--temperature", type=float, default=1.0)
     parser.add_argument("--delta-energy", type=float, default=0.1)
     parser.add_argument("--delta-state", type=float, default=0.3)
@@ -1731,6 +1808,7 @@ def main():
                     boltzmann_rng=boltzmann_rng,
                     random_prior_rng=random_prior_rng,
                     score_bias=step3_bias,
+                    log_prior_gain=args.log_prior_gain,
                 )
                 if not result.branches:
                     continue
