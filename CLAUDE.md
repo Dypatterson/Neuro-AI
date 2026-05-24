@@ -49,6 +49,27 @@ catch a contradiction between them and another document mid-session
 — **including the active phase's design spec** — that is itself a
 finding to surface, not paper over.
 
+**Don't trust a "never built / never run" flag without grepping
+`reports/` for the mechanism by name.** STATUS.md's
+"Pre-phase commitments still open" list has drifted before — items
+that were resolved by a numbered report were left flagged as open for
+a week. Before treating any open commitment as actionable:
+
+```bash
+grep -rln '<mechanism_name_or_knob>' reports/ notes/emergent-codebook/
+```
+
+If a numbered report exists, read it before doing anything else.
+
+*Why this rule exists.* The 2026-05-24 unconsidered-paths brainstorm
+session built three downstream documents and a recommended action list
+on top of a stale STATUS.md claim ("freq-weighted α never built") that
+[Report 040](reports/040_freq_weighted_alpha_sweep.md) had resolved on
+2026-05-17. A follow-up audit found four more knobs in the same
+position — all of them already exercised in numbered reports. See
+[brainstorm-workspace/2026-05-24-unconsidered-paths/wired-but-unrun-audit.md](brainstorm-workspace/2026-05-24-unconsidered-paths/wired-but-unrun-audit.md)
+for the full per-knob breakdown.
+
 If a session causes any status change (a blocker becomes done, a new
 blocker surfaces, an audit fails), update `STATUS.md` and the checklist
 **before** ending the session. The walk-back is the first edit, not the
@@ -245,3 +266,14 @@ A phase result is not "done" until:
   condition.
 - **Reporting confidence based on a single seed.** Multi-seed is the bar,
   with bootstrap or Wilson CIs.
+- **Equating `default = 0.0` in code with "never run."** This project's
+  `ConsolidationConfig` knobs (`alpha_freq_lambda`, `coverage_lambda`,
+  `retrieval_weight_epsilon`/`_tau`, `metastability_obs_rate`,
+  `inhibition_gain`) default to `0.0` to preserve prior-substrate
+  reproducibility, **not** because the mechanism has never been
+  exercised. Every such knob has at least one numbered report that
+  turned it on, measured the headline, and recorded a verdict
+  (falsified, inert, integrated, or empirically null). The canonical
+  query is always *"which numbered report exercises this knob?"*, never
+  *"what's the default in the dataclass?"* This is the grep-by-default
+  failure mode that caused the 2026-05-24 walk-back chain.
