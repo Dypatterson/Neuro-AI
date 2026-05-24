@@ -107,6 +107,9 @@ def run_snapshot_smoke(
     geometric_temperature: float = 0.05,
     binding_noise_std: float = 0.05,
     content_distortion: float = 0.6,
+    codebook_path: str | Path | None = None,
+    codebook_registry_path: str | Path | None = None,
+    skip_audit: bool = False,
 ) -> Dict[str, Any]:
     snapshot = Path(snapshot)
     audit = audit_snapshot(
@@ -117,8 +120,10 @@ def run_snapshot_smoke(
         geometric_neighbor_k=geometric_neighbor_k,
         geometric_laplace=geometric_laplace,
         geometric_temperature=geometric_temperature,
+        codebook_path=codebook_path,
+        codebook_registry_path=codebook_registry_path,
     )
-    if audit["status"] != "pass":
+    if audit["status"] != "pass" and not skip_audit:
         raise ValueError(
             "snapshot failed M1 provenance audit: "
             + ", ".join(audit["failure_reasons"])
@@ -138,6 +143,14 @@ def run_snapshot_smoke(
         )
         atom_role_weights = stats.atom_role_weights(laplace=laplace_count)
     elif weight_source == "geometric":
+        reference_codebook = None
+        if codebook_path is not None:
+            cb = torch.load(Path(codebook_path), map_location=device, weights_only=False)
+            if isinstance(cb, dict):
+                cb = cb.get("codebook", cb.get("vectors", cb.get("patterns")))
+            if cb is None:
+                raise ValueError("codebook file did not contain a tensor under 'codebook'/'vectors'/'patterns'")
+            reference_codebook = cb.to(device)
         atom_role_weights = RoleBindingStats.geometric_row_role_weights(
             mem.substrate,
             patterns,
@@ -146,6 +159,7 @@ def run_snapshot_smoke(
             neighbor_k=geometric_neighbor_k,
             laplace=geometric_laplace,
             temperature=geometric_temperature,
+            reference_codebook=reference_codebook,
         )
     else:
         raise ValueError("weight_source must be 'count' or 'geometric'")
@@ -265,8 +279,16 @@ def run_snapshot_smoke(
         "rank_role": sum(ranks) / len(ranks) if ranks else float("nan"),
         "random_lowest": random_lowest_count / n_cues if n_cues else float("nan"),
     }
+    audit_bypassed = audit["status"] != "pass" and skip_audit
+    scope = "seed-17 M1 real-substrate smoke; not Phase 5 evidence"
+    if audit_bypassed:
+        scope = (
+            "UNAUDITED cross-seed smoke (--skip-audit, geometric weights only); "
+            "snapshot lacks S1 provenance; not Phase 5 evidence"
+        )
     payload = {
-        "scope": "seed-17 M1 real-substrate smoke; not Phase 5 evidence",
+        "scope": scope,
+        "audit_bypassed": audit_bypassed,
         "snapshot": str(snapshot),
         "seed": seed,
         "config": {
@@ -285,8 +307,8 @@ def run_snapshot_smoke(
             "binding_noise_std": binding_noise_std,
             "content_distortion": content_distortion,
         },
-        "role_weight_utilization": audit["role_fractions"],
-        "role_weight_entropy": audit["entropy"],
+        "role_weight_utilization": audit.get("role_fractions"),
+        "role_weight_entropy": audit.get("entropy"),
         "summary": summary,
         "audit": audit,
         "cues": cue_rows,
@@ -314,7 +336,7 @@ def _write_markdown(payload: Dict[str, Any], path: Path) -> None:
     lines = [
         "# Phase 5 M1 Snapshot Smoke",
         "",
-        "**Scope:** seed-17 M1 real-substrate smoke; not Phase 5 evidence.",
+        f"**Scope:** {payload.get('scope', 'M1 snapshot smoke')}",
         "",
         f"- Snapshot: `{payload['snapshot']}`",
         f"- n_cues: {s['n_cues']}",
@@ -354,6 +376,15 @@ def main() -> None:
     parser.add_argument("--geometric-temperature", type=float, default=0.05)
     parser.add_argument("--binding-noise-std", type=float, default=0.05)
     parser.add_argument("--content-distortion", type=float, default=0.6)
+    parser.add_argument("--codebook", default=None)
+    parser.add_argument("--codebook-registry", default=None)
+    parser.add_argument(
+        "--skip-audit",
+        action="store_true",
+        help="Bypass the M1 provenance gate. UNSAFE: only for cross-seed smoke "
+        "on pre-S1 snapshots when using geometric weights (which do not need "
+        "encoder terms). Resulting payload is flagged unaudited.",
+    )
     args = parser.parse_args()
 
     payload = run_snapshot_smoke(
@@ -376,6 +407,9 @@ def main() -> None:
         geometric_temperature=args.geometric_temperature,
         binding_noise_std=args.binding_noise_std,
         content_distortion=args.content_distortion,
+        codebook_path=args.codebook,
+        codebook_registry_path=args.codebook_registry,
+        skip_audit=args.skip_audit,
     )
     print(json.dumps(payload["summary"], indent=2))
 
