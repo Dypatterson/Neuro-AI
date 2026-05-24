@@ -5,6 +5,7 @@ Status: **FAIL**
 - Snapshot: `reports/phase5_m1_provenance_seed17/snapshots/phase3_phase4_w4_step1800.pt`
 - Rows: 1064
 - Roles: 4
+- Weight source: count
 - Row alignment: True
 - Role coverage: 4/4
 - Mean normalized row entropy: 1.0
@@ -16,6 +17,7 @@ Status: **FAIL**
 
 ## Warnings
 - mask_token_participates_in_row_provenance
+- geometric_role_weights_degenerate
 
 ## Role Counts
 {

@@ -185,6 +185,106 @@ class RoleBindingStats:
         denom = smoothed.sum(dim=1, keepdim=True).clamp(min=1e-12)
         return smoothed / denom
 
+    @staticmethod
+    def geometric_row_role_scores(
+        substrate: TorchFHRR,
+        patterns: "torch.Tensor",
+        role_vectors: Sequence["torch.Tensor"],
+        *,
+        mode: str = "unbind_density",
+        neighbor_k: int = 8,
+    ) -> "torch.Tensor":
+        """Return non-negative row-role scores from substrate geometry.
+
+        Count provenance records how a stored row was encoded. For full
+        windows, that record is intentionally complete and therefore uniform
+        over roles. This geometric adapter asks a different, row-domain
+        question over the exact matrix M1 retrieves from: after unbinding a
+        pattern row by a role vector, does the recovered filler live in a
+        locally dense part of the full unbound filler population? Same-role
+        row geometry alone is still an isometry of the pattern matrix; the
+        cross-role filler population is what makes the role-local signal
+        inspectable without consulting token ids.
+        """
+        _require_torch()
+        if patterns.ndim != 2:
+            raise ValueError("patterns must be a [N, D] tensor")
+        if len(role_vectors) == 0:
+            raise ValueError("role_vectors must not be empty")
+        n_patterns = int(patterns.shape[0])
+        if n_patterns == 0:
+            raise ValueError("patterns must contain at least one row")
+        if neighbor_k <= 0:
+            raise ValueError("neighbor_k must be positive")
+
+        device = patterns.device
+        roles = [role.to(device) for role in role_vectors]
+
+        if mode == "unbind_norm":
+            rows = [
+                substrate.unbind(patterns, role).norm(dim=1)
+                for role in roles
+            ]
+            return torch.stack(rows, dim=1).to(torch.float32).clamp(min=0.0)
+        if mode != "unbind_density":
+            raise ValueError("mode must be 'unbind_density' or 'unbind_norm'")
+
+        if n_patterns == 1:
+            return torch.ones(
+                (1, len(roles)), dtype=torch.float32, device=device,
+            )
+
+        n_roles = len(roles)
+        k = min(int(neighbor_k), n_patterns * n_roles - 1)
+        fillers_by_role = torch.stack(
+            [substrate.unbind(patterns, role) for role in roles],
+            dim=1,
+        )
+        flat_fillers = fillers_by_role.reshape(n_patterns * n_roles, patterns.shape[1])
+        flat_norms = flat_fillers.norm(dim=1).clamp(min=1e-12)
+        role_scores = []
+        row_indices = torch.arange(n_patterns, device=device)
+        for role_idx in range(n_roles):
+            fillers = fillers_by_role[:, role_idx, :]
+            gram = (fillers @ flat_fillers.conj().transpose(0, 1)).real
+            norms = fillers.norm(dim=1).clamp(min=1e-12)
+            sims = gram / (norms[:, None] * flat_norms[None, :])
+            sims = sims.clamp(min=0.0)
+            sims = sims.clone()
+            sims[row_indices, row_indices * n_roles + role_idx] = 0.0
+            topk = torch.topk(sims, k=k, dim=1).values
+            role_scores.append(topk.mean(dim=1))
+        return torch.stack(role_scores, dim=1).to(torch.float32).clamp(min=0.0)
+
+    @staticmethod
+    def geometric_row_role_weights(
+        substrate: TorchFHRR,
+        patterns: "torch.Tensor",
+        role_vectors: Sequence["torch.Tensor"],
+        *,
+        mode: str = "unbind_density",
+        neighbor_k: int = 8,
+        laplace: float = 1e-6,
+        temperature: Optional[float] = 0.05,
+    ) -> "torch.Tensor":
+        """Return row-normalized geometric role weights for M1."""
+        if laplace < 0.0:
+            raise ValueError("laplace must be non-negative")
+        if temperature is not None and temperature <= 0.0:
+            raise ValueError("temperature must be positive")
+        scores = RoleBindingStats.geometric_row_role_scores(
+            substrate,
+            patterns,
+            role_vectors,
+            mode=mode,
+            neighbor_k=neighbor_k,
+        )
+        if temperature is not None:
+            return torch.softmax(scores / float(temperature), dim=1)
+        smoothed = scores + float(laplace)
+        denom = smoothed.sum(dim=1, keepdim=True).clamp(min=1e-12)
+        return smoothed / denom
+
     def outer_role_weights(self, laplace: float = 1.0) -> "torch.Tensor":
         """Return global role weights normalized over roles."""
         if laplace < 0.0:
@@ -338,7 +438,7 @@ def d3_additive_cross_k_settle(
         for k in range(k_branches)
     ], dim=0)
     joint_energy_trace: List[float] = []
-    branch_energy_traces: List[List[float]] = [[] for _ in range(k_branches)]
+    branch_energy_history: List["torch.Tensor"] = []
     for _ in range(max_iter):
         score_rows = []
         for k in range(k_branches):
@@ -347,9 +447,10 @@ def d3_additive_cross_k_settle(
         logits = beta * scores
         if branch_score_bias is not None:
             logits = logits + branch_score_bias.to(logits.device)
-        for k in range(k_branches):
-            branch_energy = -torch.logsumexp(logits[k], dim=0) / beta
-            branch_energy_traces[k].append(float(branch_energy.detach().cpu()))
+        if return_branch_traces:
+            branch_energy_history.append(
+                (-torch.logsumexp(logits, dim=1) / beta).detach()
+            )
         pi = torch.softmax(logits, dim=1)
         alpha = torch.softmax(logits, dim=0)
         combined = (1.0 - mix) * pi + mix * alpha
@@ -363,6 +464,14 @@ def d3_additive_cross_k_settle(
         states = torch.stack(updates, dim=0)
         joint_energy_trace.append(_joint_d3_energy(logits, beta, mix))
     if return_branch_traces:
+        if branch_energy_history:
+            branch_matrix = torch.stack(branch_energy_history, dim=1)
+            branch_energy_traces = [
+                [float(x) for x in row]
+                for row in branch_matrix.detach().cpu().tolist()
+            ]
+        else:
+            branch_energy_traces = [[] for _ in range(k_branches)]
         return [states[k] for k in range(k_branches)], joint_energy_trace, branch_energy_traces
     return [states[k] for k in range(k_branches)], joint_energy_trace
 

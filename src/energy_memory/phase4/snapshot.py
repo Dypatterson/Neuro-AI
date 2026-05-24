@@ -14,7 +14,7 @@ that alignment.
 The snapshot is a single .pt file via `torch.save`:
 
     {
-      "version": 1,
+      "version": 2,
       "label": str,                          # optional tag (e.g. "post_death")
       "patterns": Tensor [N, D] complex,     # stacked stored patterns
       "pattern_labels": list,                # parallel to patterns; may contain Nones
@@ -51,7 +51,8 @@ from energy_memory.phase4.consolidation import ConsolidationConfig, Consolidatio
 from energy_memory.substrate.torch_fhrr import TorchFHRR
 
 
-SNAPSHOT_VERSION = 1
+SNAPSHOT_VERSION = 2
+SUPPORTED_SNAPSHOT_VERSIONS = {1, 2}
 
 
 def save_substrate_snapshot(
@@ -185,10 +186,11 @@ def load_substrate_snapshot(
     if not path.exists():
         raise FileNotFoundError(f"substrate snapshot not found: {path}")
     state = torch.load(path, map_location="cpu", weights_only=False)
-    if state.get("version") != SNAPSHOT_VERSION:
+    version = state.get("version")
+    if version not in SUPPORTED_SNAPSHOT_VERSIONS:
         raise ValueError(
-            f"snapshot version {state.get('version')!r} does not match expected "
-            f"{SNAPSHOT_VERSION!r}; cannot load"
+            f"snapshot version {version!r} is not supported; expected one of "
+            f"{sorted(SUPPORTED_SNAPSHOT_VERSIONS)!r}"
         )
     patterns: torch.Tensor = state["patterns"]
     if patterns.numel() > 0 and patterns.shape[-1] != substrate.dim:
@@ -223,7 +225,7 @@ def load_substrate_snapshot(
     info = {
         "label": state.get("label"),
         "metadata": dict(state.get("metadata") or {}),
-        "version": state["version"],
+        "version": version,
         "positions": positions,
         "pattern_encoder_terms": state.get("pattern_encoder_terms"),
         "pattern_encoder_term_kinds": state.get("pattern_encoder_term_kinds"),
