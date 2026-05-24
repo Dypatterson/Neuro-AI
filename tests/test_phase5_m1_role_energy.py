@@ -10,6 +10,49 @@ except ModuleNotFoundError:
     torch = None
 
 
+def _mean_normalized_entropy(weights):
+    import math
+
+    n_roles = int(weights.shape[1])
+    safe = weights.clamp(min=1e-12)
+    entropy = -(safe * safe.log()).sum(dim=1) / math.log(n_roles)
+    return float(entropy.mean().detach().cpu())
+
+
+def _build_role_specialized_fixture():
+    from energy_memory.phase2.encoding import build_position_vectors, encode_window
+    from energy_memory.substrate.torch_fhrr import TorchFHRR
+
+    substrate = TorchFHRR(dim=256, seed=123, device="cpu")
+    positions = build_position_vectors(substrate, 3)
+    codebook = substrate.random_vectors(90)
+    bases = substrate.random_vectors(3)
+    cluster_ids = []
+    for role_index in range(3):
+        ids = list(range(role_index * 8, (role_index + 1) * 8))
+        cluster_ids.append(ids)
+        for token_id in ids:
+            codebook[token_id] = bases[role_index]
+
+    windows = []
+    expected_roles = []
+    for row_index in range(9):
+        special_role = row_index % 3
+        tokens = []
+        for role_index in range(3):
+            if role_index == special_role:
+                tokens.append(cluster_ids[role_index][row_index // 3])
+            else:
+                tokens.append(24 + row_index * 3 + role_index)
+        windows.append(tuple(tokens))
+        expected_roles.append(special_role)
+    patterns = torch.stack([
+        encode_window(substrate, positions, codebook, window)
+        for window in windows
+    ])
+    return substrate, positions, codebook, patterns, torch.tensor(expected_roles)
+
+
 @unittest.skipIf(torch is None, "torch required")
 class TestRoleBindingStats(unittest.TestCase):
 
@@ -91,7 +134,7 @@ class TestRoleBindingStats(unittest.TestCase):
                 [[(0, 1)], None], n_roles=2, device="cpu",
             )
 
-    def test_geometric_row_role_weights_detect_role_specific_density_with_k1_fixture(self):
+    def test_geometric_row_role_weights_detect_role_specific_density_with_k1_smallest_case_only(self):
         from energy_memory.phase2.encoding import build_position_vectors, encode_window
         from energy_memory.phase5.m1_role_energy import RoleBindingStats
         from energy_memory.substrate.torch_fhrr import TorchFHRR
@@ -128,6 +171,103 @@ class TestRoleBindingStats(unittest.TestCase):
         self.assertGreater(float(weights.max(dim=1).values.max()), 0.45)
         self.assertFalse(torch.allclose(weights, torch.full_like(weights, 1 / 3)))
         self.assertTrue(torch.allclose(count_weights, torch.full_like(count_weights, 1 / 3)))
+
+    def test_unbind_density_remains_near_uniform_on_role_specialized_fixture_at_k8(self):
+        from energy_memory.phase5.m1_role_energy import RoleBindingStats
+
+        substrate, positions, _codebook, patterns, _expected_roles = (
+            _build_role_specialized_fixture()
+        )
+
+        weights = RoleBindingStats.geometric_row_role_weights(
+            substrate,
+            patterns,
+            positions,
+            mode="unbind_density",
+            neighbor_k=8,
+        )
+
+        self.assertGreater(_mean_normalized_entropy(weights), 0.95)
+
+    def test_same_role_filler_density_preserves_full_window_role_symmetry_at_k8(self):
+        from energy_memory.phase5.m1_role_energy import RoleBindingStats
+
+        substrate, positions, _codebook, patterns, _expected_roles = (
+            _build_role_specialized_fixture()
+        )
+
+        scores = RoleBindingStats.geometric_row_role_scores(
+            substrate,
+            patterns,
+            positions,
+            mode="same_role_filler_density",
+            neighbor_k=8,
+        )
+        weights = RoleBindingStats.geometric_row_role_weights(
+            substrate,
+            patterns,
+            positions,
+            mode="per_role_pool",
+            neighbor_k=8,
+        )
+
+        row_spread = scores.max(dim=1).values - scores.min(dim=1).values
+        self.assertLess(float(row_spread.max().detach().cpu()), 1e-5)
+        self.assertTrue(torch.allclose(weights, torch.full_like(weights, 1 / 3), atol=1e-5))
+
+    def test_codebook_prior_density_detects_role_specialized_fixture_at_k8(self):
+        from energy_memory.phase5.m1_role_energy import RoleBindingStats
+
+        substrate, positions, codebook, patterns, expected_roles = (
+            _build_role_specialized_fixture()
+        )
+
+        weights = RoleBindingStats.geometric_row_role_weights(
+            substrate,
+            patterns,
+            positions,
+            mode="codebook_prior_density",
+            neighbor_k=8,
+            reference_codebook=codebook,
+        )
+
+        self.assertLess(_mean_normalized_entropy(weights), 0.1)
+        self.assertTrue(torch.equal(weights.argmax(dim=1).cpu(), expected_roles))
+        self.assertGreater(float(weights.max(dim=1).values.min().detach().cpu()), 0.95)
+
+    def test_codebook_prior_density_requires_codebook_kwarg(self):
+        from energy_memory.phase5.m1_role_energy import RoleBindingStats
+
+        substrate, positions, _codebook, patterns, _expected_roles = (
+            _build_role_specialized_fixture()
+        )
+
+        with self.assertRaisesRegex(ValueError, "codebook_required_for_mode"):
+            RoleBindingStats.geometric_row_role_scores(
+                substrate,
+                patterns,
+                positions,
+                mode="codebook_prior_density",
+                neighbor_k=8,
+            )
+
+    def test_codebook_prior_density_validates_dim(self):
+        from energy_memory.phase5.m1_role_energy import RoleBindingStats
+
+        substrate, positions, _codebook, patterns, _expected_roles = (
+            _build_role_specialized_fixture()
+        )
+        wrong_dim_codebook = substrate.random_vectors(8)[:, :128]
+
+        with self.assertRaisesRegex(ValueError, "codebook_dim_mismatch"):
+            RoleBindingStats.geometric_row_role_scores(
+                substrate,
+                patterns,
+                positions,
+                mode="codebook_prior",
+                neighbor_k=8,
+                reference_codebook=wrong_dim_codebook,
+            )
 
     def test_geometric_row_role_weights_default_k8_remains_reportable_probe(self):
         from energy_memory.phase2.encoding import build_position_vectors, encode_window

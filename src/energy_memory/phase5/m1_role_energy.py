@@ -186,6 +186,43 @@ class RoleBindingStats:
         return smoothed / denom
 
     @staticmethod
+    def _topk_cosine_density(
+        queries: "torch.Tensor",
+        references: "torch.Tensor",
+        *,
+        neighbor_k: int,
+        exclude_aligned_self: bool = False,
+    ) -> "torch.Tensor":
+        """Mean top-k non-negative cosine similarity to reference vectors."""
+        if queries.ndim != 2:
+            raise ValueError("queries must be a [N, D] tensor")
+        if references.ndim != 2:
+            raise ValueError("references must be a [M, D] tensor")
+        if queries.shape[1] != references.shape[1]:
+            raise ValueError("codebook_dim_mismatch")
+        if references.shape[0] == 0:
+            raise ValueError("reference vectors must not be empty")
+        if neighbor_k <= 0:
+            raise ValueError("neighbor_k must be positive")
+        max_neighbors = int(references.shape[0]) - (1 if exclude_aligned_self else 0)
+        if max_neighbors <= 0:
+            raise ValueError("reference vectors must include a non-self neighbor")
+
+        gram = (queries @ references.conj().transpose(0, 1)).real
+        query_norms = queries.norm(dim=1).clamp(min=1e-12)
+        reference_norms = references.norm(dim=1).clamp(min=1e-12)
+        sims = gram / (query_norms[:, None] * reference_norms[None, :])
+        sims = sims.clamp(min=0.0)
+        if exclude_aligned_self:
+            if queries.shape[0] != references.shape[0]:
+                raise ValueError("aligned self-exclusion requires matching row counts")
+            sims = sims.clone()
+            row_indices = torch.arange(queries.shape[0], device=queries.device)
+            sims[row_indices, row_indices] = -1.0
+        k = min(int(neighbor_k), max_neighbors)
+        return torch.topk(sims, k=k, dim=1).values.clamp(min=0.0).mean(dim=1)
+
+    @staticmethod
     def geometric_row_role_scores(
         substrate: TorchFHRR,
         patterns: "torch.Tensor",
@@ -193,6 +230,7 @@ class RoleBindingStats:
         *,
         mode: str = "unbind_density",
         neighbor_k: int = 8,
+        reference_codebook: Optional["torch.Tensor"] = None,
     ) -> "torch.Tensor":
         """Return non-negative row-role scores from substrate geometry.
 
@@ -219,27 +257,74 @@ class RoleBindingStats:
 
         device = patterns.device
         roles = [role.to(device) for role in role_vectors]
+        mode_aliases = {
+            "per_role_pool": "same_role_filler_density",
+            "same_role_pool": "same_role_filler_density",
+            "codebook_prior": "codebook_prior_density",
+        }
+        active_mode = mode_aliases.get(mode, mode)
+        valid_modes = {
+            "unbind_norm",
+            "unbind_density",
+            "same_role_filler_density",
+            "codebook_prior_density",
+        }
 
-        if mode == "unbind_norm":
+        if active_mode == "unbind_norm":
             rows = [
                 substrate.unbind(patterns, role).norm(dim=1)
                 for role in roles
             ]
             return torch.stack(rows, dim=1).to(torch.float32).clamp(min=0.0)
-        if mode != "unbind_density":
-            raise ValueError("mode must be 'unbind_density' or 'unbind_norm'")
-
-        if n_patterns == 1:
-            return torch.ones(
-                (1, len(roles)), dtype=torch.float32, device=device,
+        if active_mode not in valid_modes:
+            raise ValueError(
+                "mode must be one of: "
+                + ", ".join(sorted(valid_modes | set(mode_aliases)))
             )
 
         n_roles = len(roles)
-        k = min(int(neighbor_k), n_patterns * n_roles - 1)
         fillers_by_role = torch.stack(
             [substrate.unbind(patterns, role) for role in roles],
             dim=1,
         )
+        if active_mode in {"unbind_density", "same_role_filler_density"} and n_patterns == 1:
+            return torch.ones(
+                (1, n_roles), dtype=torch.float32, device=device,
+            )
+
+        if active_mode == "same_role_filler_density":
+            role_scores = [
+                RoleBindingStats._topk_cosine_density(
+                    fillers_by_role[:, role_idx, :],
+                    fillers_by_role[:, role_idx, :],
+                    neighbor_k=neighbor_k,
+                    exclude_aligned_self=True,
+                )
+                for role_idx in range(n_roles)
+            ]
+            return torch.stack(role_scores, dim=1).to(torch.float32).clamp(min=0.0)
+
+        if active_mode == "codebook_prior_density":
+            if reference_codebook is None:
+                raise ValueError("codebook_required_for_mode")
+            codebook = reference_codebook.to(device)
+            if codebook.ndim != 2:
+                raise ValueError("codebook_dim_mismatch")
+            if codebook.shape[1] != patterns.shape[1]:
+                raise ValueError("codebook_dim_mismatch")
+            if codebook.shape[0] == 0:
+                raise ValueError("codebook_empty")
+            role_scores = [
+                RoleBindingStats._topk_cosine_density(
+                    fillers_by_role[:, role_idx, :],
+                    codebook,
+                    neighbor_k=neighbor_k,
+                )
+                for role_idx in range(n_roles)
+            ]
+            return torch.stack(role_scores, dim=1).to(torch.float32).clamp(min=0.0)
+
+        k = min(int(neighbor_k), n_patterns * n_roles - 1)
         flat_fillers = fillers_by_role.reshape(n_patterns * n_roles, patterns.shape[1])
         flat_norms = flat_fillers.norm(dim=1).clamp(min=1e-12)
         role_scores = []
@@ -266,6 +351,7 @@ class RoleBindingStats:
         neighbor_k: int = 8,
         laplace: float = 1e-6,
         temperature: Optional[float] = 0.05,
+        reference_codebook: Optional["torch.Tensor"] = None,
     ) -> "torch.Tensor":
         """Return row-normalized geometric role weights for M1."""
         if laplace < 0.0:
@@ -278,6 +364,7 @@ class RoleBindingStats:
             role_vectors,
             mode=mode,
             neighbor_k=neighbor_k,
+            reference_codebook=reference_codebook,
         )
         if temperature is not None:
             return torch.softmax(scores / float(temperature), dim=1)
