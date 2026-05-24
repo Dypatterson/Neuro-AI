@@ -314,7 +314,7 @@ print(
     f"\nPer-seed sweeps available for {len(per_seed_jsons)}/{len(SEEDS)} seeds "
     f"in {(time.time() - start)/60:.1f} min this cell."
 )
-if sorted(per_seed_jsons) != SEEDS:
+if set(per_seed_jsons) != set(SEEDS):
     raise RuntimeError(f"Expected all seeds {SEEDS}; got {sorted(per_seed_jsons)}")
 
 
