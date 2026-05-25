@@ -405,6 +405,142 @@ def _ghrr_matrix_key_only_native(
     )
 
 
+def _bundle_first_multirole_multiscene_key_only(
+    fhrr: TorchFHRR,
+    N: int,
+    n_queries: int,
+    *,
+    seed: int,
+    beta: float,
+    K_roles: int = 4,
+    C_codebook: int = 1024,
+) -> StrategyResult:
+    """Multi-role multi-scene bundle-first MQAR (pre-gate 1, Report 067).
+
+    Tests whether `Σ_{j=1..K_roles} bind(r_j, f_{n,j})` style multi-role
+    bundles survive cleanup, not just single (k, v) pairs. This is
+    codex's pre-Phase-5'-commit gate from the 2026-05-24 review:
+    bundle-first single-role passed at MQAR scale (Report 066) but the
+    Phase 5 architecture target is structured-event retrieval, which
+    needs multi-role binding to work.
+
+    Setup:
+      - Role codebook of size K_roles (roles shared across scenes).
+      - Content codebook of size C_codebook (fillers drawn from this).
+      - N scenes, each a K_roles-pair bundle:
+          bundle_n = normalize(Σ_{j=1..K_roles} bind(r_j, f_{n,j}))
+        where f_{n,j} is a random index into the content codebook.
+      - bundle_n stored as one MHN pattern; N patterns total in scene-MHN.
+      - Content codebook stored as separate MHN for cleanup.
+
+    Query: pick a scene n, a known-role j_known, a query-role j_query.
+    Cue = bind(r_{j_known}, content[filler_{n,j_known}]) — a single
+    known (role, filler) pair from the scene. Stage 1: scene-MHN
+    settles → recovers the scene bundle. Stage 2: algebraic unbind by
+    r_{j_query} → noisy estimate of content[filler_{n,j_query}].
+    Stage 3: content-MHN cleanup → top-1.
+
+    Diagnostics in notes/extras:
+      - scene_top_index_hits: did stage 1's MHN identify the correct scene?
+      - content_top_index_hits: did stage 3's MHN identify the correct filler?
+    The harness's headline `top_index_hits` field mirrors
+    content_top_index_hits (the primary basin-retrieval signal).
+    """
+    if K_roles < 1:
+        raise ValueError("K_roles must be >= 1")
+    if C_codebook < 1:
+        raise ValueError("C_codebook must be >= 1")
+
+    g = torch.Generator(device="cpu")
+    g.manual_seed(seed)
+
+    roles = fhrr.random_vectors(K_roles)
+    content = fhrr.random_vectors(C_codebook)
+
+    # Per-scene filler indices (uniform random over content codebook).
+    filler_indices = torch.randint(
+        0, C_codebook, (N, K_roles), generator=g
+    ).tolist()
+
+    # Build scene bundles.
+    scene_bundles: List["torch.Tensor"] = []
+    for n in range(N):
+        accum = roles[0] * content[filler_indices[n][0]]
+        for j in range(1, K_roles):
+            accum = accum + roles[j] * content[filler_indices[n][j]]
+        scene_bundles.append(fhrr.normalize(accum))
+
+    scene_hop = TorchHopfieldMemory(substrate=fhrr)
+    for n, b in enumerate(scene_bundles):
+        scene_hop.store(b, label=f"scene_{n}")
+
+    content_hop = TorchHopfieldMemory(substrate=fhrr)
+    for c in range(C_codebook):
+        content_hop.store(content[c], label=f"content_{c}")
+
+    # Query plan: (n, j_known, j_query) triples.
+    correct = 0
+    scene_tix = 0
+    content_tix = 0
+    ents: List[float] = []
+    margins: List[float] = []
+    for _ in range(n_queries):
+        n = int(torch.randint(0, N, (1,), generator=g).item())
+        j_known = int(torch.randint(0, K_roles, (1,), generator=g).item())
+        if K_roles > 1:
+            j_query = j_known
+            while j_query == j_known:
+                j_query = int(
+                    torch.randint(0, K_roles, (1,), generator=g).item()
+                )
+        else:
+            j_query = j_known  # trivial — same role; left for K_roles=1 sanity
+        f_known_idx = filler_indices[n][j_known]
+        f_query_idx = filler_indices[n][j_query]
+
+        cue = roles[j_known] * content[f_known_idx]
+        cue_unit = fhrr.normalize(cue)
+
+        scene_result = scene_hop.retrieve(cue_unit, beta=beta)
+        if scene_result.top_index == n:
+            scene_tix += 1
+        s_hit, s_ent, s_margin = _hopfield_diagnostics(scene_result, n, N)
+        ents.append(s_ent)
+        margins.append(s_margin)
+
+        recovered = fhrr.unbind(scene_result.state, roles[j_query])
+        recovered_unit = fhrr.normalize(recovered)
+
+        content_result = content_hop.retrieve(recovered_unit, beta=beta)
+        if content_result.top_index == f_query_idx:
+            content_tix += 1
+        # Top-1 via direct similarity over content codebook (in case MHN
+        # top_index disagrees with raw argmax post-settling).
+        sims = (content.conj() * content_result.state[None, :]).real.mean(dim=1)
+        pred = int(sims.argmax().item())
+        if pred == f_query_idx:
+            correct += 1
+
+    return StrategyResult(
+        strategy="bundle_first_multirole_multiscene_key_only",
+        D=fhrr.dim,
+        N=N,
+        seed=seed,
+        n_queries=n_queries,
+        n_correct=correct,
+        top1=correct / n_queries,
+        notes=(
+            f"beta={beta},K_roles={K_roles},C_codebook={C_codebook},"
+            f"scene_tix={scene_tix}/{n_queries},"
+            f"content_tix={content_tix}/{n_queries}"
+        ),
+        # Headline tix = content_tix (the primary basin-retrieval signal).
+        top_index_hits=content_tix,
+        mean_weight_entropy=sum(ents) / len(ents) if ents else float("nan"),
+        mean_score_margin=sum(margins) / len(margins) if margins else float("nan"),
+    )
+
+
 def _bundle_first_key_only(
     fhrr: TorchFHRR, N: int, n_queries: int, *, seed: int, beta: float
 ) -> StrategyResult:
@@ -468,15 +604,30 @@ _STRATEGIES: Dict[str, StrategyFn] = {
     "ghrr_matrix_key_only": _ghrr_matrix_key_only,
     "ghrr_matrix_key_only_native": _ghrr_matrix_key_only_native,
     "bundle_first_key_only": _bundle_first_key_only,
+    "bundle_first_multirole_multiscene_key_only": _bundle_first_multirole_multiscene_key_only,
     # Future: "residue_hdc_key_only" plugs in here.
 }
 
 
 def run_cell(
-    strategy: str, D: int, N: int, *, seed: int, n_queries: int, device: str, beta: float
+    strategy: str,
+    D: int,
+    N: int,
+    *,
+    seed: int,
+    n_queries: int,
+    device: str,
+    beta: float,
+    K_roles: int = 4,
+    C_codebook: int = 1024,
 ) -> StrategyResult:
     fhrr = TorchFHRR(dim=D, seed=seed, device=device)
     fn = _STRATEGIES[strategy]
+    if strategy == "bundle_first_multirole_multiscene_key_only":
+        return fn(
+            fhrr, N, n_queries, seed=seed, beta=beta,
+            K_roles=K_roles, C_codebook=C_codebook,
+        )
     if strategy in (
         "hopfield_perfect_cue",
         "hopfield_key_only",
@@ -524,6 +675,14 @@ def main() -> int:
     parser.add_argument("--n_queries", type=int, default=1024)
     parser.add_argument("--beta", type=float, default=30.0)
     parser.add_argument("--device", default="auto")
+    parser.add_argument(
+        "--K_roles", type=int, default=4,
+        help="Number of roles per scene (multirole strategy only).",
+    )
+    parser.add_argument(
+        "--C_codebook", type=int, default=1024,
+        help="Content codebook size (multirole strategy only).",
+    )
     parser.add_argument("--out", default="reports/phase5_mqar_external_gate/results.json")
     args = parser.parse_args()
 
@@ -558,6 +717,8 @@ def main() -> int:
                         n_queries=args.n_queries,
                         device=device,
                         beta=args.beta,
+                        K_roles=args.K_roles,
+                        C_codebook=args.C_codebook,
                     )
                     cell.append(r)
                     raw_results.append(r)
@@ -616,6 +777,8 @@ def main() -> int:
             "n_queries": args.n_queries,
             "beta": args.beta,
             "device": device,
+            "K_roles": args.K_roles,
+            "C_codebook": args.C_codebook,
         },
         "aggregates": aggregates,
         "raw": [
