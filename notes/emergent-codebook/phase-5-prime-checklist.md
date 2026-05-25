@@ -27,8 +27,8 @@ controls. n=3 MQAR runs are diagnostic gates only.
 | # | Item | Status | Evidence |
 | -- | --- | :---: | --- |
 | C1 | Run no-scene-token baseline | partial | Report 075 records no-anchor / zero-weight skewed baselines near `~0.23` |
-| C2 | Run optional scene-token condition | partial | Report 075 records random-anchor sweep; Report 076 records full-scene substrate-derived `context_bundle`; Report 077 records strict partial-context variants |
-| C3 | Confirm scene tokens do not inflate top1 through identity leakage | partial | Report 077 random-role and deranged-role controls stay near zero despite high scene_tix; shuffled-role residual remains bounded/dirty |
+| C2 | Run optional scene-token condition | partial | Report 075 records random-anchor sweep; Report 076 records full-scene `context_bundle`; Reports 077/078 record strict partial-context and context-size diagnostics |
+| C3 | Confirm scene tokens do not inflate top1 through identity leakage | partial | Reports 077/078 random-role and deranged-role controls stay near zero despite high scene_tix; shuffled-role residual remains bounded/dirty |
 
 ## D. Co-Occurrence Statistics
 
@@ -70,11 +70,11 @@ are diagnostics, not a route selector.
 
 | # | Item | Status | Evidence |
 | -- | --- | :---: | --- |
-| G1 | n_seeds >= 10 for any verification claim | partial | Reports 075-077 pasted or attached diagnostics are n=10 but not verification claims |
-| G2 | Confidence intervals reported on headline | partial | Reports 075-077 record Wilson CIs for hard cells |
+| G1 | n_seeds >= 10 for any verification claim | partial | Reports 075-078 pasted or attached diagnostics are n=10 but not verification claims |
+| G2 | Confidence intervals reported on headline | partial | Reports 075-078 record Wilson CIs for hard cells |
 | G3 | Leave-one-seed-out sensitivity reported | open | not yet run |
-| G4 | Controls E1-E6 run on the same test set | partial | Reports 075-077 hard-cell controls are matched where available; full matrix still open |
-| G5 | Report explicitly says no graduation claim unless all gates pass | done | Reports 069-077 explicitly preserve no-graduation boundary |
+| G4 | Controls E1-E6 run on the same test set | partial | Reports 075-078 hard-cell controls are matched where available; full matrix still open |
+| G5 | Report explicitly says no graduation claim unless all gates pass | done | Reports 069-078 explicitly preserve no-graduation boundary |
 
 ## H. Anti-Homunculus Discipline
 
