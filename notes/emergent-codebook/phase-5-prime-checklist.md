@@ -12,23 +12,23 @@ controls. n=3 MQAR runs are diagnostic gates only.
 | # | Item | Status | Evidence |
 | -- | --- | :---: | --- |
 | A1 | Reproduce Report 067 bundle-first multi-role MQAR for `K_roles in {2,4,8}` and `N in {16,32,64,128,256,512}` | partial | Report 067, n=3 diagnostic |
-| A2 | Extend to `K_roles=16` | partial | Report 075 hard-cell diagnostic covers `K=16,N=512`; full grid still open |
-| A3 | Report `top1`, Wilson CI, `scene_tix`, `content_tix`, entropy, and margin for every cell | partial | Report 075 records pasted top1/CI/scene/content for hard cells; full matrix still open |
+| A2 | Extend to `K_roles=16` | partial | Report 079 covers fixed observed-prefix `K=16` across `N={128,256,512}` and `noise={0.0,0.10,0.15}`; full matrix still open |
+| A3 | Report `top1`, Wilson CI, `scene_tix`, `content_tix`, entropy, and margin for every cell | partial | Report 079 raw JSON includes top1/CI/scene/content/entropy/margins for the fixed observed-prefix grid; full matrix still open |
 
 ## B. Cue Noise
 
 | # | Item | Status | Evidence |
 | -- | --- | :---: | --- |
-| B1 | Sweep cue noise over at least `{0.0, 0.05, 0.10, 0.15}` | partial | Report 075 records pasted candidate-grid extremes; full matched-control sweep still open |
-| B2 | Report whether failures are scene-ID failures or content-cleanup failures | partial | Report 075 hard-cell split: scene-MHN is the bottleneck; full grid still open |
+| B1 | Sweep cue noise over at least `{0.0, 0.05, 0.10, 0.15}` | partial | Report 079 covers fixed observed-prefix matched controls at `{0.0,0.10,0.15}`; `0.05` and full matrix still open |
+| B2 | Report whether failures are scene-ID failures or content-cleanup failures | partial | Reports 075-079 show scene/context completion is the bottleneck; Report 079 candidate scene/content rates track top1 |
 
 ## C. Scene Token / Identity Robustness
 
 | # | Item | Status | Evidence |
 | -- | --- | :---: | --- |
 | C1 | Run no-scene-token baseline | partial | Report 075 records no-anchor / zero-weight skewed baselines near `~0.23` |
-| C2 | Run optional scene-token condition | partial | Report 075 records random-anchor sweep; Report 076 records full-scene `context_bundle`; Reports 077/078 record strict partial-context and context-size diagnostics |
-| C3 | Confirm scene tokens do not inflate top1 through identity leakage | partial | Reports 077/078 random-role and deranged-role controls stay near zero despite high scene_tix; shuffled-role residual remains bounded/dirty |
+| C2 | Run optional scene-token condition | partial | Report 075 records random-anchor sweep; Report 076 records full-scene `context_bundle`; Reports 077-079 record strict partial-context, context-size, and fixed observed-prefix diagnostics |
+| C3 | Confirm scene tokens do not inflate top1 through identity leakage | partial | Reports 077-079 random-role and deranged-role controls stay near zero despite high scene/context rates; shuffled-role residual remains bounded/dirty |
 
 ## D. Co-Occurrence Statistics
 
@@ -70,11 +70,11 @@ are diagnostics, not a route selector.
 
 | # | Item | Status | Evidence |
 | -- | --- | :---: | --- |
-| G1 | n_seeds >= 10 for any verification claim | partial | Reports 075-078 pasted or attached diagnostics are n=10 but not verification claims |
-| G2 | Confidence intervals reported on headline | partial | Reports 075-078 record Wilson CIs for hard cells |
+| G1 | n_seeds >= 10 for any verification claim | partial | Reports 075-079 pasted or attached diagnostics are n=10 but not verification claims |
+| G2 | Confidence intervals reported on headline | partial | Reports 075-079 record Wilson CIs for diagnostic cells |
 | G3 | Leave-one-seed-out sensitivity reported | open | not yet run |
-| G4 | Controls E1-E6 run on the same test set | partial | Reports 075-078 hard-cell controls are matched where available; full matrix still open |
-| G5 | Report explicitly says no graduation claim unless all gates pass | done | Reports 069-078 explicitly preserve no-graduation boundary |
+| G4 | Controls E1-E6 run on the same test set | partial | Reports 075-079 controls are matched where available; full matrix still open |
+| G5 | Report explicitly says no graduation claim unless all gates pass | done | Reports 069-079 explicitly preserve no-graduation boundary |
 
 ## H. Anti-Homunculus Discipline
 
