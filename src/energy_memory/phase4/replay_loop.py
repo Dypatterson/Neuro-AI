@@ -48,6 +48,11 @@ from energy_memory.phase4.trajectory import (
     TracedHopfieldMemory,
     TrajectoryTrace,
 )
+from energy_memory.phase4.range_shaped_replay import (
+    RangeShapedReplaySampler,
+    synthesize_single_binding_trace,
+    synthesize_window_preserving_trace,
+)
 from energy_memory.substrate.torch_fhrr import TorchFHRR
 
 T = TypeVar("T")
@@ -107,6 +112,31 @@ class ReplayConfig:
     # See notes/notes/2026-05-20-metastability-replay-prioritization-dynamic-form.md.
     metastability_gain: float = 0.0
     metastability_replay_decay: float = 0.0
+    # Static sampler selection. ``standard`` preserves legacy ReplayStore
+    # sampling; ``range_shaped`` samples from the product of encoder-term role
+    # and atom marginals. This is fixed config, never metric-triggered routing.
+    replay_sampler: str = "standard"
+    range_shaped_fallback: str = "skip"
+    range_shaped_smoothing_alpha: float = 0.0
+    range_shaped_rebind_mode: str = "single_binding"
+    range_shaped_window_size: Optional[int] = None
+
+    def __post_init__(self) -> None:
+        if self.replay_sampler not in {"standard", "range_shaped"}:
+            raise ValueError("replay_sampler must be 'standard' or 'range_shaped'")
+        if self.range_shaped_fallback not in {"skip", "closest", "rebind"}:
+            raise ValueError("range_shaped_fallback must be 'skip', 'closest', or 'rebind'")
+        if self.range_shaped_smoothing_alpha < 0.0:
+            raise ValueError("range_shaped_smoothing_alpha must be non-negative")
+        if self.range_shaped_rebind_mode not in {"single_binding", "window_preserving"}:
+            raise ValueError(
+                "range_shaped_rebind_mode must be 'single_binding' or 'window_preserving'"
+            )
+        if (
+            self.range_shaped_window_size is not None
+            and self.range_shaped_window_size <= 0
+        ):
+            raise ValueError("range_shaped_window_size must be positive when set")
 
 
 class ReplayStore:
@@ -347,6 +377,8 @@ class UnifiedReplayMemory(Generic[T]):
         consolidation: ConsolidationState,
         config: ReplayConfig = ReplayConfig(),
         candidate_callback: Optional[Callable[[TrajectoryTrace, int], None]] = None,
+        replay_position_vectors: Optional[Sequence["torch.Tensor"]] = None,
+        replay_codebook: Optional["torch.Tensor"] = None,
     ):
         if torch is None:  # pragma: no cover
             raise ModuleNotFoundError("UnifiedReplayMemory requires torch") from _IMPORT_ERROR
@@ -367,6 +399,8 @@ class UnifiedReplayMemory(Generic[T]):
         self._retrieval_count = 0
         self._candidate_count = 0
         self._candidate_callback = candidate_callback
+        self._replay_position_vectors = replay_position_vectors
+        self._replay_codebook = replay_codebook
 
     def attach_initial_patterns(self) -> None:
         """Initialize consolidation state for already-stored patterns.
@@ -462,6 +496,91 @@ class UnifiedReplayMemory(Generic[T]):
             and self._retrieval_count % self.config.replay_every == 0
         )
 
+    def _sample_replay_items(
+        self,
+    ) -> List[Tuple[Optional[int], TrajectoryTrace]]:
+        """Return replay items as ``(store_index, trace)`` pairs.
+
+        ``store_index is None`` means the item was synthesized by a static
+        range-shaped rebind fallback and should not mutate the replay store.
+        """
+        if self.config.replay_sampler == "standard":
+            return [
+                (idx, self.store.get(idx))
+                for idx in self.store.sample(self.config.replay_batch_size)
+            ]
+
+        atom_count = None
+        if self._replay_codebook is not None:
+            atom_count = int(self._replay_codebook.shape[0])
+        sampler = RangeShapedReplaySampler(
+            self.store,
+            atom_count=atom_count,
+            atom_smoothing_alpha=self.config.range_shaped_smoothing_alpha,
+        )
+        fallback = self.config.range_shaped_fallback
+        if fallback in {"skip", "closest"}:
+            seen = set()
+            items: List[Tuple[Optional[int], TrajectoryTrace]] = []
+            for idx in sampler.sample_indices(
+                self.config.replay_batch_size,
+                fallback=fallback,
+            ):
+                if idx in seen:
+                    continue
+                seen.add(idx)
+                items.append((idx, self.store.get(idx)))
+            return items
+
+        items = []
+        seen = set()
+        for role, atom, trace_idx in sampler.sample_pairs(self.config.replay_batch_size):
+            if trace_idx is not None:
+                if trace_idx in seen:
+                    continue
+                seen.add(trace_idx)
+                items.append((trace_idx, self.store.get(trace_idx)))
+            else:
+                items.append((None, self._synthesize_range_shaped_trace(
+                    sampler, role, atom,
+                )))
+        return items
+
+    def _synthesize_range_shaped_trace(
+        self,
+        sampler: RangeShapedReplaySampler,
+        role: int,
+        atom: int,
+    ) -> TrajectoryTrace:
+        if self._replay_position_vectors is None or self._replay_codebook is None:
+            raise ValueError(
+                "range_shaped fallback='rebind' requires replay_position_vectors "
+                "and replay_codebook"
+            )
+        if self.config.range_shaped_rebind_mode == "single_binding":
+            return synthesize_single_binding_trace(
+                self.substrate,
+                self._replay_position_vectors,
+                self._replay_codebook,
+                role,
+                atom,
+            )
+        window_size = (
+            self.config.range_shaped_window_size
+            if self.config.range_shaped_window_size is not None
+            else len(self._replay_position_vectors)
+        )
+        pairs = sampler.sample_window_pairs(
+            window_size,
+            anchor_pair=(role, atom),
+        )
+        return synthesize_window_preserving_trace(
+            self.substrate,
+            self._replay_position_vectors,
+            self._replay_codebook,
+            pairs,
+        )
+
     def run_replay_cycle(
         self,
         beta: float = 10.0,
@@ -488,9 +607,13 @@ class UnifiedReplayMemory(Generic[T]):
                 "store_after": len(self.store),
             }
 
-        sampled_local = self.store.sample(self.config.replay_batch_size)
-        # Sort descending so removes don't invalidate later indices
-        sampled_local.sort(reverse=True)
+        sampled_items = self._sample_replay_items()
+        # Sort descending so removes don't invalidate later indices. Synthetic
+        # rebind traces have no store index and are store-neutral.
+        sampled_items.sort(
+            key=lambda item: -1 if item[0] is None else item[0],
+            reverse=True,
+        )
 
         candidates = 0
         decayed = 0
@@ -502,9 +625,7 @@ class UnifiedReplayMemory(Generic[T]):
         # re-fetched per iteration because candidate_handler may have
         # grown both memory and consolidation between iterations.
 
-        for local_idx in sampled_local:
-            trace = self.store.get(local_idx)
-
+        for local_idx, trace in sampled_items:
             replay_bias = self._score_bias()
 
             new_result, new_trace = self.memory.retrieve_with_trace(
@@ -546,21 +667,23 @@ class UnifiedReplayMemory(Generic[T]):
                                 r_ema_init=r_init,
                             )
                 candidates += 1
-                self.store.remove(local_idx)
-            else:
-                trace.age += 1
-                new_gate = new_trace.gate_signal()
-                if trace.age > self.config.max_age:
+                if local_idx is not None:
                     self.store.remove(local_idx)
-                    decayed += 1
-                else:
-                    self.store.update_gate(local_idx, new_gate)
+            else:
+                if local_idx is not None:
+                    trace.age += 1
+                    new_gate = new_trace.gate_signal()
+                    if trace.age > self.config.max_age:
+                        self.store.remove(local_idx)
+                        decayed += 1
+                    else:
+                        self.store.update_gate(local_idx, new_gate)
 
         self._step_substrate_dynamics()
         self._candidate_count += candidates
 
         return {
-            "sampled": len(sampled_local),
+            "sampled": len(sampled_items),
             "candidates": candidates,
             "decayed": decayed,
             "store_after": len(self.store),

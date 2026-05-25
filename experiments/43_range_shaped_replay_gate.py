@@ -45,10 +45,9 @@ import argparse
 import json
 import math
 import random
-from collections import Counter, defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import List, Sequence, Tuple
 
 import torch
 
@@ -56,181 +55,10 @@ from energy_memory.phase2.encoding import (
     build_position_vectors,
     encode_window_with_provenance,
 )
+from energy_memory.phase4.range_shaped_replay import RangeShapedReplaySampler
 from energy_memory.phase4.replay_loop import ReplayStore
 from energy_memory.phase4.trajectory import TrajectoryTrace
 from energy_memory.substrate.torch_fhrr import TorchFHRR
-
-
-# -----------------------------------------------------------------------------
-# Range-shaped sampler
-# -----------------------------------------------------------------------------
-
-
-@dataclass
-class _RoleAtomIndex:
-    """Inverted index: which traces contain each (role, atom) pair."""
-    by_pair: Dict[Tuple[int, int], List[int]]
-    role_weights: Dict[int, float]
-    atom_weights: Dict[int, float]
-
-
-class RangeShapedReplaySampler:
-    """Wraps a `ReplayStore` to provide rectangularized (role, atom) sampling.
-
-    Per Dorrell-Whittington ICLR 2025: if the data has rectangular joint
-    support over (role, atom), nonneg + energy-efficient training will
-    discover modular features that align with the role and atom axes.
-    The baseline `ReplayStore.sample()` reproduces whatever joint
-    distribution the buffer has — typically *not* rectangular because
-    real episodes have co-occurrence structure. This sampler factorizes:
-    sample a role from the role marginal, sample an atom from the atom
-    marginal, look up a trace whose encoder_terms contain that pair.
-
-    Fall-back behavior: if no stored trace contains the sampled (role,
-    atom) pair, the sampler can either return the closest match (a
-    trace with the same role and a different atom, or vice versa) or
-    a synthetic re-binding. The simple version implemented here returns
-    `None` for missing pairs and the caller decides how to handle.
-
-    Reads `encoder_terms` from `TrajectoryTrace`. Requires the trace
-    schema extension landed in phase4/trajectory.py:65 (already wired
-    per the 2026-05-24 S1 spike).
-    """
-
-    def __init__(self, store: ReplayStore, *, weight_floor: float = 1e-9):
-        self.store = store
-        self.weight_floor = weight_floor
-        self._rebuild_index()
-
-    def _rebuild_index(self) -> None:
-        by_pair: Dict[Tuple[int, int], List[int]] = defaultdict(list)
-        role_weights: Counter = Counter()
-        atom_weights: Counter = Counter()
-        for trace_idx, trace in enumerate(self.store.traces):
-            if trace.encoder_terms is None:
-                continue
-            # Each (role, atom) pair contributes the trace's gate_signal
-            # as its weight (priority-weighted, matching the baseline
-            # sampler's priority logic).
-            w = max(self.store.gate_signals[trace_idx], self.weight_floor)
-            for (role, atom) in trace.encoder_terms:
-                by_pair[(int(role), int(atom))].append(trace_idx)
-                role_weights[int(role)] += w
-                atom_weights[int(atom)] += w
-        self.index = _RoleAtomIndex(
-            by_pair=dict(by_pair),
-            role_weights=dict(role_weights),
-            atom_weights=dict(atom_weights),
-        )
-
-    def sample_pairs(
-        self,
-        n: int,
-        *,
-        generator: Optional[torch.Generator] = None,
-    ) -> List[Tuple[int, int, Optional[int]]]:
-        """Sample n (role, atom, trace_idx) triples from the range-shaped joint.
-
-        The sampler factorizes: pick a role from the role-marginal
-        distribution, pick an atom from the atom-marginal distribution,
-        emit the (role, atom) pair. The third element is the index of a
-        stored trace that contains this exact (role, atom) pair, or
-        `None` if no such trace exists in the buffer ("rebind-on-the-fly"
-        territory per the brainstorm's test-results.md §(a)).
-
-        Returns the pair regardless of whether a trace backs it. The
-        downstream consolidation step decides how to use it (either look
-        up the backing trace and replay, or synthesize a new trace by
-        binding `(positions[role], codebook[atom])` directly via the
-        substrate).
-        """
-        if not self.index.role_weights or not self.index.atom_weights:
-            return []
-        roles = list(self.index.role_weights.keys())
-        atoms = list(self.index.atom_weights.keys())
-        rw = torch.tensor(
-            [self.index.role_weights[r] for r in roles], dtype=torch.float32
-        )
-        aw = torch.tensor(
-            [self.index.atom_weights[a] for a in atoms], dtype=torch.float32
-        )
-        rw = rw / rw.sum()
-        aw = aw / aw.sum()
-
-        ri = torch.multinomial(rw, n, replacement=True, generator=generator)
-        ai = torch.multinomial(aw, n, replacement=True, generator=generator)
-
-        out: List[Tuple[int, int, Optional[int]]] = []
-        for r_pos, a_pos in zip(ri.tolist(), ai.tolist()):
-            r = roles[int(r_pos)]
-            a = atoms[int(a_pos)]
-            candidates = self.index.by_pair.get((r, a))
-            if candidates:
-                # Priority-weighted pick among candidate traces (codex P2
-                # 2026-05-24: uniform-among-candidates dropped the gate
-                # priority structure that role/atom marginals encode).
-                cand_weights = torch.tensor(
-                    [
-                        max(self.store.gate_signals[c], self.weight_floor)
-                        for c in candidates
-                    ],
-                    dtype=torch.float32,
-                )
-                cand_weights = cand_weights / cand_weights.sum()
-                pick_idx = int(torch.multinomial(
-                    cand_weights, 1, generator=generator
-                ).item())
-                out.append((r, a, candidates[pick_idx]))
-            else:
-                out.append((r, a, None))  # rebind-on-the-fly territory
-        return out
-
-    def sample(
-        self,
-        n: int,
-        *,
-        generator: Optional[torch.Generator] = None,
-        fallback: str = "rebind",
-    ) -> List[int]:
-        """Legacy trace-index interface. Use sample_pairs for the algorithm test.
-
-        fallback:
-          - "skip":  skip missing-pair samples (collapses to buffer support)
-          - "closest": fall back to any trace with the same role
-          - "rebind": NOT IMPLEMENTED at the trace-index level (rebinding
-            requires substrate access; use sample_pairs and synthesize
-            externally).
-        """
-        if fallback == "rebind":
-            raise NotImplementedError(
-                "Rebind-on-the-fly requires substrate access; use sample_pairs()."
-            )
-        pairs = self.sample_pairs(n, generator=generator)
-        out: List[int] = []
-        for (r, a, trace_idx) in pairs:
-            if trace_idx is not None:
-                out.append(trace_idx)
-            elif fallback == "closest":
-                same_role: List[int] = []
-                for (rr, _aa), trace_list in self.index.by_pair.items():
-                    if rr == r:
-                        same_role.extend(trace_list)
-                if same_role:
-                    pick_idx = int(torch.randint(
-                        0, len(same_role), (1,), generator=generator
-                    ).item())
-                    out.append(same_role[pick_idx])
-            # else "skip": drop
-        return out
-
-    def marginal_diagnostics(self) -> dict:
-        """Return the buffer's joint and marginals for analysis."""
-        return {
-            "n_traces": len(self.store.traces),
-            "n_pair_cells": len(self.index.by_pair),
-            "n_roles": len(self.index.role_weights),
-            "n_atoms": len(self.index.atom_weights),
-        }
 
 
 # -----------------------------------------------------------------------------
