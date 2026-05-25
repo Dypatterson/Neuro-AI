@@ -29,7 +29,7 @@ controls. n=3 MQAR runs are diagnostic gates only.
 | C1 | Run no-scene-token baseline | partial | Report 075 records no-anchor / zero-weight skewed baselines near `~0.23` |
 | C2 | Run optional scene-token condition | partial | Report 075 records random-anchor sweep; Report 076 records full-scene `context_bundle`; Reports 077-082 record strict partial-context, context-size, fixed observed-prefix, available-prefix, trace-backed, and replay-observed diagnostics |
 | C3 | Confirm scene tokens do not inflate top1 through identity leakage | partial | Reports 077-082 random-role and deranged-role controls stay near zero despite high scene/context rates; shuffled-role residual remains bounded/dirty |
-| C4 | Replace generated-scene trace construction with a replay-derived, trajectory-derived, learned, or naturally observed passive context trace before any full matrix | blocked | Reports 082-083 run replay-observed passive hard cells and are positive vs controls but degraded; Report 084 localizes a role-universe/learned-geometry mismatch. Next allowed work is the matched 4-role v2 gate preflight in [2026-05-25-phase5-prime-context-source-v2-gate.md](../notes/2026-05-25-phase5-prime-context-source-v2-gate.md), not a full matrix |
+| C4 | Replace generated-scene trace construction with a replay-derived, trajectory-derived, learned, or naturally observed passive context trace before any full matrix | blocked | Reports 082-083 run replay-observed passive hard cells and are positive vs controls but degraded; Report 084 localizes a role-universe/learned-geometry mismatch; Report 085 passes the matched 4-role v2 preflight but learned-token geometry remains at chance. Next allowed work is the precommitted matched 4-role candidate/control discriminator in [2026-05-25-phase5-prime-context-source-v2-gate.md](../notes/2026-05-25-phase5-prime-context-source-v2-gate.md), not a full matrix |
 
 ## D. Co-Occurrence Statistics
 
@@ -75,7 +75,7 @@ are diagnostics, not a route selector.
 | G2 | Confidence intervals reported on headline | partial | Reports 075-082 record Wilson CIs for diagnostic cells |
 | G3 | Leave-one-seed-out sensitivity reported | partial | Reports 082-083 include candidate leave-one-seed-out sensitivity for the replay-observed hard cells; v2 gate requires LOO before any broader claim |
 | G4 | Controls E1-E6 run on the same test set | partial | Reports 075-082 controls are matched where available; full matrix still open |
-| G5 | Report explicitly says no graduation claim unless all gates pass | done | Reports 069-082 explicitly preserve no-graduation boundary |
+| G5 | Report explicitly says no graduation claim unless all gates pass | done | Reports 069-085 explicitly preserve no-graduation boundary |
 
 ## H. Anti-Homunculus Discipline
 
