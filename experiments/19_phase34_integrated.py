@@ -83,7 +83,11 @@ def _empty_device_cache() -> None:
     and other per-condition tensors back to the OS / runtime instead of
     sitting in the PyTorch allocator pool. No-op on CPU.
     """
-    for backend_name in ("mps", "cuda"):
+    # On the current macOS/PyTorch 3.13 stack, touching ``torch.mps`` cache
+    # helpers can segfault even when the run is CPU-only. CUDA cache cleanup is
+    # enough for the Colab/GPU path; skip MPS here rather than making CPU pilots
+    # depend on a fragile optional cleanup.
+    for backend_name in ("cuda",):
         backend = getattr(torch, backend_name, None)
         if backend is None:
             continue
@@ -781,6 +785,46 @@ def main() -> None:
     parser.add_argument("--store-threshold", type=float, default=0.05)
     parser.add_argument("--resolve-threshold", type=float, default=0.7)
     parser.add_argument("--store-capacity", type=int, default=500)
+    parser.add_argument(
+        "--replay-sampler",
+        choices=["standard", "range_shaped"],
+        default="standard",
+        help=(
+            "Static Phase 4 replay sampler. 'standard' preserves legacy "
+            "whole-trace sampling; 'range_shaped' samples factored "
+            "(role, atom) pairs from encoder-time marginals."
+        ),
+    )
+    parser.add_argument(
+        "--range-shaped-fallback",
+        choices=["skip", "closest", "rebind"],
+        default="skip",
+        help=(
+            "Static fallback for range-shaped pairs missing an exact backing "
+            "trace. No metric-triggered switching."
+        ),
+    )
+    parser.add_argument(
+        "--range-shaped-rebind-mode",
+        choices=["single_binding", "window_preserving"],
+        default="single_binding",
+        help="Static rebind synthesis mode when --range-shaped-fallback=rebind.",
+    )
+    parser.add_argument(
+        "--range-shaped-smoothing-alpha",
+        type=float,
+        default=0.0,
+        help="Fixed atom-support smoothing alpha for range-shaped replay.",
+    )
+    parser.add_argument(
+        "--range-shaped-window-size",
+        type=int,
+        default=None,
+        help=(
+            "Optional fixed synthesized replay-window size. Default uses the "
+            "scale's full position-vector count."
+        ),
+    )
     parser.add_argument("--consolidation-m", type=int, default=6)
     parser.add_argument("--consolidation-alpha", type=float, default=0.25)
     parser.add_argument(
@@ -1107,6 +1151,11 @@ def main() -> None:
         repulsion_step_size=args.repulsion_step_size,
         metastability_gain=args.metastability_gain,
         metastability_replay_decay=args.metastability_replay_decay,
+        replay_sampler=args.replay_sampler,
+        range_shaped_fallback=args.range_shaped_fallback,
+        range_shaped_smoothing_alpha=args.range_shaped_smoothing_alpha,
+        range_shaped_rebind_mode=args.range_shaped_rebind_mode,
+        range_shaped_window_size=args.range_shaped_window_size,
     )
     cons_config = ConsolidationConfig(
         m=args.consolidation_m,
@@ -1130,6 +1179,8 @@ def main() -> None:
             memory=slots_c[s].memory,
             consolidation=cons_state,
             config=replay_config,
+            replay_position_vectors=slots_c[s].positions,
+            replay_codebook=cb_c[0],
         )
         phase4_units_c[s].attach_initial_patterns()
 
