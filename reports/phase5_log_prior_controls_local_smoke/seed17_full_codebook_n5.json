@@ -1,0 +1,88 @@
+{
+  "geometry": {
+    "snapshot": "reports/phase5_a1prime_pilot_seed17/snapshots/phase3_phase4_w4_step1800_AB_A1prime.pt",
+    "label": "phase3_phase4_w4_step1800",
+    "n_atoms": 1024,
+    "dim": 4096,
+    "coverage_lambda": 1.0,
+    "epsilon": 0.05,
+    "tau": 0.02,
+    "effective_strength": {
+      "min": 0.02510995976626873,
+      "median": 0.02510995976626873,
+      "mean": 0.03052886761724949,
+      "max": 5.173639297485352,
+      "std": 0.16100262105464935
+    },
+    "n_below_epsilon": 1021,
+    "n_above_epsilon": 3,
+    "retrieval_weight_bias": {
+      "min": 0.0,
+      "median": 1.497658133506775,
+      "mean": 1.4918410778045654,
+      "max": 1.497658133506775,
+      "std": 0.0848197191953659
+    },
+    "bias_cv": 0.05685573380255017,
+    "n_bias_ge_1": 1019,
+    "n_bias_ge_0p5": 1021,
+    "step3_shift_invariant_likely": false
+  },
+  "log_prior_sweep": {
+    "snapshot": "reports/phase5_a1prime_pilot_seed17/snapshots/phase3_phase4_w4_step1800_AB_A1prime.pt",
+    "label": "phase3_phase4_w4_step1800",
+    "n_atoms": 1024,
+    "dim": 4096,
+    "coverage_lambda": 1.0,
+    "step3_bias_active": true,
+    "config": {
+      "beta": 10.0,
+      "k_main": 1,
+      "gamma": 0.5,
+      "gains": [
+        1.0
+      ],
+      "n_cues": 5,
+      "binding_noise_std": 0.05,
+      "content_distortion": 0.6,
+      "formulation": "per_pattern",
+      "cue_seed": 117,
+      "schema_source": "full_codebook",
+      "schema_store_size": 1024,
+      "magnitude_floor": 0.0055
+    },
+    "cells": [
+      {
+        "log_prior_gain": 1.0,
+        "n_pairs": 5,
+        "mean_delta_e_raw": 0.11575839519500733,
+        "mean_delta_e_step3": 0.1185325026512146,
+        "frac_positive_raw": 1.0,
+        "delta_e_over_floor": 21.04698094454679,
+        "frac_role_lt_content_lt_random": 0.0,
+        "frac_role_lt_content": 1.0,
+        "frac_random_lowest": 0.4,
+        "per_condition_basin_hit_rate": {
+          "role": 0.0,
+          "content": 0.0,
+          "random": 0.0
+        },
+        "per_condition_mean_role_target_rank": {
+          "role": 359.8,
+          "content": 522.6,
+          "random": 372.6
+        },
+        "per_condition_mean_e_min_raw": {
+          "role": -1.2171665906906128,
+          "content": -1.1014081954956054,
+          "random": -1.216819739341736
+        },
+        "per_condition_mean_top_similarity": {
+          "role": 0.879347288608551,
+          "content": 0.962554144859314,
+          "random": 0.876324450969696
+        }
+      }
+    ]
+  }
+}
