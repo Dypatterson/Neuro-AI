@@ -40,6 +40,7 @@ class CellResult:
     cue_noise: float
     scene_token: bool
     scene_token_weight: float
+    scene_token_source: str
     scene_token_pool_size: int
     cooccurrence: str
     seed: int
@@ -118,10 +119,26 @@ def _scene_tokens(
     N: int,
     *,
     enabled: bool,
+    source: str,
     pool_size: int,
+    roles: torch.Tensor,
+    content: torch.Tensor,
+    filler_indices: Sequence[Sequence[int]],
 ) -> Optional[torch.Tensor]:
     if not enabled:
         return None
+    if source == "context_bundle":
+        if pool_size != 0:
+            raise ValueError("context_bundle scene-token source requires pool_size=0")
+        return torch.stack(
+            [
+                fhrr.bundle([roles[role] * content[int(atom)] for role, atom in enumerate(row)])
+                for row in filler_indices
+            ],
+            dim=0,
+        )
+    if source != "random":
+        raise ValueError("scene_token_source must be 'random' or 'context_bundle'")
     if pool_size < 0:
         raise ValueError("scene_token_pool_size must be non-negative")
     if pool_size == 0 or pool_size >= N:
@@ -234,6 +251,7 @@ def run_cell(
     cue_noise: float,
     scene_token: bool,
     scene_token_weight: float,
+    scene_token_source: str,
     scene_token_pool_size: int,
     cooccurrence: str,
     seed: int,
@@ -260,18 +278,22 @@ def run_cell(
     generator = torch.Generator(device="cpu").manual_seed(seed * 1009 + N * 37 + K_roles)
     roles = fhrr.random_vectors(K_roles)
     content = fhrr.random_vectors(C_codebook)
-    scene_tokens = _scene_tokens(
-        fhrr,
-        N,
-        enabled=scene_token,
-        pool_size=scene_token_pool_size,
-    )
     fillers = _filler_indices(
         N,
         K_roles,
         C_codebook,
         cooccurrence=cooccurrence,
         generator=generator,
+    )
+    scene_tokens = _scene_tokens(
+        fhrr,
+        N,
+        enabled=scene_token,
+        source=scene_token_source,
+        pool_size=scene_token_pool_size,
+        roles=roles,
+        content=content,
+        filler_indices=fillers,
     )
     scene_bundles = _build_scene_bundles(
         fhrr,
@@ -357,6 +379,7 @@ def run_cell(
         cue_noise=cue_noise,
         scene_token=scene_token,
         scene_token_weight=scene_token_weight,
+        scene_token_source=scene_token_source,
         scene_token_pool_size=scene_token_pool_size,
         cooccurrence=cooccurrence,
         seed=seed,
@@ -433,6 +456,17 @@ def main() -> int:
         help="Scene-token bundle/cue weights. Effective only when scene_token=1.",
     )
     parser.add_argument(
+        "--scene_token_source",
+        nargs="+",
+        choices=["random", "context_bundle"],
+        default=["random"],
+        help=(
+            "Source for scene/context anchors. random uses random scene tokens; "
+            "context_bundle uses the role-filler scene bundle itself as a "
+            "substrate-derived context trace."
+        ),
+    )
+    parser.add_argument(
         "--scene_token_pool_size",
         nargs="+",
         type=int,
@@ -469,6 +503,7 @@ def main() -> int:
         f"cue_noise={args.cue_noise} seeds={args.seeds} n_queries={args.n_queries} "
         f"conditions={args.conditions} scene_token={args.scene_token} "
         f"scene_token_weight={args.scene_token_weight} "
+        f"scene_token_source={args.scene_token_source} "
         f"scene_token_pool_size={args.scene_token_pool_size} "
         f"cooccurrence={args.cooccurrence}"
     )
@@ -483,49 +518,57 @@ def main() -> int:
                     for noise in args.cue_noise:
                         for scene_token_flag in args.scene_token:
                             weights = args.scene_token_weight if scene_token_flag else [0.0]
-                            pools = args.scene_token_pool_size if scene_token_flag else [0]
+                            sources = args.scene_token_source if scene_token_flag else ["none"]
                             for token_weight in weights:
-                                for token_pool_size in pools:
-                                    for cooccurrence in args.cooccurrence:
-                                        key = (
-                                            f"{condition}|D={D}|K={K}|N={N}|noise={noise}|"
-                                            f"scene_token={int(scene_token_flag)}|"
-                                            f"token_weight={token_weight}|"
-                                            f"token_pool={token_pool_size}|"
-                                            f"cooc={cooccurrence}"
-                                        )
-                                        cell: List[CellResult] = []
-                                        for seed in args.seeds:
-                                            result = run_cell(
-                                                condition=condition,
-                                                D=D,
-                                                N=N,
-                                                K_roles=K,
-                                                cue_noise=noise,
-                                                scene_token=bool(scene_token_flag),
-                                                scene_token_weight=token_weight,
-                                                scene_token_pool_size=token_pool_size,
-                                                cooccurrence=cooccurrence,
-                                                seed=seed,
-                                                n_queries=args.n_queries,
-                                                beta=args.beta,
-                                                C_codebook=args.C_codebook,
-                                                device=device,
+                                for token_source in sources:
+                                    pools = (
+                                        [0]
+                                        if token_source != "random"
+                                        else args.scene_token_pool_size
+                                    )
+                                    for token_pool_size in pools:
+                                        for cooccurrence in args.cooccurrence:
+                                            key = (
+                                                f"{condition}|D={D}|K={K}|N={N}|noise={noise}|"
+                                                f"scene_token={int(scene_token_flag)}|"
+                                                f"token_weight={token_weight}|"
+                                                f"token_source={token_source}|"
+                                                f"token_pool={token_pool_size}|"
+                                                f"cooc={cooccurrence}"
                                             )
-                                            cell.append(result)
-                                            raw.append(result)
-                                        agg = _aggregate(cell)
-                                        aggregates[key] = agg
-                                        print(
-                                            f"{key} top1={agg['top1_mean']:.4f} "
-                                            f"CI=[{agg['wilson_lo']:.4f},{agg['wilson_hi']:.4f}] "
-                                            f"scene_tix={agg['scene_tix']}/{agg['n_total']} "
-                                            f"content_tix={agg['content_tix']}/{agg['n_total']} "
-                                            f"ent=({agg['mean_scene_entropy']:.3f},"
-                                            f"{agg['mean_content_entropy']:.3f}) "
-                                            f"margin=({agg['mean_scene_margin']:.4f},"
-                                            f"{agg['mean_content_margin']:.4f})"
-                                        )
+                                            cell: List[CellResult] = []
+                                            for seed in args.seeds:
+                                                result = run_cell(
+                                                    condition=condition,
+                                                    D=D,
+                                                    N=N,
+                                                    K_roles=K,
+                                                    cue_noise=noise,
+                                                    scene_token=bool(scene_token_flag),
+                                                    scene_token_weight=token_weight,
+                                                    scene_token_source=token_source,
+                                                    scene_token_pool_size=token_pool_size,
+                                                    cooccurrence=cooccurrence,
+                                                    seed=seed,
+                                                    n_queries=args.n_queries,
+                                                    beta=args.beta,
+                                                    C_codebook=args.C_codebook,
+                                                    device=device,
+                                                )
+                                                cell.append(result)
+                                                raw.append(result)
+                                            agg = _aggregate(cell)
+                                            aggregates[key] = agg
+                                            print(
+                                                f"{key} top1={agg['top1_mean']:.4f} "
+                                                f"CI=[{agg['wilson_lo']:.4f},{agg['wilson_hi']:.4f}] "
+                                                f"scene_tix={agg['scene_tix']}/{agg['n_total']} "
+                                                f"content_tix={agg['content_tix']}/{agg['n_total']} "
+                                                f"ent=({agg['mean_scene_entropy']:.3f},"
+                                                f"{agg['mean_content_entropy']:.3f}) "
+                                                f"margin=({agg['mean_scene_margin']:.4f},"
+                                                f"{agg['mean_content_margin']:.4f})"
+                                            )
 
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -550,6 +593,7 @@ def main() -> int:
             "conditions": args.conditions,
             "scene_token": args.scene_token,
             "scene_token_weight": args.scene_token_weight,
+            "scene_token_source": args.scene_token_source,
             "scene_token_pool_size": args.scene_token_pool_size,
             "cooccurrence": args.cooccurrence,
             "device": device,
@@ -564,6 +608,7 @@ def main() -> int:
                 "cue_noise": r.cue_noise,
                 "scene_token": r.scene_token,
                 "scene_token_weight": r.scene_token_weight,
+                "scene_token_source": r.scene_token_source,
                 "scene_token_pool_size": r.scene_token_pool_size,
                 "cooccurrence": r.cooccurrence,
                 "seed": r.seed,

@@ -12,41 +12,41 @@ controls. n=3 MQAR runs are diagnostic gates only.
 | # | Item | Status | Evidence |
 | -- | --- | :---: | --- |
 | A1 | Reproduce Report 067 bundle-first multi-role MQAR for `K_roles in {2,4,8}` and `N in {16,32,64,128,256,512}` | partial | Report 067, n=3 diagnostic |
-| A2 | Extend to `K_roles=16` | open | `experiments/44_phase5_prime_bundle_first.py` supports it |
-| A3 | Report `top1`, Wilson CI, `scene_tix`, `content_tix`, entropy, and margin for every cell | open | harness support required |
+| A2 | Extend to `K_roles=16` | partial | Report 075 hard-cell diagnostic covers `K=16,N=512`; full grid still open |
+| A3 | Report `top1`, Wilson CI, `scene_tix`, `content_tix`, entropy, and margin for every cell | partial | Report 075 records pasted top1/CI/scene/content for hard cells; full matrix still open |
 
 ## B. Cue Noise
 
 | # | Item | Status | Evidence |
 | -- | --- | :---: | --- |
-| B1 | Sweep cue noise over at least `{0.0, 0.05, 0.10, 0.15}` | open | not yet run |
-| B2 | Report whether failures are scene-ID failures or content-cleanup failures | open | requires `scene_tix` / `content_tix` split |
+| B1 | Sweep cue noise over at least `{0.0, 0.05, 0.10, 0.15}` | partial | Report 075 records pasted candidate-grid extremes; full matched-control sweep still open |
+| B2 | Report whether failures are scene-ID failures or content-cleanup failures | partial | Report 075 hard-cell split: scene-MHN is the bottleneck; full grid still open |
 
 ## C. Scene Token / Identity Robustness
 
 | # | Item | Status | Evidence |
 | -- | --- | :---: | --- |
-| C1 | Run no-scene-token baseline | open | not yet run |
-| C2 | Run optional scene-token condition | open | harness support required |
-| C3 | Confirm scene tokens do not inflate top1 through identity leakage | open | compare with shuffled-role and random-role controls |
+| C1 | Run no-scene-token baseline | partial | Report 075 records no-anchor / zero-weight skewed baselines near `~0.23` |
+| C2 | Run optional scene-token condition | partial | Report 075 records random-anchor sweep; substrate-derived `context_bundle` pending |
+| C3 | Confirm scene tokens do not inflate top1 through identity leakage | partial | Report 075 random-role control stays near zero; shuffled-role leakage remains bounded but must stay matched |
 
 ## D. Co-Occurrence Statistics
 
 | # | Item | Status | Evidence |
 | -- | --- | :---: | --- |
 | D1 | Uniform filler sampling baseline | partial | Report 067 diagnostic |
-| D2 | Skewed/natural co-occurrence condition if cheap | open | harness support required |
-| D3 | Report whether skew changes scene-MHN margins or content cleanup | open | not yet run |
+| D2 | Skewed/natural co-occurrence condition if cheap | partial | Report 075 records skewed hard-cell and candidate-grid diagnostics |
+| D3 | Report whether skew changes scene-MHN margins or content cleanup | partial | Report 075 records scene/content split for skewed hard cells; natural co-occurrence open |
 
 ## E. Controls
 
 | # | Control | Required behavior | Status |
 | -- | --- | --- | :---: |
-| E1 | Random-role control | removes or bounds structural recall | open |
-| E2 | Shuffled-role control | removes role-specific structure | open |
-| E3 | Perfect-cue control | verifies storage and cleanup ceiling | open |
-| E4 | Bundle positive control | verifies algebraic bundle/unbind capacity | open |
-| E5 | Content cleanup positive control | verifies content-MHN cleanup independent of scene ID | open |
+| E1 | Random-role control | removes or bounds structural recall | partial |
+| E2 | Shuffled-role control | removes role-specific structure | partial |
+| E3 | Perfect-cue control | verifies storage and cleanup ceiling | partial |
+| E4 | Bundle positive control | verifies algebraic bundle/unbind capacity | partial |
+| E5 | Content cleanup positive control | verifies content-MHN cleanup independent of scene ID | partial |
 
 Controls are matched to candidate settings and reported alongside them. They
 are diagnostics, not a route selector.
@@ -69,11 +69,11 @@ are diagnostics, not a route selector.
 
 | # | Item | Status | Evidence |
 | -- | --- | :---: | --- |
-| G1 | n_seeds >= 10 for any verification claim | open | not yet run |
-| G2 | Confidence intervals reported on headline | open | harness supports CI; full run not yet done |
+| G1 | n_seeds >= 10 for any verification claim | partial | Report 075 pasted diagnostics are n=10 but not a verification claim |
+| G2 | Confidence intervals reported on headline | partial | Report 075 records Wilson CIs for pasted hard cells |
 | G3 | Leave-one-seed-out sensitivity reported | open | not yet run |
-| G4 | Controls E1-E5 run on the same test set | open | not yet run |
-| G5 | Report explicitly says no graduation claim unless all gates pass | open | required for report 069 and later |
+| G4 | Controls E1-E5 run on the same test set | partial | Report 075 hard-cell controls are matched; full matrix still open |
+| G5 | Report explicitly says no graduation claim unless all gates pass | done | Reports 069-075 explicitly preserve no-graduation boundary |
 
 ## H. Anti-Homunculus Discipline
 
