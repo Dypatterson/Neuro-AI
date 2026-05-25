@@ -556,9 +556,10 @@ discipline has produced its fifth chapter.
 
 ## The literature insight
 
-**HEN (Kashyap 2024)** — `tmp/pdf_text/MHN-ENR.txt` — explicitly
-addresses fixed-point-vs-trajectory metastability. Two load-bearing
-findings from §"Quantifying Meta-Stable States":
+**HEN (Kashyap 2024)** — explicitly addresses fixed-point-vs-trajectory
+metastability. The original extracted-text scratch file is no longer canonical
+in this checkout. Two load-bearing findings from §"Quantifying Meta-Stable
+States":
 
 > "the dynamics destabilize to low-rank solutions, collapsing the
 > retrieval fidelity. For sufficiently high β = [80, 150], the
@@ -579,9 +580,10 @@ by HEN — also notes that β controls convergence behavior. Our Phase 4
 β=10 is in the "stabilize-to-sharp-fixed-point" regime, which is
 exactly where the fixed-point c_i fails.
 
-**MIR (Aljundi 2019)** — `tmp/pdf_text/OCL-MIR.txt` — operationalizes
-its replay-priority signal as a *predicted loss change under virtual
-parameter update*, not a fixed-point softmax weight. MIR sidesteps
+**MIR (Aljundi 2019)** — operationalizes its replay-priority signal as a
+*predicted loss change under virtual parameter update*, not a fixed-point
+softmax weight. The original extracted-text scratch file is no longer canonical
+in this checkout. MIR sidesteps
 this failure mode entirely by reading a different kind of signal.
 Our pair #4 cannot import MIR's signal directly (we do not have an
 explicit task loss), but the methodological lesson applies: choose a

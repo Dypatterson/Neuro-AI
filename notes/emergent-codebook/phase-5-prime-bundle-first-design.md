@@ -126,6 +126,24 @@ Delta E = E_content-prior - E_role-prior
 No Phase 5′ MQAR result should be described as graduation unless the relevant
 spec and checklist are updated and n>=10 controls pass.
 
+## Next Context-Source Gate
+
+Reports 075-081 identify a strong context-completion operating point, but Report
+081 still builds the trace from generated scene contents. Before any full matrix,
+the next discriminator is the narrow less-synthetic context-source gate specified
+in [2026-05-25-phase5-prime-less-synthetic-context-trace.md](../notes/2026-05-25-phase5-prime-less-synthetic-context-trace.md).
+
+Keep the Report 081 hard cell fixed:
+
+```text
+D=4096, K_roles=16, N=512, cue_noise=0.15, cooccurrence=skewed,
+context_roles=4, scene_token_weight=0.25
+```
+
+The source must be replay-derived, trajectory-derived, learned, or naturally
+observed. If the passive trace source lacks enough support, report that support
+deficit instead of falling back to direct generated-scene context.
+
 ## Required Controls
 
 Run controls on the same seeds, N values, role counts, cue-noise settings, and
@@ -133,6 +151,7 @@ query schedule as the candidate condition:
 
 - random-role control: query with a random role not tied to the scene
 - shuffled-role control: permute role labels across scenes or queries
+- deranged-role control: permute role labels with no fixed points
 - perfect-cue control: cue with the full scene bundle or exact content target
 - bundle positive control: direct bundle/unbind path without scene-MHN failure
 - content cleanup positive control: noisy content vector into content-MHN

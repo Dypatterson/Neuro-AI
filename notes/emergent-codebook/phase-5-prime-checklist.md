@@ -29,6 +29,7 @@ controls. n=3 MQAR runs are diagnostic gates only.
 | C1 | Run no-scene-token baseline | partial | Report 075 records no-anchor / zero-weight skewed baselines near `~0.23` |
 | C2 | Run optional scene-token condition | partial | Report 075 records random-anchor sweep; Report 076 records full-scene `context_bundle`; Reports 077-081 record strict partial-context, context-size, fixed observed-prefix, available-prefix, and trace-backed diagnostics |
 | C3 | Confirm scene tokens do not inflate top1 through identity leakage | partial | Reports 077-081 random-role and deranged-role controls stay near zero despite high scene/context rates; shuffled-role residual remains bounded/dirty |
+| C4 | Replace generated-scene trace construction with a replay-derived, trajectory-derived, learned, or naturally observed passive context trace before any full matrix | open | Narrow gate specified in [2026-05-25-phase5-prime-less-synthetic-context-trace.md](../notes/2026-05-25-phase5-prime-less-synthetic-context-trace.md); Report 081 is trace-backed plumbing only |
 
 ## D. Co-Occurrence Statistics
 

@@ -458,7 +458,10 @@ descent; greedy reads as an if-X-then-Y rule even if X is a measurement.
 
 ---
 
-## Open decisions before implementation start
+## Closed implementation-start decisions
+
+This section is historical Phase 5 design closure. It should not be read as an
+open menu of mechanisms for current Phase 5' work.
 
 | # | Decision | Status |
 |---|---|---|
@@ -473,7 +476,7 @@ all addressable during implementation as numerical hyperparameters; decision
 5 is an architectural commitment that needs evidence before the graduation
 run. **Phase 5 implementation is unblocked.**
 
-### Decision 5 spike — falsifier specification (set in advance)
+### Decision 5 spike — historical falsifier specification (set in advance)
 
 The two formulations encode different theories of structural retrieval:
 
@@ -498,7 +501,7 @@ Spike protocol (~30-min CPU on synthetic cues):
   - **Meta-stable rate at the substrate level** — does the formulation
     destabilize basins (rate rises) or stay decisive (rate stays low)?
 
-Decision rule (committed before the spike runs):
+Historical decision rule (committed before the spike ran):
 
 1. If only per-pattern produces ΔE > 0 AND keeps `on_substrate_alignment`
    high → commit to **per-pattern**.
@@ -506,12 +509,12 @@ Decision rule (committed before the spike runs):
    stays in a defensible range (>some threshold to be set from
    per-pattern's distribution) → commit to **global pull** with a
    documented rationale for the off-substrate component.
-3. If both produce ΔE > 0 → prefer **per-pattern** as the more
+3. If both produce Delta E > 0 -> prefer **per-pattern** as the more
    substrate-respectful (anti-homunculus) form. Global pull is reserved
    as a fallback only if per-pattern's `on_substrate_alignment` is
    pathologically high (>0.95 across all branches) suggesting the
    substrate is too rigid for any structural movement.
-4. If neither produces ΔE > 0 → Phase 5 architectural assumption is in
+4. If neither produces Delta E > 0 -> Phase 5 architectural assumption is in
    doubt; do not run the n=10 graduation. Re-scope.
 
 Decision 5 sits on the schema-source robustness axis explicitly as a
@@ -553,7 +556,8 @@ magnitude. This is a substrate-capacity observation, not a Phase 5
 mechanism limitation.
 
 Production code uses `formulation='per_pattern'` exclusively. The
-`global_pull` codepath is retained for reproducibility of this spike.
+`global_pull` codepath is retained for reproducibility of this spike only; it
+is not a live Phase 5 or Phase 5' recommendation.
 
 ---
 

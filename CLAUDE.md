@@ -141,10 +141,12 @@ code, and before recommending an approach:
 4. Skim relevant dated notes under [notes/notes/](notes/notes/) — these
    capture cross-paper syntheses and architectural decisions that don't
    always make it into the phase docs.
-5. Check [research/](research/) for papers the project has bookmarked.
-   Extracted text is in [tmp/pdf_text/](tmp/pdf_text/). The 2026-05-09
-   paper synthesis note ([notes/notes/2026-05-09-papers-diagnostics-and-actuator-dynamics.md](notes/notes/2026-05-09-papers-diagnostics-and-actuator-dynamics.md))
-   catalogues which papers are load-bearing and why.
+5. Check the current research briefs and synthesis notes before treating a
+   paper-backed mechanism as new. In this checkout, load-bearing research
+   context lives in dated notes under [notes/notes/](notes/notes/) and in
+   task-local research briefs under [brainstorm-workspace/](brainstorm-workspace/).
+   There is no canonical root `research/` or `tmp/pdf_text/` directory here;
+   older references to those paths are historical extraction-path breadcrumbs.
 
 Do not assume a design from first principles when a design document exists.
 If you find a relevant note partway through implementation, stop, read it,
