@@ -287,6 +287,16 @@ def _resolve_context_trace_snapshot(
     return Path(context_trace_snapshot.format(seed=seed))
 
 
+def _load_snapshot(path: Path) -> dict:
+    try:
+        state = torch.load(path, map_location="cpu", weights_only=False)
+    except TypeError:
+        state = torch.load(path, map_location="cpu")
+    if not isinstance(state, dict):
+        raise ValueError(f"context trace snapshot is not a dict: {path}")
+    return state
+
+
 def _load_passive_trace_context_rows(
     snapshot_path: Path,
     *,
@@ -301,9 +311,7 @@ def _load_passive_trace_context_rows(
     if not snapshot_path.is_file():
         raise FileNotFoundError(f"context trace snapshot not found: {snapshot_path}")
 
-    state = torch.load(snapshot_path, map_location="cpu", weights_only=False)
-    if not isinstance(state, dict):
-        raise ValueError(f"context trace snapshot is not a dict: {snapshot_path}")
+    state = _load_snapshot(snapshot_path)
     raw_rows = state.get("pattern_encoder_terms")
     if raw_rows is None:
         raise ValueError(
