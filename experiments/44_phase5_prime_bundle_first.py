@@ -31,6 +31,8 @@ CONTEXT_BUNDLE_SOURCES = {
     "context_bundle_observed_prefix",
     "context_bundle_observed_prefix_plan",
     "context_trace_observed_prefix_plan",
+    "replay_observed_context_trace",
+    "replay_observed_pattern_context_trace",
 }
 
 PARTIAL_CONTEXT_SOURCES = {
@@ -38,16 +40,30 @@ PARTIAL_CONTEXT_SOURCES = {
     "context_bundle_observed_prefix",
     "context_bundle_observed_prefix_plan",
     "context_trace_observed_prefix_plan",
+    "replay_observed_context_trace",
+    "replay_observed_pattern_context_trace",
 }
 
 CONTEXT_ROLE_SOURCES = {
     "context_bundle_observed_prefix",
     "context_bundle_observed_prefix_plan",
     "context_trace_observed_prefix_plan",
+    "replay_observed_context_trace",
+    "replay_observed_pattern_context_trace",
 }
 
 TRACE_CONTEXT_SOURCES = {
     "context_trace_observed_prefix_plan",
+    "replay_observed_context_trace",
+}
+
+PASSIVE_TRACE_CONTEXT_SOURCES = {
+    "replay_observed_context_trace",
+    "replay_observed_pattern_context_trace",
+}
+
+PASSIVE_PATTERN_CONTEXT_SOURCES = {
+    "replay_observed_pattern_context_trace",
 }
 
 
@@ -81,6 +97,11 @@ class CellResult:
     content_entropy: float
     scene_margin: float
     content_margin: float
+    passive_trace_rows_available: int = 0
+    passive_trace_rows_used: int = 0
+    passive_trace_rows_too_short: int = 0
+    passive_trace_rows_invalid: int = 0
+    passive_trace_path: Optional[str] = None
 
     @property
     def top1(self) -> float:
@@ -157,6 +178,10 @@ def _scene_tokens(
     if not enabled:
         return None
     if source in CONTEXT_BUNDLE_SOURCES:
+        if source in PASSIVE_PATTERN_CONTEXT_SOURCES:
+            raise ValueError(
+                f"{source} uses snapshot pattern tokens and is handled in run_cell"
+            )
         if pool_size != 0:
             raise ValueError(f"{source} scene-token source requires pool_size=0")
         return torch.stack(
@@ -262,6 +287,178 @@ def _sample_observed_context_roles(
     return roles
 
 
+def _resolve_context_trace_snapshot(
+    context_trace_snapshot: Optional[str],
+    *,
+    seed: int,
+) -> Path:
+    if not context_trace_snapshot:
+        raise ValueError(
+            "replay_observed_context_trace requires --context_trace_snapshot"
+        )
+    return Path(context_trace_snapshot.format(seed=seed))
+
+
+def _load_snapshot(path: Path) -> dict:
+    try:
+        state = torch.load(path, map_location="cpu", weights_only=False)
+    except TypeError:
+        state = torch.load(path, map_location="cpu")
+    if not isinstance(state, dict):
+        raise ValueError(f"context trace snapshot is not a dict: {path}")
+    return state
+
+
+def _load_passive_trace_context_rows(
+    snapshot_path: Path,
+    *,
+    N: int,
+    K_roles: int,
+    C_codebook: int,
+    context_roles: int,
+    generator: torch.Generator,
+    return_pattern_tokens: bool = False,
+) -> Tuple[List[Dict[int, int]], dict, Optional[torch.Tensor]]:
+    if context_roles <= 0:
+        raise ValueError("replay_observed_context_trace requires context_roles > 0")
+    if not snapshot_path.is_file():
+        raise FileNotFoundError(f"context trace snapshot not found: {snapshot_path}")
+
+    state = _load_snapshot(snapshot_path)
+    raw_rows = state.get("pattern_encoder_terms")
+    if raw_rows is None:
+        raise ValueError(
+            f"context trace snapshot has no pattern_encoder_terms: {snapshot_path}"
+        )
+    raw_patterns = None
+    if return_pattern_tokens:
+        raw_patterns = state.get("patterns")
+        if not isinstance(raw_patterns, torch.Tensor):
+            raise ValueError(
+                f"context trace snapshot has no tensor patterns: {snapshot_path}"
+            )
+        if int(raw_patterns.shape[0]) != len(raw_rows):
+            raise ValueError(
+                "context trace snapshot pattern row count mismatch: "
+                f"patterns={int(raw_patterns.shape[0])} rows={len(raw_rows)} "
+                f"snapshot={snapshot_path}"
+            )
+
+    eligible: List[Tuple[Dict[int, int], Optional[torch.Tensor]]] = []
+    too_short = 0
+    invalid = 0
+    for row_idx, raw_terms in enumerate(raw_rows):
+        if raw_terms is None:
+            too_short += 1
+            continue
+        role_to_atom: Dict[int, int] = {}
+        row_invalid = False
+        for raw_role, raw_atom in raw_terms:
+            try:
+                role = int(raw_role)
+                atom = int(raw_atom)
+            except (TypeError, ValueError):
+                row_invalid = True
+                continue
+            if role < 0 or role >= K_roles or atom < 0 or atom >= C_codebook:
+                row_invalid = True
+                continue
+            role_to_atom.setdefault(role, atom)
+        if row_invalid:
+            invalid += 1
+        if len(role_to_atom) < context_roles:
+            too_short += 1
+            continue
+        token = None
+        if raw_patterns is not None:
+            token = raw_patterns[row_idx].detach().clone()
+        eligible.append((role_to_atom, token))
+
+    support = {
+        "snapshot_path": str(snapshot_path),
+        "raw_rows": len(raw_rows),
+        "eligible_rows": len(eligible),
+        "required_rows": N,
+        "context_roles": context_roles,
+        "rows_too_short": too_short,
+        "rows_invalid": invalid,
+    }
+    if len(eligible) < N:
+        raise ValueError(
+            "passive trace support deficit for replay_observed_context_trace: "
+            f"eligible_rows={len(eligible)} required_rows={N} "
+            f"context_roles={context_roles} snapshot={snapshot_path}"
+        )
+
+    order = torch.randperm(len(eligible), generator=generator).tolist()[:N]
+    rows = [eligible[int(idx)][0] for idx in order]
+    pattern_tokens = None
+    if return_pattern_tokens:
+        tokens = [eligible[int(idx)][1] for idx in order]
+        if any(token is None for token in tokens):
+            raise RuntimeError("missing selected passive pattern token")
+        pattern_tokens = torch.stack([token for token in tokens if token is not None], dim=0)
+    support["used_rows"] = len(rows)
+    return rows, support, pattern_tokens
+
+
+def _apply_passive_trace_context_rows(
+    filler_indices: List[List[int]],
+    passive_rows: Sequence[Dict[int, int]],
+    *,
+    context_roles: int,
+    generator: torch.Generator,
+) -> List[List[int]]:
+    selected_roles_by_scene: List[List[int]] = []
+    for scene_idx, row in enumerate(passive_rows):
+        row_roles = sorted(row.keys())
+        if len(row_roles) > context_roles:
+            order = torch.randperm(len(row_roles), generator=generator).tolist()
+            selected_roles = sorted(row_roles[int(idx)] for idx in order[:context_roles])
+        else:
+            selected_roles = row_roles[:context_roles]
+        if len(selected_roles) < context_roles:
+            raise ValueError(
+                "passive trace row lost support after filtering: "
+                f"scene={scene_idx} roles={selected_roles}"
+            )
+        selected_roles_by_scene.append(selected_roles)
+        for role in selected_roles:
+            atom = row[role]
+            filler_indices[scene_idx][role] = atom
+    return selected_roles_by_scene
+
+
+def _query_plan_with_passive_context(
+    N: int,
+    K_roles: int,
+    n_queries: int,
+    passive_context_roles: Sequence[Sequence[int]],
+    *,
+    generator: torch.Generator,
+) -> Tuple[List[Tuple[int, int, int]], List[List[int]]]:
+    plan: List[Tuple[int, int, int]] = []
+    observed_role_plan: List[List[int]] = []
+    for _ in range(n_queries):
+        scene_idx = int(torch.randint(0, N, (1,), generator=generator).item())
+        observed_roles = [int(role) for role in passive_context_roles[scene_idx]]
+        query_candidates = [
+            role for role in range(K_roles) if role not in observed_roles
+        ]
+        if not query_candidates:
+            raise ValueError(
+                "replay_observed_context_trace needs at least one non-context "
+                "query role"
+            )
+        known_pos = int(torch.randint(0, len(observed_roles), (1,), generator=generator).item())
+        query_pos = int(torch.randint(0, len(query_candidates), (1,), generator=generator).item())
+        known_role = observed_roles[known_pos]
+        query_role = query_candidates[query_pos]
+        plan.append((scene_idx, known_role, query_role))
+        observed_role_plan.append(list(observed_roles))
+    return plan, observed_role_plan
+
+
 def _trace_context_token(
     fhrr: TorchFHRR,
     roles: torch.Tensor,
@@ -302,6 +499,7 @@ def _query_context_tokens(
     source: str,
     context_roles: int,
     observed_role_plan: Optional[Sequence[Sequence[int]]] = None,
+    passive_context_tokens: Optional[torch.Tensor] = None,
 ) -> Optional[torch.Tensor]:
     """Build query-side context anchors for partial-context diagnostics.
 
@@ -317,6 +515,8 @@ def _query_context_tokens(
     trace_store: Optional[ReplayStore] = None
     if source in TRACE_CONTEXT_SOURCES:
         trace_store = ReplayStore(capacity=max(1, int(scene_idx.shape[0])))
+    if source in PASSIVE_PATTERN_CONTEXT_SOURCES and passive_context_tokens is None:
+        raise ValueError(f"{source} requires passive_context_tokens")
     for i in range(scene_idx.shape[0]):
         scene = int(scene_idx[i].detach().cpu())
         known = int(known_role[i].detach().cpu())
@@ -326,6 +526,8 @@ def _query_context_tokens(
         elif source in {
             "context_bundle_observed_prefix_plan",
             "context_trace_observed_prefix_plan",
+            "replay_observed_context_trace",
+            "replay_observed_pattern_context_trace",
         }:
             if observed_role_plan is None:
                 raise ValueError(f"{source} requires an observed role plan")
@@ -339,6 +541,10 @@ def _query_context_tokens(
             )
         if not selected_roles:
             tokens.append(zero)
+            continue
+        if source in PASSIVE_PATTERN_CONTEXT_SOURCES:
+            assert passive_context_tokens is not None
+            tokens.append(passive_context_tokens[scene].to(fhrr.device))
             continue
         if source in TRACE_CONTEXT_SOURCES:
             assert trace_store is not None
@@ -448,6 +654,7 @@ def run_cell(
     beta: float,
     C_codebook: int,
     device: str,
+    context_trace_snapshot: Optional[str] = None,
 ) -> CellResult:
     if K_roles <= 0:
         raise ValueError("K_roles must be positive")
@@ -477,16 +684,56 @@ def run_cell(
         cooccurrence=cooccurrence,
         generator=generator,
     )
-    scene_tokens = _scene_tokens(
-        fhrr,
-        N,
-        enabled=scene_token,
-        source=scene_token_source,
-        pool_size=scene_token_pool_size,
-        roles=roles,
-        content=content,
-        filler_indices=fillers,
-    )
+    passive_support = {
+        "eligible_rows": 0,
+        "used_rows": 0,
+        "rows_too_short": 0,
+        "rows_invalid": 0,
+        "snapshot_path": None,
+    }
+    passive_context_roles_by_scene: Optional[List[List[int]]] = None
+    passive_context_tokens: Optional[torch.Tensor] = None
+    if scene_token_source in PASSIVE_TRACE_CONTEXT_SOURCES:
+        snapshot_path = _resolve_context_trace_snapshot(
+            context_trace_snapshot,
+            seed=seed,
+        )
+        passive_rows, passive_support, passive_context_tokens = _load_passive_trace_context_rows(
+            snapshot_path,
+            N=N,
+            K_roles=K_roles,
+            C_codebook=C_codebook,
+            context_roles=context_roles,
+            generator=generator,
+            return_pattern_tokens=scene_token_source in PASSIVE_PATTERN_CONTEXT_SOURCES,
+        )
+        if passive_context_tokens is not None and int(passive_context_tokens.shape[1]) != D:
+            raise ValueError(
+                "passive context token dim mismatch: "
+                f"tokens={int(passive_context_tokens.shape[1])} D={D} "
+                f"snapshot={snapshot_path}"
+            )
+        passive_context_roles_by_scene = _apply_passive_trace_context_rows(
+            fillers,
+            passive_rows,
+            context_roles=context_roles,
+            generator=generator,
+        )
+    if scene_token_source in PASSIVE_PATTERN_CONTEXT_SOURCES:
+        if passive_context_tokens is None:
+            raise RuntimeError("passive context tokens were not initialized")
+        scene_tokens = passive_context_tokens.to(fhrr.device) if scene_token else None
+    else:
+        scene_tokens = _scene_tokens(
+            fhrr,
+            N,
+            enabled=scene_token,
+            source=scene_token_source,
+            pool_size=scene_token_pool_size,
+            roles=roles,
+            content=content,
+            filler_indices=fillers,
+        )
     scene_bundles = _build_scene_bundles(
         fhrr,
         roles,
@@ -500,7 +747,19 @@ def run_cell(
 
     role_shuffle = _role_permutation(K_roles, generator=generator)
     role_shuffle_tensor = torch.tensor(role_shuffle, dtype=torch.long, device=fhrr.device)
-    plan = _query_plan(N, K_roles, n_queries, generator=generator)
+    if scene_token_source in PASSIVE_TRACE_CONTEXT_SOURCES:
+        if passive_context_roles_by_scene is None:
+            raise RuntimeError("passive context roles were not initialized")
+        plan, observed_role_plan = _query_plan_with_passive_context(
+            N,
+            K_roles,
+            n_queries,
+            passive_context_roles_by_scene,
+            generator=generator,
+        )
+    else:
+        plan = _query_plan(N, K_roles, n_queries, generator=generator)
+        observed_role_plan = None
     plan_tensor = torch.tensor(plan, dtype=torch.long, device=fhrr.device)
     role_derangement = _role_derangement(K_roles, generator=generator)
     role_derangement_tensor = torch.tensor(
@@ -508,7 +767,6 @@ def run_cell(
         dtype=torch.long,
         device=fhrr.device,
     )
-    observed_role_plan: Optional[List[List[int]]] = None
     if scene_token_source in {
         "context_bundle_observed_prefix_plan",
         "context_trace_observed_prefix_plan",
@@ -553,6 +811,7 @@ def run_cell(
             source=scene_token_source,
             context_roles=context_roles,
             observed_role_plan=observed_role_plan,
+            passive_context_tokens=passive_context_tokens,
         )
         if query_tokens is None:
             query_tokens = scene_tokens[scene_idx]
@@ -622,6 +881,11 @@ def run_cell(
         content_entropy=float(content_entropy.mean().detach().cpu()),
         scene_margin=float(scene_margin.mean().detach().cpu()),
         content_margin=float(content_margin.mean().detach().cpu()),
+        passive_trace_rows_available=int(passive_support.get("eligible_rows") or 0),
+        passive_trace_rows_used=int(passive_support.get("used_rows") or 0),
+        passive_trace_rows_too_short=int(passive_support.get("rows_too_short") or 0),
+        passive_trace_rows_invalid=int(passive_support.get("rows_invalid") or 0),
+        passive_trace_path=passive_support.get("snapshot_path"),
     )
 
 
@@ -646,6 +910,21 @@ def _aggregate(cell: Sequence[CellResult]) -> dict:
         "mean_content_entropy": sum(r.content_entropy for r in cell) / len(cell),
         "mean_scene_margin": sum(r.scene_margin for r in cell) / len(cell),
         "mean_content_margin": sum(r.content_margin for r in cell) / len(cell),
+        "passive_trace_rows_available": [
+            r.passive_trace_rows_available for r in cell
+        ],
+        "passive_trace_rows_used": [
+            r.passive_trace_rows_used for r in cell
+        ],
+        "passive_trace_rows_too_short": [
+            r.passive_trace_rows_too_short for r in cell
+        ],
+        "passive_trace_rows_invalid": [
+            r.passive_trace_rows_invalid for r in cell
+        ],
+        "passive_trace_paths": [
+            r.passive_trace_path for r in cell if r.passive_trace_path is not None
+        ],
     }
 
 
@@ -702,7 +981,21 @@ def main() -> int:
             "context_bundle_observed_prefix_plan samples the observed prefix "
             "roles in the query plan instead of using deterministic hidden roles. "
             "context_trace_observed_prefix_plan builds that prefix through the "
-            "Phase 2/4 provenance trace and ReplayStore path."
+            "Phase 2/4 provenance trace and ReplayStore path. "
+            "replay_observed_context_trace overlays observed encoder terms "
+            "from a Phase 3/4 snapshot before building the query context. "
+            "replay_observed_pattern_context_trace uses the same support rows "
+            "but uses the snapshot's learned pattern vectors as fixed context "
+            "tokens."
+        ),
+    )
+    parser.add_argument(
+        "--context_trace_snapshot",
+        default=None,
+        help=(
+            "Phase 3/4 snapshot path used by replay_observed_context_trace. "
+            "May include {seed} for per-seed paths. The snapshot must contain "
+            "pattern_encoder_terms with enough rows to support N/context_roles."
         ),
     )
     parser.add_argument(
@@ -716,7 +1009,11 @@ def main() -> int:
             "from non-query roles by index; the *_plan source samples the "
             "additional observed roles in the query plan. The context_trace_* "
             "source encodes the sampled prefix as a TrajectoryTrace before "
-            "using it as query context. Ignored by other scene-token sources."
+            "using it as query context. replay_observed_context_trace uses "
+            "the same count over passive snapshot-derived rows; "
+            "replay_observed_pattern_context_trace uses those rows to select "
+            "learned snapshot pattern tokens. Ignored by other scene-token "
+            "sources."
         ),
     )
     parser.add_argument(
@@ -816,6 +1113,9 @@ def main() -> int:
                                                         beta=args.beta,
                                                         C_codebook=args.C_codebook,
                                                         device=device,
+                                                        context_trace_snapshot=(
+                                                            args.context_trace_snapshot
+                                                        ),
                                                     )
                                                     cell.append(result)
                                                     raw.append(result)
@@ -858,6 +1158,7 @@ def main() -> int:
             "scene_token_source": args.scene_token_source,
             "scene_token_pool_size": args.scene_token_pool_size,
             "context_roles": args.context_roles,
+            "context_trace_snapshot": args.context_trace_snapshot,
             "cooccurrence": args.cooccurrence,
             "device": device,
         },
@@ -885,6 +1186,11 @@ def main() -> int:
                 "content_entropy": r.content_entropy,
                 "scene_margin": r.scene_margin,
                 "content_margin": r.content_margin,
+                "passive_trace_rows_available": r.passive_trace_rows_available,
+                "passive_trace_rows_used": r.passive_trace_rows_used,
+                "passive_trace_rows_too_short": r.passive_trace_rows_too_short,
+                "passive_trace_rows_invalid": r.passive_trace_rows_invalid,
+                "passive_trace_path": r.passive_trace_path,
             }
             for r in raw
         ],

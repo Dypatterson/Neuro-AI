@@ -1,0 +1,1691 @@
+{
+  "aggregate": {
+    "learned_pattern_pairwise": {
+      "nn_max_mean": 1.000001573562622,
+      "nn_max_std": 1.9804534585280596e-07,
+      "nn_mean_mean": 0.6261106312274933,
+      "nn_mean_std": 0.004757850249846178,
+      "offdiag_mean_mean": 0.27260138988494875,
+      "offdiag_mean_std": 0.0016092955314326474,
+      "offdiag_std_mean": 0.12700635194778442,
+      "offdiag_std_std": 0.002662994484838545
+    },
+    "learned_pattern_to_partial_context": {
+      "diag_mean_mean": -0.0004982017242582514,
+      "diag_mean_rank_mean": 255.526953125,
+      "diag_mean_rank_std": 12.528240949513323,
+      "diag_mean_std": 0.001279328462995139,
+      "diag_median_rank_mean": 256.4,
+      "diag_median_rank_std": 20.33814150801395,
+      "diag_minus_offdiag_mean_mean": 2.377022756263614e-05,
+      "diag_minus_offdiag_mean_std": 0.0009186763549943357,
+      "diag_std_mean": 0.010861856676638127,
+      "diag_std_std": 0.00029012521246945394,
+      "diag_top1_rate_mean": 0.0009765625,
+      "diag_top1_rate_std": 0.001310196080566283,
+      "offdiag_mean_mean": -0.0005219719566412096,
+      "offdiag_mean_std": 0.0010415105565047898,
+      "offdiag_std_mean": 0.010935479030013084,
+      "offdiag_std_std": 0.00025874913598773644
+    },
+    "learned_pattern_to_scene_matrix_083": {
+      "diag_mean_mean": 0.054636205360293386,
+      "diag_mean_rank_mean": 6.342578125,
+      "diag_mean_rank_std": 0.6220892915570255,
+      "diag_mean_std": 0.0007539102759021344,
+      "diag_median_rank_mean": 1.2,
+      "diag_median_rank_std": 0.4,
+      "diag_minus_offdiag_mean_mean": 0.03977705463767052,
+      "diag_minus_offdiag_mean_std": 0.0005932208925165484,
+      "diag_std_mean": 0.010958419553935528,
+      "diag_std_std": 0.00021741491463359453,
+      "diag_top1_rate_mean": 0.528515625,
+      "diag_top1_rate_std": 0.02719266294368299,
+      "offdiag_mean_mean": 0.014859150536358357,
+      "offdiag_mean_std": 0.0006311440033303377,
+      "offdiag_std_mean": 0.013005376886576414,
+      "offdiag_std_std": 0.00020768342353374148
+    },
+    "learned_pattern_to_synthetic_full_context": {
+      "diag_mean_mean": -5.5893546959850934e-05,
+      "diag_mean_rank_mean": 256.1255859375,
+      "diag_mean_rank_std": 8.137767399439204,
+      "diag_mean_std": 0.0007782181322896748,
+      "diag_median_rank_mean": 257.1,
+      "diag_median_rank_std": 10.329085148259743,
+      "diag_minus_offdiag_mean_mean": 1.348223304376006e-06,
+      "diag_minus_offdiag_mean_std": 0.0006564637244187127,
+      "diag_std_mean": 0.010964669659733773,
+      "diag_std_std": 0.0002679041351664715,
+      "diag_top1_rate_mean": 0.0013671875,
+      "diag_top1_rate_std": 0.0019628663322501737,
+      "offdiag_mean_mean": -5.724177317460999e-05,
+      "offdiag_mean_std": 0.0006205228302217988,
+      "offdiag_std_mean": 0.010982689913362265,
+      "offdiag_std_std": 0.0001246849064618675
+    },
+    "partial_context_to_scene_matrix_082": {
+      "diag_mean_mean": 0.409959876537323,
+      "diag_mean_rank_mean": 1.0248046875,
+      "diag_mean_rank_std": 0.008334604802090573,
+      "diag_mean_std": 0.0003328887958834805,
+      "diag_median_rank_mean": 1.0,
+      "diag_median_rank_std": 0.0,
+      "diag_minus_offdiag_mean_mean": 0.37875212728977203,
+      "diag_minus_offdiag_mean_std": 0.001552684462557317,
+      "diag_std_mean": 0.009864836931228638,
+      "diag_std_std": 0.00033276686121476564,
+      "diag_top1_rate_mean": 0.983203125,
+      "diag_top1_rate_std": 0.004470907477445155,
+      "offdiag_mean_mean": 0.031207748875021934,
+      "offdiag_mean_std": 0.0015148981516228937,
+      "offdiag_std_mean": 0.05592905804514885,
+      "offdiag_std_std": 0.0008366190812774494
+    },
+    "partial_context_to_synthetic_full_context": {
+      "diag_mean_mean": 0.40995987951755525,
+      "diag_mean_rank_mean": 1.0248046875,
+      "diag_mean_rank_std": 0.008334604802090573,
+      "diag_mean_std": 0.0003328882821817095,
+      "diag_median_rank_mean": 1.0,
+      "diag_median_rank_std": 0.0,
+      "diag_minus_offdiag_mean_mean": 0.37875213027000426,
+      "diag_minus_offdiag_mean_std": 0.0015526860937476014,
+      "diag_std_mean": 0.00986483721062541,
+      "diag_std_std": 0.0003327659852226588,
+      "diag_top1_rate_mean": 0.983203125,
+      "diag_top1_rate_std": 0.004470907477445155,
+      "offdiag_mean_mean": 0.031207748502492905,
+      "offdiag_mean_std": 0.001514897803427047,
+      "offdiag_std_mean": 0.05592905804514885,
+      "offdiag_std_std": 0.0008366190812774494
+    },
+    "query_fraction_in_observed_role_support": {
+      "max": 0.0,
+      "mean": 0.0,
+      "min": 0.0,
+      "std": 0.0
+    },
+    "report082_candidate_top1": {
+      "max": 0.736328125,
+      "mean": 0.676171875,
+      "min": 0.638671875,
+      "std": 0.02576052670905867
+    },
+    "report083_candidate_top1": {
+      "max": 0.48828125,
+      "mean": 0.4462890625,
+      "min": 0.416015625,
+      "std": 0.022187534385976877
+    }
+  },
+  "config": {
+    "C_codebook": 2048,
+    "D": 4096,
+    "K_roles": 16,
+    "N": 512,
+    "context_roles": 4,
+    "cooccurrence": "skewed",
+    "cue_noise": 0.15,
+    "n_queries": 512,
+    "report082_json": "reports/phase5_prime_replay_observed_context_hard_cell.json",
+    "report083_json": "reports/phase5_prime_replay_observed_pattern_context_hard_cell.json",
+    "seeds": [
+      17,
+      11,
+      23,
+      1,
+      2,
+      3,
+      5,
+      7,
+      13,
+      29
+    ],
+    "snapshot": "reports/phase5_m1_provenance_seed17/snapshots/phase3_phase4_w4_step1800.pt",
+    "token_weight": 0.25
+  },
+  "decision_read": {
+    "hard_cell_query_roles_are_outside_passive_row_role_support": true,
+    "learned_snapshot_token_diag_top1_rate_mean": 0.0013671875,
+    "learned_snapshot_tokens_align_to_synthetic_context_at_chance": true,
+    "next_step": "analyze source-provenance mismatch; do not run full matrix or M2 from Reports 082-084",
+    "passive_rows_cover_only_roles_0_to_3": true
+  },
+  "framing": {
+    "analysis_only": true,
+    "no_new_matrix": true,
+    "not_graduation": true,
+    "phase": "5-prime diagnostic analysis"
+  },
+  "per_seed": [
+    {
+      "learned_pattern_pairwise": {
+        "nn_max": 1.0000015497207642,
+        "nn_mean": 0.6193369626998901,
+        "offdiag_mean": 0.2720271050930023,
+        "offdiag_std": 0.12246222794055939
+      },
+      "learned_pattern_to_partial_context": {
+        "diag_mean": 0.0010580439120531082,
+        "diag_mean_rank": 249.42578125,
+        "diag_median_rank": 248.0,
+        "diag_minus_offdiag_mean": 0.000412798544857651,
+        "diag_std": 0.010887154377996922,
+        "diag_top1_rate": 0.0,
+        "offdiag_mean": 0.0006452453671954572,
+        "offdiag_std": 0.010661679320037365
+      },
+      "learned_pattern_to_scene_matrix_083": {
+        "diag_mean": 0.05535358563065529,
+        "diag_mean_rank": 6.111328125,
+        "diag_median_rank": 1.0,
+        "diag_minus_offdiag_mean": 0.039503902196884155,
+        "diag_std": 0.010927736759185791,
+        "diag_top1_rate": 0.53515625,
+        "offdiag_mean": 0.015849683433771133,
+        "offdiag_std": 0.012732740491628647
+      },
+      "learned_pattern_to_synthetic_full_context": {
+        "diag_mean": 0.0007129390724003315,
+        "diag_mean_rank": 258.947265625,
+        "diag_median_rank": 249.0,
+        "diag_minus_offdiag_mean": -0.0002969780471175909,
+        "diag_std": 0.011020010337233543,
+        "diag_top1_rate": 0.0,
+        "offdiag_mean": 0.0010099171195179224,
+        "offdiag_std": 0.01077093556523323
+      },
+      "learned_token_abs_max_deviation_from_one": 2.384185791015625e-07,
+      "learned_token_abs_mean": 1.0,
+      "observed_role_counts": {
+        "0": 512,
+        "1": 512,
+        "10": 0,
+        "11": 0,
+        "12": 0,
+        "13": 0,
+        "14": 0,
+        "15": 0,
+        "2": 512,
+        "3": 512,
+        "4": 0,
+        "5": 0,
+        "6": 0,
+        "7": 0,
+        "8": 0,
+        "9": 0
+      },
+      "partial_context_to_scene_matrix_082": {
+        "diag_mean": 0.41011545062065125,
+        "diag_mean_rank": 1.01171875,
+        "diag_median_rank": 1.0,
+        "diag_minus_offdiag_mean": 0.3809982240200043,
+        "diag_std": 0.009748033247888088,
+        "diag_top1_rate": 0.9921875,
+        "offdiag_mean": 0.029117239639163017,
+        "offdiag_std": 0.05534690245985985
+      },
+      "partial_context_to_synthetic_full_context": {
+        "diag_mean": 0.41011545062065125,
+        "diag_mean_rank": 1.01171875,
+        "diag_median_rank": 1.0,
+        "diag_minus_offdiag_mean": 0.3809982240200043,
+        "diag_std": 0.009748034179210663,
+        "diag_top1_rate": 0.9921875,
+        "offdiag_mean": 0.029117239639163017,
+        "offdiag_std": 0.05534690245985985
+      },
+      "query_fraction_in_observed_role_support": 0.0,
+      "query_role_counts": {
+        "0": 0,
+        "1": 0,
+        "10": 51,
+        "11": 37,
+        "12": 49,
+        "13": 41,
+        "14": 51,
+        "15": 42,
+        "2": 0,
+        "3": 0,
+        "4": 47,
+        "5": 34,
+        "6": 49,
+        "7": 34,
+        "8": 44,
+        "9": 33
+      },
+      "report082_candidate_top1": 0.685546875,
+      "report083_candidate_top1": 0.455078125,
+      "seed": 17,
+      "selected_role_sets": [
+        {
+          "count": 512,
+          "roles": [
+            0,
+            1,
+            2,
+            3
+          ]
+        }
+      ],
+      "support": {
+        "context_roles": 4,
+        "eligible_rows": 1064,
+        "raw_rows": 1064,
+        "required_rows": 512,
+        "rows_invalid": 0,
+        "rows_too_short": 0,
+        "snapshot_path": "reports/phase5_m1_provenance_seed17/snapshots/phase3_phase4_w4_step1800.pt",
+        "used_rows": 512
+      }
+    },
+    {
+      "learned_pattern_pairwise": {
+        "nn_max": 1.0000016689300537,
+        "nn_mean": 0.6297208666801453,
+        "offdiag_mean": 0.2754272520542145,
+        "offdiag_std": 0.12714718282222748
+      },
+      "learned_pattern_to_partial_context": {
+        "diag_mean": -0.0005757200997322798,
+        "diag_mean_rank": 248.197265625,
+        "diag_median_rank": 248.0,
+        "diag_minus_offdiag_mean": 0.0007454167352989316,
+        "diag_std": 0.01086476817727089,
+        "diag_top1_rate": 0.0,
+        "offdiag_mean": -0.0013211368350312114,
+        "offdiag_std": 0.011357800103724003
+      },
+      "learned_pattern_to_scene_matrix_083": {
+        "diag_mean": 0.054781895130872726,
+        "diag_mean_rank": 6.53125,
+        "diag_median_rank": 2.0,
+        "diag_minus_offdiag_mean": 0.04016096144914627,
+        "diag_std": 0.011106767691671848,
+        "diag_top1_rate": 0.498046875,
+        "offdiag_mean": 0.014620935544371605,
+        "offdiag_std": 0.013365239836275578
+      },
+      "learned_pattern_to_synthetic_full_context": {
+        "diag_mean": 0.0001528020657133311,
+        "diag_mean_rank": 249.494140625,
+        "diag_median_rank": 246.0,
+        "diag_minus_offdiag_mean": 0.0005785427638329566,
+        "diag_std": 0.011155541986227036,
+        "diag_top1_rate": 0.00390625,
+        "offdiag_mean": -0.00042574069811962545,
+        "offdiag_std": 0.011196615174412727
+      },
+      "learned_token_abs_max_deviation_from_one": 2.384185791015625e-07,
+      "learned_token_abs_mean": 1.0,
+      "observed_role_counts": {
+        "0": 512,
+        "1": 512,
+        "10": 0,
+        "11": 0,
+        "12": 0,
+        "13": 0,
+        "14": 0,
+        "15": 0,
+        "2": 512,
+        "3": 512,
+        "4": 0,
+        "5": 0,
+        "6": 0,
+        "7": 0,
+        "8": 0,
+        "9": 0
+      },
+      "partial_context_to_scene_matrix_082": {
+        "diag_mean": 0.4102443754673004,
+        "diag_mean_rank": 1.029296875,
+        "diag_median_rank": 1.0,
+        "diag_minus_offdiag_mean": 0.38012629747390747,
+        "diag_std": 0.009462143294513226,
+        "diag_top1_rate": 0.982421875,
+        "offdiag_mean": 0.030118074268102646,
+        "offdiag_std": 0.05554550513625145
+      },
+      "partial_context_to_synthetic_full_context": {
+        "diag_mean": 0.4102443754673004,
+        "diag_mean_rank": 1.029296875,
+        "diag_median_rank": 1.0,
+        "diag_minus_offdiag_mean": 0.38012629747390747,
+        "diag_std": 0.009462145157158375,
+        "diag_top1_rate": 0.982421875,
+        "offdiag_mean": 0.030118074268102646,
+        "offdiag_std": 0.05554550513625145
+      },
+      "query_fraction_in_observed_role_support": 0.0,
+      "query_role_counts": {
+        "0": 0,
+        "1": 0,
+        "10": 50,
+        "11": 34,
+        "12": 35,
+        "13": 45,
+        "14": 39,
+        "15": 40,
+        "2": 0,
+        "3": 0,
+        "4": 45,
+        "5": 47,
+        "6": 47,
+        "7": 50,
+        "8": 36,
+        "9": 44
+      },
+      "report082_candidate_top1": 0.654296875,
+      "report083_candidate_top1": 0.423828125,
+      "seed": 11,
+      "selected_role_sets": [
+        {
+          "count": 512,
+          "roles": [
+            0,
+            1,
+            2,
+            3
+          ]
+        }
+      ],
+      "support": {
+        "context_roles": 4,
+        "eligible_rows": 1064,
+        "raw_rows": 1064,
+        "required_rows": 512,
+        "rows_invalid": 0,
+        "rows_too_short": 0,
+        "snapshot_path": "reports/phase5_m1_provenance_seed17/snapshots/phase3_phase4_w4_step1800.pt",
+        "used_rows": 512
+      }
+    },
+    {
+      "learned_pattern_pairwise": {
+        "nn_max": 1.0000014305114746,
+        "nn_mean": 0.6236605048179626,
+        "offdiag_mean": 0.2706350088119507,
+        "offdiag_std": 0.12451083958148956
+      },
+      "learned_pattern_to_partial_context": {
+        "diag_mean": -0.0029794543515890837,
+        "diag_mean_rank": 273.763671875,
+        "diag_median_rank": 280.0,
+        "diag_minus_offdiag_mean": -0.0013184931594878435,
+        "diag_std": 0.010913398116827011,
+        "diag_top1_rate": 0.0,
+        "offdiag_mean": -0.0016609611921012402,
+        "offdiag_std": 0.010762193240225315
+      },
+      "learned_pattern_to_scene_matrix_083": {
+        "diag_mean": 0.053457558155059814,
+        "diag_mean_rank": 6.35546875,
+        "diag_median_rank": 1.0,
+        "diag_minus_offdiag_mean": 0.03922037035226822,
+        "diag_std": 0.010670747607946396,
+        "diag_top1_rate": 0.5625,
+        "offdiag_mean": 0.014237185940146446,
+        "offdiag_std": 0.012694485485553741
+      },
+      "learned_pattern_to_synthetic_full_context": {
+        "diag_mean": -0.0012136292643845081,
+        "diag_mean_rank": 262.33203125,
+        "diag_median_rank": 258.0,
+        "diag_minus_offdiag_mean": -0.0006202445365488529,
+        "diag_std": 0.01060626283288002,
+        "diag_top1_rate": 0.0,
+        "offdiag_mean": -0.0005933847278356552,
+        "offdiag_std": 0.010973402298986912
+      },
+      "learned_token_abs_max_deviation_from_one": 2.384185791015625e-07,
+      "learned_token_abs_mean": 1.0,
+      "observed_role_counts": {
+        "0": 512,
+        "1": 512,
+        "10": 0,
+        "11": 0,
+        "12": 0,
+        "13": 0,
+        "14": 0,
+        "15": 0,
+        "2": 512,
+        "3": 512,
+        "4": 0,
+        "5": 0,
+        "6": 0,
+        "7": 0,
+        "8": 0,
+        "9": 0
+      },
+      "partial_context_to_scene_matrix_082": {
+        "diag_mean": 0.41063424944877625,
+        "diag_mean_rank": 1.0390625,
+        "diag_median_rank": 1.0,
+        "diag_minus_offdiag_mean": 0.37934231758117676,
+        "diag_std": 0.009867379441857338,
+        "diag_top1_rate": 0.9765625,
+        "offdiag_mean": 0.03129191696643829,
+        "offdiag_std": 0.055801741778850555
+      },
+      "partial_context_to_synthetic_full_context": {
+        "diag_mean": 0.41063424944877625,
+        "diag_mean_rank": 1.0390625,
+        "diag_median_rank": 1.0,
+        "diag_minus_offdiag_mean": 0.37934234738349915,
+        "diag_std": 0.009867379441857338,
+        "diag_top1_rate": 0.9765625,
+        "offdiag_mean": 0.031291913241147995,
+        "offdiag_std": 0.055801741778850555
+      },
+      "query_fraction_in_observed_role_support": 0.0,
+      "query_role_counts": {
+        "0": 0,
+        "1": 0,
+        "10": 41,
+        "11": 39,
+        "12": 40,
+        "13": 37,
+        "14": 65,
+        "15": 47,
+        "2": 0,
+        "3": 0,
+        "4": 34,
+        "5": 38,
+        "6": 41,
+        "7": 46,
+        "8": 40,
+        "9": 44
+      },
+      "report082_candidate_top1": 0.736328125,
+      "report083_candidate_top1": 0.47265625,
+      "seed": 23,
+      "selected_role_sets": [
+        {
+          "count": 512,
+          "roles": [
+            0,
+            1,
+            2,
+            3
+          ]
+        }
+      ],
+      "support": {
+        "context_roles": 4,
+        "eligible_rows": 1064,
+        "raw_rows": 1064,
+        "required_rows": 512,
+        "rows_invalid": 0,
+        "rows_too_short": 0,
+        "snapshot_path": "reports/phase5_m1_provenance_seed17/snapshots/phase3_phase4_w4_step1800.pt",
+        "used_rows": 512
+      }
+    },
+    {
+      "learned_pattern_pairwise": {
+        "nn_max": 1.0000017881393433,
+        "nn_mean": 0.6318255662918091,
+        "offdiag_mean": 0.2734227478504181,
+        "offdiag_std": 0.13268491625785828
+      },
+      "learned_pattern_to_partial_context": {
+        "diag_mean": -0.0017559889238327742,
+        "diag_mean_rank": 268.732421875,
+        "diag_median_rank": 278.0,
+        "diag_minus_offdiag_mean": -0.0009039008291438222,
+        "diag_std": 0.01123795285820961,
+        "diag_top1_rate": 0.0,
+        "offdiag_mean": -0.000852088094688952,
+        "offdiag_std": 0.01064414530992508
+      },
+      "learned_pattern_to_scene_matrix_083": {
+        "diag_mean": 0.053797073662281036,
+        "diag_mean_rank": 7.314453125,
+        "diag_median_rank": 2.0,
+        "diag_minus_offdiag_mean": 0.03925740346312523,
+        "diag_std": 0.011253039352595806,
+        "diag_top1_rate": 0.494140625,
+        "offdiag_mean": 0.014539670199155807,
+        "offdiag_std": 0.013151017017662525
+      },
+      "learned_pattern_to_synthetic_full_context": {
+        "diag_mean": -0.0009802355198189616,
+        "diag_mean_rank": 263.775390625,
+        "diag_median_rank": 274.0,
+        "diag_minus_offdiag_mean": -0.0005139783024787903,
+        "diag_std": 0.011388945393264294,
+        "diag_top1_rate": 0.001953125,
+        "offdiag_mean": -0.00046625721734017134,
+        "offdiag_std": 0.011027529835700989
+      },
+      "learned_token_abs_max_deviation_from_one": 2.384185791015625e-07,
+      "learned_token_abs_mean": 1.0,
+      "observed_role_counts": {
+        "0": 512,
+        "1": 512,
+        "10": 0,
+        "11": 0,
+        "12": 0,
+        "13": 0,
+        "14": 0,
+        "15": 0,
+        "2": 512,
+        "3": 512,
+        "4": 0,
+        "5": 0,
+        "6": 0,
+        "7": 0,
+        "8": 0,
+        "9": 0
+      },
+      "partial_context_to_scene_matrix_082": {
+        "diag_mean": 0.4096740484237671,
+        "diag_mean_rank": 1.029296875,
+        "diag_median_rank": 1.0,
+        "diag_minus_offdiag_mean": 0.37832605838775635,
+        "diag_std": 0.009603016078472137,
+        "diag_top1_rate": 0.978515625,
+        "offdiag_mean": 0.031347986310720444,
+        "offdiag_std": 0.05593356117606163
+      },
+      "partial_context_to_synthetic_full_context": {
+        "diag_mean": 0.4096740186214447,
+        "diag_mean_rank": 1.029296875,
+        "diag_median_rank": 1.0,
+        "diag_minus_offdiag_mean": 0.37832602858543396,
+        "diag_std": 0.009603015147149563,
+        "diag_top1_rate": 0.978515625,
+        "offdiag_mean": 0.031347986310720444,
+        "offdiag_std": 0.05593356117606163
+      },
+      "query_fraction_in_observed_role_support": 0.0,
+      "query_role_counts": {
+        "0": 0,
+        "1": 0,
+        "10": 38,
+        "11": 34,
+        "12": 44,
+        "13": 36,
+        "14": 40,
+        "15": 48,
+        "2": 0,
+        "3": 0,
+        "4": 65,
+        "5": 44,
+        "6": 43,
+        "7": 38,
+        "8": 45,
+        "9": 37
+      },
+      "report082_candidate_top1": 0.638671875,
+      "report083_candidate_top1": 0.416015625,
+      "seed": 1,
+      "selected_role_sets": [
+        {
+          "count": 512,
+          "roles": [
+            0,
+            1,
+            2,
+            3
+          ]
+        }
+      ],
+      "support": {
+        "context_roles": 4,
+        "eligible_rows": 1064,
+        "raw_rows": 1064,
+        "required_rows": 512,
+        "rows_invalid": 0,
+        "rows_too_short": 0,
+        "snapshot_path": "reports/phase5_m1_provenance_seed17/snapshots/phase3_phase4_w4_step1800.pt",
+        "used_rows": 512
+      }
+    },
+    {
+      "learned_pattern_pairwise": {
+        "nn_max": 1.0000017881393433,
+        "nn_mean": 0.6281614899635315,
+        "offdiag_mean": 0.2729310989379883,
+        "offdiag_std": 0.12804479897022247
+      },
+      "learned_pattern_to_partial_context": {
+        "diag_mean": 0.00014654468395747244,
+        "diag_mean_rank": 233.2265625,
+        "diag_median_rank": 219.0,
+        "diag_minus_offdiag_mean": 0.0016979016363620758,
+        "diag_std": 0.010719001293182373,
+        "diag_top1_rate": 0.001953125,
+        "offdiag_mean": -0.0015513569815084338,
+        "offdiag_std": 0.01122285146266222
+      },
+      "learned_pattern_to_scene_matrix_083": {
+        "diag_mean": 0.055388011038303375,
+        "diag_mean_rank": 5.927734375,
+        "diag_median_rank": 1.0,
+        "diag_minus_offdiag_mean": 0.040308594703674316,
+        "diag_std": 0.011192655190825462,
+        "diag_top1_rate": 0.517578125,
+        "offdiag_mean": 0.015079415403306484,
+        "offdiag_std": 0.013298471458256245
+      },
+      "learned_pattern_to_synthetic_full_context": {
+        "diag_mean": 0.0007487490656785667,
+        "diag_mean_rank": 250.4296875,
+        "diag_median_rank": 250.0,
+        "diag_minus_offdiag_mean": 0.0006042220629751682,
+        "diag_std": 0.011228235438466072,
+        "diag_top1_rate": 0.005859375,
+        "offdiag_mean": 0.0001445270172553137,
+        "offdiag_std": 0.011059852316975594
+      },
+      "learned_token_abs_max_deviation_from_one": 2.384185791015625e-07,
+      "learned_token_abs_mean": 1.0,
+      "observed_role_counts": {
+        "0": 512,
+        "1": 512,
+        "10": 0,
+        "11": 0,
+        "12": 0,
+        "13": 0,
+        "14": 0,
+        "15": 0,
+        "2": 512,
+        "3": 512,
+        "4": 0,
+        "5": 0,
+        "6": 0,
+        "7": 0,
+        "8": 0,
+        "9": 0
+      },
+      "partial_context_to_scene_matrix_082": {
+        "diag_mean": 0.4098830819129944,
+        "diag_mean_rank": 1.03125,
+        "diag_median_rank": 1.0,
+        "diag_minus_offdiag_mean": 0.37822210788726807,
+        "diag_std": 0.009798984043300152,
+        "diag_top1_rate": 0.982421875,
+        "offdiag_mean": 0.03166097030043602,
+        "offdiag_std": 0.056236520409584045
+      },
+      "partial_context_to_synthetic_full_context": {
+        "diag_mean": 0.4098830819129944,
+        "diag_mean_rank": 1.03125,
+        "diag_median_rank": 1.0,
+        "diag_minus_offdiag_mean": 0.37822210788726807,
+        "diag_std": 0.009798983111977577,
+        "diag_top1_rate": 0.982421875,
+        "offdiag_mean": 0.03166097030043602,
+        "offdiag_std": 0.056236520409584045
+      },
+      "query_fraction_in_observed_role_support": 0.0,
+      "query_role_counts": {
+        "0": 0,
+        "1": 0,
+        "10": 34,
+        "11": 36,
+        "12": 46,
+        "13": 31,
+        "14": 38,
+        "15": 52,
+        "2": 0,
+        "3": 0,
+        "4": 47,
+        "5": 45,
+        "6": 49,
+        "7": 38,
+        "8": 51,
+        "9": 45
+      },
+      "report082_candidate_top1": 0.689453125,
+      "report083_candidate_top1": 0.447265625,
+      "seed": 2,
+      "selected_role_sets": [
+        {
+          "count": 512,
+          "roles": [
+            0,
+            1,
+            2,
+            3
+          ]
+        }
+      ],
+      "support": {
+        "context_roles": 4,
+        "eligible_rows": 1064,
+        "raw_rows": 1064,
+        "required_rows": 512,
+        "rows_invalid": 0,
+        "rows_too_short": 0,
+        "snapshot_path": "reports/phase5_m1_provenance_seed17/snapshots/phase3_phase4_w4_step1800.pt",
+        "used_rows": 512
+      }
+    },
+    {
+      "learned_pattern_pairwise": {
+        "nn_max": 1.0000014305114746,
+        "nn_mean": 0.6268328428268433,
+        "offdiag_mean": 0.2725485563278198,
+        "offdiag_std": 0.12707141041755676
+      },
+      "learned_pattern_to_partial_context": {
+        "diag_mean": 0.0007355487323366106,
+        "diag_mean_rank": 260.9765625,
+        "diag_median_rank": 267.0,
+        "diag_minus_offdiag_mean": -0.0003085028729401529,
+        "diag_std": 0.011003171093761921,
+        "diag_top1_rate": 0.0,
+        "offdiag_mean": 0.0010440516052767634,
+        "offdiag_std": 0.01080585177987814
+      },
+      "learned_pattern_to_scene_matrix_083": {
+        "diag_mean": 0.054214246571063995,
+        "diag_mean_rank": 7.61328125,
+        "diag_median_rank": 1.0,
+        "diag_minus_offdiag_mean": 0.038536325097084045,
+        "diag_std": 0.010942921973764896,
+        "diag_top1_rate": 0.521484375,
+        "offdiag_mean": 0.01567792147397995,
+        "offdiag_std": 0.012923537753522396
+      },
+      "learned_pattern_to_synthetic_full_context": {
+        "diag_mean": -0.0005068535101599991,
+        "diag_mean_rank": 272.615234375,
+        "diag_median_rank": 277.0,
+        "diag_minus_offdiag_mean": -0.001327115809544921,
+        "diag_std": 0.010852016508579254,
+        "diag_top1_rate": 0.0,
+        "offdiag_mean": 0.0008202622411772609,
+        "offdiag_std": 0.011073577217757702
+      },
+      "learned_token_abs_max_deviation_from_one": 2.384185791015625e-07,
+      "learned_token_abs_mean": 1.0,
+      "observed_role_counts": {
+        "0": 512,
+        "1": 512,
+        "10": 0,
+        "11": 0,
+        "12": 0,
+        "13": 0,
+        "14": 0,
+        "15": 0,
+        "2": 512,
+        "3": 512,
+        "4": 0,
+        "5": 0,
+        "6": 0,
+        "7": 0,
+        "8": 0,
+        "9": 0
+      },
+      "partial_context_to_scene_matrix_082": {
+        "diag_mean": 0.4100702404975891,
+        "diag_mean_rank": 1.017578125,
+        "diag_median_rank": 1.0,
+        "diag_minus_offdiag_mean": 0.37711289525032043,
+        "diag_std": 0.009855221025645733,
+        "diag_top1_rate": 0.984375,
+        "offdiag_mean": 0.032957348972558975,
+        "offdiag_std": 0.056870460510253906
+      },
+      "partial_context_to_synthetic_full_context": {
+        "diag_mean": 0.4100703001022339,
+        "diag_mean_rank": 1.017578125,
+        "diag_median_rank": 1.0,
+        "diag_minus_offdiag_mean": 0.3771129548549652,
+        "diag_std": 0.009855221025645733,
+        "diag_top1_rate": 0.984375,
+        "offdiag_mean": 0.032957352697849274,
+        "offdiag_std": 0.056870460510253906
+      },
+      "query_fraction_in_observed_role_support": 0.0,
+      "query_role_counts": {
+        "0": 0,
+        "1": 0,
+        "10": 39,
+        "11": 28,
+        "12": 34,
+        "13": 40,
+        "14": 47,
+        "15": 45,
+        "2": 0,
+        "3": 0,
+        "4": 47,
+        "5": 49,
+        "6": 38,
+        "7": 48,
+        "8": 51,
+        "9": 46
+      },
+      "report082_candidate_top1": 0.650390625,
+      "report083_candidate_top1": 0.41796875,
+      "seed": 3,
+      "selected_role_sets": [
+        {
+          "count": 512,
+          "roles": [
+            0,
+            1,
+            2,
+            3
+          ]
+        }
+      ],
+      "support": {
+        "context_roles": 4,
+        "eligible_rows": 1064,
+        "raw_rows": 1064,
+        "required_rows": 512,
+        "rows_invalid": 0,
+        "rows_too_short": 0,
+        "snapshot_path": "reports/phase5_m1_provenance_seed17/snapshots/phase3_phase4_w4_step1800.pt",
+        "used_rows": 512
+      }
+    },
+    {
+      "learned_pattern_pairwise": {
+        "nn_max": 1.0000015497207642,
+        "nn_mean": 0.6223409175872803,
+        "offdiag_mean": 0.2728538513183594,
+        "offdiag_std": 0.12602753937244415
+      },
+      "learned_pattern_to_partial_context": {
+        "diag_mean": 0.0002287625102326274,
+        "diag_mean_rank": 238.138671875,
+        "diag_median_rank": 227.0,
+        "diag_minus_offdiag_mean": 0.0012010972714051604,
+        "diag_std": 0.010962169617414474,
+        "diag_top1_rate": 0.001953125,
+        "offdiag_mean": -0.000972334761172533,
+        "offdiag_std": 0.01101983804255724
+      },
+      "learned_pattern_to_scene_matrix_083": {
+        "diag_mean": 0.05477391183376312,
+        "diag_mean_rank": 6.091796875,
+        "diag_median_rank": 1.0,
+        "diag_minus_offdiag_mean": 0.040459226816892624,
+        "diag_std": 0.010885628871619701,
+        "diag_top1_rate": 0.517578125,
+        "offdiag_mean": 0.014314685016870499,
+        "offdiag_std": 0.01301475428044796
+      },
+      "learned_pattern_to_synthetic_full_context": {
+        "diag_mean": 0.0001362213952234015,
+        "diag_mean_rank": 246.271484375,
+        "diag_median_rank": 256.0,
+        "diag_minus_offdiag_mean": 0.0007590397726744413,
+        "diag_std": 0.010834882035851479,
+        "diag_top1_rate": 0.001953125,
+        "offdiag_mean": -0.0006228183628991246,
+        "offdiag_std": 0.01091205794364214
+      },
+      "learned_token_abs_max_deviation_from_one": 2.384185791015625e-07,
+      "learned_token_abs_mean": 1.0,
+      "observed_role_counts": {
+        "0": 512,
+        "1": 512,
+        "10": 0,
+        "11": 0,
+        "12": 0,
+        "13": 0,
+        "14": 0,
+        "15": 0,
+        "2": 512,
+        "3": 512,
+        "4": 0,
+        "5": 0,
+        "6": 0,
+        "7": 0,
+        "8": 0,
+        "9": 0
+      },
+      "partial_context_to_scene_matrix_082": {
+        "diag_mean": 0.40965989232063293,
+        "diag_mean_rank": 1.01171875,
+        "diag_median_rank": 1.0,
+        "diag_minus_offdiag_mean": 0.3805635869503021,
+        "diag_std": 0.010661444626748562,
+        "diag_top1_rate": 0.98828125,
+        "offdiag_mean": 0.029096297919750214,
+        "offdiag_std": 0.05423305928707123
+      },
+      "partial_context_to_synthetic_full_context": {
+        "diag_mean": 0.40965989232063293,
+        "diag_mean_rank": 1.01171875,
+        "diag_median_rank": 1.0,
+        "diag_minus_offdiag_mean": 0.3805635869503021,
+        "diag_std": 0.010661441832780838,
+        "diag_top1_rate": 0.98828125,
+        "offdiag_mean": 0.029096297919750214,
+        "offdiag_std": 0.05423305928707123
+      },
+      "query_fraction_in_observed_role_support": 0.0,
+      "query_role_counts": {
+        "0": 0,
+        "1": 0,
+        "10": 44,
+        "11": 40,
+        "12": 41,
+        "13": 45,
+        "14": 41,
+        "15": 51,
+        "2": 0,
+        "3": 0,
+        "4": 43,
+        "5": 39,
+        "6": 35,
+        "7": 44,
+        "8": 42,
+        "9": 47
+      },
+      "report082_candidate_top1": 0.6875,
+      "report083_candidate_top1": 0.4453125,
+      "seed": 5,
+      "selected_role_sets": [
+        {
+          "count": 512,
+          "roles": [
+            0,
+            1,
+            2,
+            3
+          ]
+        }
+      ],
+      "support": {
+        "context_roles": 4,
+        "eligible_rows": 1064,
+        "raw_rows": 1064,
+        "required_rows": 512,
+        "rows_invalid": 0,
+        "rows_too_short": 0,
+        "snapshot_path": "reports/phase5_m1_provenance_seed17/snapshots/phase3_phase4_w4_step1800.pt",
+        "used_rows": 512
+      }
+    },
+    {
+      "learned_pattern_pairwise": {
+        "nn_max": 1.0000019073486328,
+        "nn_mean": 0.6337802410125732,
+        "offdiag_mean": 0.2741777300834656,
+        "offdiag_std": 0.1288982778787613
+      },
+      "learned_pattern_to_partial_context": {
+        "diag_mean": 0.0008221084717661142,
+        "diag_mean_rank": 258.115234375,
+        "diag_median_rank": 253.0,
+        "diag_minus_offdiag_mean": -0.00019490462727844715,
+        "diag_std": 0.010179849341511726,
+        "diag_top1_rate": 0.0,
+        "offdiag_mean": 0.0010170130990445614,
+        "offdiag_std": 0.010673483833670616
+      },
+      "learned_pattern_to_scene_matrix_083": {
+        "diag_mean": 0.055990248918533325,
+        "diag_mean_rank": 5.51171875,
+        "diag_median_rank": 1.0,
+        "diag_minus_offdiag_mean": 0.04028574749827385,
+        "diag_std": 0.010577498003840446,
+        "diag_top1_rate": 0.58984375,
+        "offdiag_mean": 0.015704501420259476,
+        "offdiag_std": 0.012975260615348816
+      },
+      "learned_pattern_to_synthetic_full_context": {
+        "diag_mean": 0.0012884971220046282,
+        "diag_mean_rank": 247.763671875,
+        "diag_median_rank": 248.0,
+        "diag_minus_offdiag_mean": 0.0006408872432075441,
+        "diag_std": 0.010554349049925804,
+        "diag_top1_rate": 0.0,
+        "offdiag_mean": 0.0006476098787970841,
+        "offdiag_std": 0.010801386088132858
+      },
+      "learned_token_abs_max_deviation_from_one": 2.384185791015625e-07,
+      "learned_token_abs_mean": 1.0,
+      "observed_role_counts": {
+        "0": 512,
+        "1": 512,
+        "10": 0,
+        "11": 0,
+        "12": 0,
+        "13": 0,
+        "14": 0,
+        "15": 0,
+        "2": 512,
+        "3": 512,
+        "4": 0,
+        "5": 0,
+        "6": 0,
+        "7": 0,
+        "8": 0,
+        "9": 0
+      },
+      "partial_context_to_scene_matrix_082": {
+        "diag_mean": 0.4099293053150177,
+        "diag_mean_rank": 1.02734375,
+        "diag_median_rank": 1.0,
+        "diag_minus_offdiag_mean": 0.3756401836872101,
+        "diag_std": 0.009763199836015701,
+        "diag_top1_rate": 0.978515625,
+        "offdiag_mean": 0.03428913280367851,
+        "offdiag_std": 0.05743265897035599
+      },
+      "partial_context_to_synthetic_full_context": {
+        "diag_mean": 0.4099292755126953,
+        "diag_mean_rank": 1.02734375,
+        "diag_median_rank": 1.0,
+        "diag_minus_offdiag_mean": 0.3756401538848877,
+        "diag_std": 0.009763202629983425,
+        "diag_top1_rate": 0.978515625,
+        "offdiag_mean": 0.034289129078388214,
+        "offdiag_std": 0.05743265897035599
+      },
+      "query_fraction_in_observed_role_support": 0.0,
+      "query_role_counts": {
+        "0": 0,
+        "1": 0,
+        "10": 46,
+        "11": 40,
+        "12": 41,
+        "13": 43,
+        "14": 41,
+        "15": 44,
+        "2": 0,
+        "3": 0,
+        "4": 48,
+        "5": 48,
+        "6": 34,
+        "7": 36,
+        "8": 47,
+        "9": 44
+      },
+      "report082_candidate_top1": 0.66796875,
+      "report083_candidate_top1": 0.48828125,
+      "seed": 7,
+      "selected_role_sets": [
+        {
+          "count": 512,
+          "roles": [
+            0,
+            1,
+            2,
+            3
+          ]
+        }
+      ],
+      "support": {
+        "context_roles": 4,
+        "eligible_rows": 1064,
+        "raw_rows": 1064,
+        "required_rows": 512,
+        "rows_invalid": 0,
+        "rows_too_short": 0,
+        "snapshot_path": "reports/phase5_m1_provenance_seed17/snapshots/phase3_phase4_w4_step1800.pt",
+        "used_rows": 512
+      }
+    },
+    {
+      "learned_pattern_pairwise": {
+        "nn_max": 1.000001311302185,
+        "nn_mean": 0.6264707446098328,
+        "offdiag_mean": 0.27261120080947876,
+        "offdiag_std": 0.12489999830722809
+      },
+      "learned_pattern_to_partial_context": {
+        "diag_mean": -0.0018804080318659544,
+        "diag_mean_rank": 257.732421875,
+        "diag_median_rank": 265.0,
+        "diag_minus_offdiag_mean": -0.0003155163722112775,
+        "diag_std": 0.011219901964068413,
+        "diag_top1_rate": 0.001953125,
+        "offdiag_mean": -0.001564891659654677,
+        "offdiag_std": 0.010916794650256634
+      },
+      "learned_pattern_to_scene_matrix_083": {
+        "diag_mean": 0.05464668571949005,
+        "diag_mean_rank": 6.125,
+        "diag_median_rank": 1.0,
+        "diag_minus_offdiag_mean": 0.04018336161971092,
+        "diag_std": 0.010828408412635326,
+        "diag_top1_rate": 0.525390625,
+        "offdiag_mean": 0.014463324099779129,
+        "offdiag_std": 0.013018785044550896
+      },
+      "learned_pattern_to_synthetic_full_context": {
+        "diag_mean": -0.00011472651385702193,
+        "diag_mean_rank": 250.4296875,
+        "diag_median_rank": 251.0,
+        "diag_minus_offdiag_mean": 0.00032542197732254863,
+        "diag_std": 0.010780260898172855,
+        "diag_top1_rate": 0.0,
+        "offdiag_mean": -0.00044014849117957056,
+        "offdiag_std": 0.010936408303678036
+      },
+      "learned_token_abs_max_deviation_from_one": 2.384185791015625e-07,
+      "learned_token_abs_mean": 1.0,
+      "observed_role_counts": {
+        "0": 512,
+        "1": 512,
+        "10": 0,
+        "11": 0,
+        "12": 0,
+        "13": 0,
+        "14": 0,
+        "15": 0,
+        "2": 512,
+        "3": 512,
+        "4": 0,
+        "5": 0,
+        "6": 0,
+        "7": 0,
+        "8": 0,
+        "9": 0
+      },
+      "partial_context_to_scene_matrix_082": {
+        "diag_mean": 0.4093652665615082,
+        "diag_mean_rank": 1.0234375,
+        "diag_median_rank": 1.0,
+        "diag_minus_offdiag_mean": 0.37801945209503174,
+        "diag_std": 0.01026145089417696,
+        "diag_top1_rate": 0.984375,
+        "offdiag_mean": 0.031345829367637634,
+        "offdiag_std": 0.056380145251750946
+      },
+      "partial_context_to_synthetic_full_context": {
+        "diag_mean": 0.40936529636383057,
+        "diag_mean_rank": 1.0234375,
+        "diag_median_rank": 1.0,
+        "diag_minus_offdiag_mean": 0.37801945209503174,
+        "diag_std": 0.010261451825499535,
+        "diag_top1_rate": 0.984375,
+        "offdiag_mean": 0.031345829367637634,
+        "offdiag_std": 0.056380145251750946
+      },
+      "query_fraction_in_observed_role_support": 0.0,
+      "query_role_counts": {
+        "0": 0,
+        "1": 0,
+        "10": 45,
+        "11": 43,
+        "12": 41,
+        "13": 44,
+        "14": 39,
+        "15": 51,
+        "2": 0,
+        "3": 0,
+        "4": 48,
+        "5": 36,
+        "6": 34,
+        "7": 39,
+        "8": 48,
+        "9": 44
+      },
+      "report082_candidate_top1": 0.673828125,
+      "report083_candidate_top1": 0.439453125,
+      "seed": 13,
+      "selected_role_sets": [
+        {
+          "count": 512,
+          "roles": [
+            0,
+            1,
+            2,
+            3
+          ]
+        }
+      ],
+      "support": {
+        "context_roles": 4,
+        "eligible_rows": 1064,
+        "raw_rows": 1064,
+        "required_rows": 512,
+        "rows_invalid": 0,
+        "rows_too_short": 0,
+        "snapshot_path": "reports/phase5_m1_provenance_seed17/snapshots/phase3_phase4_w4_step1800.pt",
+        "used_rows": 512
+      }
+    },
+    {
+      "learned_pattern_pairwise": {
+        "nn_max": 1.000001311302185,
+        "nn_mean": 0.6189761757850647,
+        "offdiag_mean": 0.2693793475627899,
+        "offdiag_std": 0.12831632792949677
+      },
+      "learned_pattern_to_partial_context": {
+        "diag_mean": -0.0007814541459083557,
+        "diag_mean_rank": 266.9609375,
+        "diag_median_rank": 279.0,
+        "diag_minus_offdiag_mean": -0.0007781940512359142,
+        "diag_std": 0.010631199926137924,
+        "diag_top1_rate": 0.00390625,
+        "offdiag_mean": -3.2601137718302198e-06,
+        "offdiag_std": 0.011290152557194233
+      },
+      "learned_pattern_to_scene_matrix_083": {
+        "diag_mean": 0.05395883694291115,
+        "diag_mean_rank": 5.84375,
+        "diag_median_rank": 1.0,
+        "diag_minus_offdiag_mean": 0.03985465317964554,
+        "diag_std": 0.011198791675269604,
+        "diag_top1_rate": 0.5234375,
+        "offdiag_mean": 0.014104182831943035,
+        "offdiag_std": 0.012879476882517338
+      },
+      "learned_pattern_to_synthetic_full_context": {
+        "diag_mean": -0.0007826993823982775,
+        "diag_mean_rank": 259.197265625,
+        "diag_median_rank": 262.0,
+        "diag_minus_offdiag_mean": -0.00013631489127874374,
+        "diag_std": 0.011226192116737366,
+        "diag_top1_rate": 0.0,
+        "offdiag_mean": -0.0006463844911195338,
+        "offdiag_std": 0.011075134389102459
+      },
+      "learned_token_abs_max_deviation_from_one": 2.384185791015625e-07,
+      "learned_token_abs_mean": 1.0,
+      "observed_role_counts": {
+        "0": 512,
+        "1": 512,
+        "10": 0,
+        "11": 0,
+        "12": 0,
+        "13": 0,
+        "14": 0,
+        "15": 0,
+        "2": 512,
+        "3": 512,
+        "4": 0,
+        "5": 0,
+        "6": 0,
+        "7": 0,
+        "8": 0,
+        "9": 0
+      },
+      "partial_context_to_scene_matrix_082": {
+        "diag_mean": 0.4100228548049927,
+        "diag_mean_rank": 1.02734375,
+        "diag_median_rank": 1.0,
+        "diag_minus_offdiag_mean": 0.37917014956474304,
+        "diag_std": 0.00962749682366848,
+        "diag_top1_rate": 0.984375,
+        "offdiag_mean": 0.03085269220173359,
+        "offdiag_std": 0.0555100254714489
+      },
+      "partial_context_to_synthetic_full_context": {
+        "diag_mean": 0.4100228548049927,
+        "diag_mean_rank": 1.02734375,
+        "diag_median_rank": 1.0,
+        "diag_minus_offdiag_mean": 0.37917014956474304,
+        "diag_std": 0.009627497754991055,
+        "diag_top1_rate": 0.984375,
+        "offdiag_mean": 0.03085269220173359,
+        "offdiag_std": 0.0555100254714489
+      },
+      "query_fraction_in_observed_role_support": 0.0,
+      "query_role_counts": {
+        "0": 0,
+        "1": 0,
+        "10": 41,
+        "11": 50,
+        "12": 52,
+        "13": 39,
+        "14": 42,
+        "15": 41,
+        "2": 0,
+        "3": 0,
+        "4": 32,
+        "5": 40,
+        "6": 44,
+        "7": 44,
+        "8": 52,
+        "9": 35
+      },
+      "report082_candidate_top1": 0.677734375,
+      "report083_candidate_top1": 0.45703125,
+      "seed": 29,
+      "selected_role_sets": [
+        {
+          "count": 512,
+          "roles": [
+            0,
+            1,
+            2,
+            3
+          ]
+        }
+      ],
+      "support": {
+        "context_roles": 4,
+        "eligible_rows": 1064,
+        "raw_rows": 1064,
+        "required_rows": 512,
+        "rows_invalid": 0,
+        "rows_too_short": 0,
+        "snapshot_path": "reports/phase5_m1_provenance_seed17/snapshots/phase3_phase4_w4_step1800.pt",
+        "used_rows": 512
+      }
+    }
+  ],
+  "snapshot_summary": {
+    "atom_distinct": 945,
+    "atom_fraction_ge_1024": 0.07800751879699248,
+    "atom_normalized_entropy": 0.6828161710143421,
+    "atom_top": [
+      [
+        0,
+        1107
+      ],
+      [
+        2,
+        318
+      ],
+      [
+        3,
+        154
+      ],
+      [
+        5,
+        116
+      ],
+      [
+        4,
+        110
+      ],
+      [
+        7,
+        89
+      ],
+      [
+        6,
+        85
+      ],
+      [
+        8,
+        53
+      ],
+      [
+        10,
+        44
+      ],
+      [
+        1,
+        40
+      ],
+      [
+        11,
+        37
+      ],
+      [
+        15,
+        36
+      ]
+    ],
+    "eligible_rows": 1064,
+    "per_role": {
+      "0": {
+        "count": 1064,
+        "distinct_atoms": 384,
+        "normalized_entropy": 0.7336225385685591,
+        "top_atoms": [
+          [
+            0,
+            285
+          ],
+          [
+            2,
+            67
+          ],
+          [
+            5,
+            35
+          ],
+          [
+            3,
+            32
+          ],
+          [
+            4,
+            31
+          ],
+          [
+            7,
+            22
+          ],
+          [
+            6,
+            21
+          ],
+          [
+            8,
+            18
+          ]
+        ]
+      },
+      "1": {
+        "count": 1064,
+        "distinct_atoms": 351,
+        "normalized_entropy": 0.7200951200785589,
+        "top_atoms": [
+          [
+            0,
+            283
+          ],
+          [
+            2,
+            79
+          ],
+          [
+            3,
+            48
+          ],
+          [
+            1,
+            40
+          ],
+          [
+            7,
+            28
+          ],
+          [
+            5,
+            25
+          ],
+          [
+            4,
+            21
+          ],
+          [
+            6,
+            20
+          ]
+        ]
+      },
+      "10": {
+        "count": 0,
+        "distinct_atoms": 0,
+        "normalized_entropy": 0.0,
+        "top_atoms": []
+      },
+      "11": {
+        "count": 0,
+        "distinct_atoms": 0,
+        "normalized_entropy": 0.0,
+        "top_atoms": []
+      },
+      "12": {
+        "count": 0,
+        "distinct_atoms": 0,
+        "normalized_entropy": 0.0,
+        "top_atoms": []
+      },
+      "13": {
+        "count": 0,
+        "distinct_atoms": 0,
+        "normalized_entropy": 0.0,
+        "top_atoms": []
+      },
+      "14": {
+        "count": 0,
+        "distinct_atoms": 0,
+        "normalized_entropy": 0.0,
+        "top_atoms": []
+      },
+      "15": {
+        "count": 0,
+        "distinct_atoms": 0,
+        "normalized_entropy": 0.0,
+        "top_atoms": []
+      },
+      "2": {
+        "count": 1064,
+        "distinct_atoms": 371,
+        "normalized_entropy": 0.7384610271272457,
+        "top_atoms": [
+          [
+            0,
+            264
+          ],
+          [
+            2,
+            85
+          ],
+          [
+            4,
+            36
+          ],
+          [
+            3,
+            35
+          ],
+          [
+            5,
+            27
+          ],
+          [
+            6,
+            25
+          ],
+          [
+            7,
+            23
+          ],
+          [
+            10,
+            15
+          ]
+        ]
+      },
+      "3": {
+        "count": 1064,
+        "distinct_atoms": 365,
+        "normalized_entropy": 0.7380183328843236,
+        "top_atoms": [
+          [
+            0,
+            275
+          ],
+          [
+            2,
+            87
+          ],
+          [
+            3,
+            39
+          ],
+          [
+            5,
+            29
+          ],
+          [
+            4,
+            22
+          ],
+          [
+            6,
+            19
+          ],
+          [
+            7,
+            16
+          ],
+          [
+            21,
+            12
+          ]
+        ]
+      },
+      "4": {
+        "count": 0,
+        "distinct_atoms": 0,
+        "normalized_entropy": 0.0,
+        "top_atoms": []
+      },
+      "5": {
+        "count": 0,
+        "distinct_atoms": 0,
+        "normalized_entropy": 0.0,
+        "top_atoms": []
+      },
+      "6": {
+        "count": 0,
+        "distinct_atoms": 0,
+        "normalized_entropy": 0.0,
+        "top_atoms": []
+      },
+      "7": {
+        "count": 0,
+        "distinct_atoms": 0,
+        "normalized_entropy": 0.0,
+        "top_atoms": []
+      },
+      "8": {
+        "count": 0,
+        "distinct_atoms": 0,
+        "normalized_entropy": 0.0,
+        "top_atoms": []
+      },
+      "9": {
+        "count": 0,
+        "distinct_atoms": 0,
+        "normalized_entropy": 0.0,
+        "top_atoms": []
+      }
+    },
+    "raw_rows": 1064,
+    "role_counts": {
+      "0": 1064,
+      "1": 1064,
+      "10": 0,
+      "11": 0,
+      "12": 0,
+      "13": 0,
+      "14": 0,
+      "15": 0,
+      "2": 1064,
+      "3": 1064,
+      "4": 0,
+      "5": 0,
+      "6": 0,
+      "7": 0,
+      "8": 0,
+      "9": 0
+    },
+    "role_set_counts": [
+      {
+        "count": 1064,
+        "roles": [
+          0,
+          1,
+          2,
+          3
+        ]
+      }
+    ],
+    "rows_invalid": 0,
+    "rows_too_short": 0
+  }
+}
