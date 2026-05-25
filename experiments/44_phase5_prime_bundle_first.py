@@ -22,6 +22,24 @@ import torch
 
 from energy_memory.substrate.torch_fhrr import TorchFHRR
 
+CONTEXT_BUNDLE_SOURCES = {
+    "context_bundle",
+    "context_bundle_exclude_query_role",
+    "context_bundle_observed_prefix",
+    "context_bundle_observed_prefix_plan",
+}
+
+PARTIAL_CONTEXT_SOURCES = {
+    "context_bundle_exclude_query_role",
+    "context_bundle_observed_prefix",
+    "context_bundle_observed_prefix_plan",
+}
+
+CONTEXT_ROLE_SOURCES = {
+    "context_bundle_observed_prefix",
+    "context_bundle_observed_prefix_plan",
+}
+
 
 @dataclass(frozen=True)
 class WilsonCI:
@@ -128,12 +146,7 @@ def _scene_tokens(
 ) -> Optional[torch.Tensor]:
     if not enabled:
         return None
-    context_sources = {
-        "context_bundle",
-        "context_bundle_exclude_query_role",
-        "context_bundle_observed_prefix",
-    }
-    if source in context_sources:
+    if source in CONTEXT_BUNDLE_SOURCES:
         if pool_size != 0:
             raise ValueError(f"{source} scene-token source requires pool_size=0")
         return torch.stack(
@@ -144,7 +157,7 @@ def _scene_tokens(
             dim=0,
         )
     if source != "random":
-        choices = ", ".join(["random", *sorted(context_sources)])
+        choices = ", ".join(["random", *sorted(CONTEXT_BUNDLE_SOURCES)])
         raise ValueError(f"scene_token_source must be one of: {choices}")
     if pool_size < 0:
         raise ValueError("scene_token_pool_size must be non-negative")
@@ -212,6 +225,33 @@ def _observed_context_roles(
     return roles
 
 
+def _sample_observed_context_roles(
+    *,
+    known_role: int,
+    query_role: int,
+    K_roles: int,
+    context_roles: int,
+    generator: torch.Generator,
+) -> List[int]:
+    """Sample the actually observed non-query roles for a prefix-style query."""
+    if K_roles <= 1:
+        return []
+    count = max(1, min(context_roles, K_roles - 1))
+    roles: List[int] = [known_role] if known_role != query_role else []
+    candidates = [
+        role
+        for role in range(K_roles)
+        if role != query_role and role not in roles
+    ]
+    if candidates and len(roles) < count:
+        order = torch.randperm(len(candidates), generator=generator).tolist()
+        for idx in order:
+            roles.append(candidates[int(idx)])
+            if len(roles) >= count:
+                break
+    return roles
+
+
 def _query_context_tokens(
     fhrr: TorchFHRR,
     roles: torch.Tensor,
@@ -223,6 +263,7 @@ def _query_context_tokens(
     *,
     source: str,
     context_roles: int,
+    observed_role_plan: Optional[Sequence[Sequence[int]]] = None,
 ) -> Optional[torch.Tensor]:
     """Build query-side context anchors for partial-context diagnostics.
 
@@ -230,10 +271,7 @@ def _query_context_tokens(
     variants restrict only the query context, so the queried role/filler is not
     handed to the cue.
     """
-    if source not in {
-        "context_bundle_exclude_query_role",
-        "context_bundle_observed_prefix",
-    }:
+    if source not in PARTIAL_CONTEXT_SOURCES:
         return None
 
     zero = torch.zeros(roles.shape[1], dtype=roles.dtype, device=fhrr.device)
@@ -244,6 +282,10 @@ def _query_context_tokens(
         query = int(query_role[i].detach().cpu())
         if source == "context_bundle_exclude_query_role":
             selected_roles = [role for role in range(roles.shape[0]) if role != query]
+        elif source == "context_bundle_observed_prefix_plan":
+            if observed_role_plan is None:
+                raise ValueError(f"{source} requires an observed role plan")
+            selected_roles = [int(role) for role in observed_role_plan[i]]
         else:
             selected_roles = _observed_context_roles(
                 known_role=known,
@@ -406,6 +448,18 @@ def run_cell(
         dtype=torch.long,
         device=fhrr.device,
     )
+    observed_role_plan: Optional[List[List[int]]] = None
+    if scene_token_source == "context_bundle_observed_prefix_plan":
+        observed_role_plan = [
+            _sample_observed_context_roles(
+                known_role=known,
+                query_role=query,
+                K_roles=K_roles,
+                context_roles=context_roles,
+                generator=generator,
+            )
+            for _scene, known, query in plan
+        ]
     scene_idx = plan_tensor[:, 0]
     known_role = plan_tensor[:, 1]
     query_role = plan_tensor[:, 2]
@@ -435,6 +489,7 @@ def run_cell(
             query_role,
             source=scene_token_source,
             context_roles=context_roles,
+            observed_role_plan=observed_role_plan,
         )
         if query_tokens is None:
             query_tokens = scene_tokens[scene_idx]
@@ -574,15 +629,15 @@ def main() -> int:
         nargs="+",
         choices=[
             "random",
-            "context_bundle",
-            "context_bundle_exclude_query_role",
-            "context_bundle_observed_prefix",
+            *sorted(CONTEXT_BUNDLE_SOURCES),
         ],
         default=["random"],
         help=(
             "Source for scene/context anchors. random uses random scene tokens; "
             "context_bundle uses the full role-filler scene bundle; stricter "
-            "context_bundle_* variants use query-side partial context traces."
+            "context_bundle_* variants use query-side partial context traces. "
+            "context_bundle_observed_prefix_plan samples the observed prefix "
+            "roles in the query plan instead of using deterministic hidden roles."
         ),
     )
     parser.add_argument(
@@ -591,9 +646,11 @@ def main() -> int:
         type=int,
         default=[1],
         help=(
-            "Observed role count for context_bundle_observed_prefix. The known "
-            "role is included first, then deterministic non-query roles fill "
-            "the prefix. Ignored by other scene-token sources."
+            "Observed role count for context_bundle_observed_prefix* sources. "
+            "The known role is included first. The deterministic source fills "
+            "from non-query roles by index; the *_plan source samples the "
+            "additional observed roles in the query plan. Ignored by other "
+            "scene-token sources."
         ),
     )
     parser.add_argument(
@@ -660,7 +717,7 @@ def main() -> int:
                                     for token_pool_size in pools:
                                         context_counts = (
                                             args.context_roles
-                                            if token_source == "context_bundle_observed_prefix"
+                                            if token_source in CONTEXT_ROLE_SOURCES
                                             else [0]
                                         )
                                         for context_roles in context_counts:
