@@ -27,8 +27,8 @@ controls. n=3 MQAR runs are diagnostic gates only.
 | # | Item | Status | Evidence |
 | -- | --- | :---: | --- |
 | C1 | Run no-scene-token baseline | partial | Report 075 records no-anchor / zero-weight skewed baselines near `~0.23` |
-| C2 | Run optional scene-token condition | partial | Report 075 records random-anchor sweep; substrate-derived `context_bundle` pending |
-| C3 | Confirm scene tokens do not inflate top1 through identity leakage | partial | Report 075 random-role control stays near zero; shuffled-role leakage remains bounded but must stay matched |
+| C2 | Run optional scene-token condition | partial | Report 075 records random-anchor sweep; Report 076 records full-scene substrate-derived `context_bundle`; partial-context variants pending |
+| C3 | Confirm scene tokens do not inflate top1 through identity leakage | partial | Report 076 random-role control stays zero despite high scene_tix; shuffled-role residual remains bounded but requires deranged-role follow-up |
 
 ## D. Co-Occurrence Statistics
 
@@ -47,6 +47,7 @@ controls. n=3 MQAR runs are diagnostic gates only.
 | E3 | Perfect-cue control | verifies storage and cleanup ceiling | partial |
 | E4 | Bundle positive control | verifies algebraic bundle/unbind capacity | partial |
 | E5 | Content cleanup positive control | verifies content-MHN cleanup independent of scene ID | partial |
+| E6 | Deranged-role control | removes role-specific structure with no fixed role mappings | partial |
 
 Controls are matched to candidate settings and reported alongside them. They
 are diagnostics, not a route selector.
@@ -69,11 +70,11 @@ are diagnostics, not a route selector.
 
 | # | Item | Status | Evidence |
 | -- | --- | :---: | --- |
-| G1 | n_seeds >= 10 for any verification claim | partial | Report 075 pasted diagnostics are n=10 but not a verification claim |
-| G2 | Confidence intervals reported on headline | partial | Report 075 records Wilson CIs for pasted hard cells |
+| G1 | n_seeds >= 10 for any verification claim | partial | Reports 075/076 pasted or attached diagnostics are n=10 but not verification claims |
+| G2 | Confidence intervals reported on headline | partial | Reports 075/076 record Wilson CIs for hard cells |
 | G3 | Leave-one-seed-out sensitivity reported | open | not yet run |
-| G4 | Controls E1-E5 run on the same test set | partial | Report 075 hard-cell controls are matched; full matrix still open |
-| G5 | Report explicitly says no graduation claim unless all gates pass | done | Reports 069-075 explicitly preserve no-graduation boundary |
+| G4 | Controls E1-E6 run on the same test set | partial | Reports 075/076 hard-cell controls are matched where available; full matrix still open |
+| G5 | Report explicitly says no graduation claim unless all gates pass | done | Reports 069-076 explicitly preserve no-graduation boundary |
 
 ## H. Anti-Homunculus Discipline
 

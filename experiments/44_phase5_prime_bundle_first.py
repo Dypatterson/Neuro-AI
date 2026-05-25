@@ -42,6 +42,7 @@ class CellResult:
     scene_token_weight: float
     scene_token_source: str
     scene_token_pool_size: int
+    context_roles: int
     cooccurrence: str
     seed: int
     n_queries: int
@@ -127,9 +128,14 @@ def _scene_tokens(
 ) -> Optional[torch.Tensor]:
     if not enabled:
         return None
-    if source == "context_bundle":
+    context_sources = {
+        "context_bundle",
+        "context_bundle_exclude_query_role",
+        "context_bundle_observed_prefix",
+    }
+    if source in context_sources:
         if pool_size != 0:
-            raise ValueError("context_bundle scene-token source requires pool_size=0")
+            raise ValueError(f"{source} scene-token source requires pool_size=0")
         return torch.stack(
             [
                 fhrr.bundle([roles[role] * content[int(atom)] for role, atom in enumerate(row)])
@@ -138,7 +144,8 @@ def _scene_tokens(
             dim=0,
         )
     if source != "random":
-        raise ValueError("scene_token_source must be 'random' or 'context_bundle'")
+        choices = ", ".join(["random", *sorted(context_sources)])
+        raise ValueError(f"scene_token_source must be one of: {choices}")
     if pool_size < 0:
         raise ValueError("scene_token_pool_size must be non-negative")
     if pool_size == 0 or pool_size >= N:
@@ -174,6 +181,85 @@ def _role_permutation(K_roles: int, *, generator: torch.Generator) -> List[int]:
     if all(i == p for i, p in enumerate(perm)):
         perm = perm[1:] + perm[:1]
     return perm
+
+
+def _role_derangement(K_roles: int, *, generator: torch.Generator) -> List[int]:
+    if K_roles == 1:
+        return [0]
+    for _ in range(64):
+        perm = torch.randperm(K_roles, generator=generator).tolist()
+        if all(i != p for i, p in enumerate(perm)):
+            return perm
+    return list(range(1, K_roles)) + [0]
+
+
+def _observed_context_roles(
+    *,
+    known_role: int,
+    query_role: int,
+    K_roles: int,
+    context_roles: int,
+) -> List[int]:
+    if K_roles <= 1:
+        return []
+    count = max(1, min(context_roles, K_roles - 1))
+    roles: List[int] = [known_role] if known_role != query_role else []
+    for role in range(K_roles):
+        if len(roles) >= count:
+            break
+        if role != query_role and role not in roles:
+            roles.append(role)
+    return roles
+
+
+def _query_context_tokens(
+    fhrr: TorchFHRR,
+    roles: torch.Tensor,
+    content: torch.Tensor,
+    filler_tensor: torch.Tensor,
+    scene_idx: torch.Tensor,
+    known_role: torch.Tensor,
+    query_role: torch.Tensor,
+    *,
+    source: str,
+    context_roles: int,
+) -> Optional[torch.Tensor]:
+    """Build query-side context anchors for partial-context diagnostics.
+
+    Stored scene patterns still contain the full scene bundle. These stricter
+    variants restrict only the query context, so the queried role/filler is not
+    handed to the cue.
+    """
+    if source not in {
+        "context_bundle_exclude_query_role",
+        "context_bundle_observed_prefix",
+    }:
+        return None
+
+    zero = torch.zeros(roles.shape[1], dtype=roles.dtype, device=fhrr.device)
+    tokens: List[torch.Tensor] = []
+    for i in range(scene_idx.shape[0]):
+        scene = int(scene_idx[i].detach().cpu())
+        known = int(known_role[i].detach().cpu())
+        query = int(query_role[i].detach().cpu())
+        if source == "context_bundle_exclude_query_role":
+            selected_roles = [role for role in range(roles.shape[0]) if role != query]
+        else:
+            selected_roles = _observed_context_roles(
+                known_role=known,
+                query_role=query,
+                K_roles=roles.shape[0],
+                context_roles=context_roles,
+            )
+        if not selected_roles:
+            tokens.append(zero)
+            continue
+        terms = [
+            roles[role] * content[int(filler_tensor[scene, role].detach().cpu())]
+            for role in selected_roles
+        ]
+        tokens.append(fhrr.bundle(terms))
+    return torch.stack(tokens, dim=0)
 
 
 def _perturb_batch(fhrr: TorchFHRR, vectors: torch.Tensor, noise: float) -> torch.Tensor:
@@ -253,6 +339,7 @@ def run_cell(
     scene_token_weight: float,
     scene_token_source: str,
     scene_token_pool_size: int,
+    context_roles: int,
     cooccurrence: str,
     seed: int,
     n_queries: int,
@@ -264,10 +351,13 @@ def run_cell(
         raise ValueError("K_roles must be positive")
     if scene_token_weight < 0.0:
         raise ValueError("scene_token_weight must be non-negative")
+    if context_roles < 0:
+        raise ValueError("context_roles must be non-negative")
     if condition not in {
         "candidate",
         "random_role",
         "shuffled_role",
+        "deranged_role",
         "perfect_cue",
         "bundle_positive",
         "content_cleanup_positive",
@@ -310,6 +400,12 @@ def run_cell(
     role_shuffle_tensor = torch.tensor(role_shuffle, dtype=torch.long, device=fhrr.device)
     plan = _query_plan(N, K_roles, n_queries, generator=generator)
     plan_tensor = torch.tensor(plan, dtype=torch.long, device=fhrr.device)
+    role_derangement = _role_derangement(K_roles, generator=generator)
+    role_derangement_tensor = torch.tensor(
+        role_derangement,
+        dtype=torch.long,
+        device=fhrr.device,
+    )
     scene_idx = plan_tensor[:, 0]
     known_role = plan_tensor[:, 1]
     query_role = plan_tensor[:, 2]
@@ -322,11 +418,27 @@ def run_cell(
     elif condition == "shuffled_role":
         cue_role = role_shuffle_tensor[known_role]
         unbind_role = role_shuffle_tensor[query_role]
+    elif condition == "deranged_role":
+        cue_role = role_derangement_tensor[known_role]
+        unbind_role = role_derangement_tensor[query_role]
 
     known_atom = filler_tensor[scene_idx, known_role]
     cue = roles[cue_role] * content[known_atom]
     if scene_tokens is not None:
-        cue = cue + scene_token_weight * scene_tokens[scene_idx]
+        query_tokens = _query_context_tokens(
+            fhrr,
+            roles,
+            content,
+            filler_tensor,
+            scene_idx,
+            known_role,
+            query_role,
+            source=scene_token_source,
+            context_roles=context_roles,
+        )
+        if query_tokens is None:
+            query_tokens = scene_tokens[scene_idx]
+        cue = cue + scene_token_weight * query_tokens
     cue = fhrr.normalize(cue)
     cue = _perturb_batch(fhrr, cue, cue_noise)
 
@@ -381,6 +493,7 @@ def run_cell(
         scene_token_weight=scene_token_weight,
         scene_token_source=scene_token_source,
         scene_token_pool_size=scene_token_pool_size,
+        context_roles=context_roles,
         cooccurrence=cooccurrence,
         seed=seed,
         n_queries=n_queries,
@@ -436,6 +549,7 @@ def main() -> int:
             "candidate",
             "random_role",
             "shuffled_role",
+            "deranged_role",
             "perfect_cue",
             "bundle_positive",
             "content_cleanup_positive",
@@ -458,12 +572,28 @@ def main() -> int:
     parser.add_argument(
         "--scene_token_source",
         nargs="+",
-        choices=["random", "context_bundle"],
+        choices=[
+            "random",
+            "context_bundle",
+            "context_bundle_exclude_query_role",
+            "context_bundle_observed_prefix",
+        ],
         default=["random"],
         help=(
             "Source for scene/context anchors. random uses random scene tokens; "
-            "context_bundle uses the role-filler scene bundle itself as a "
-            "substrate-derived context trace."
+            "context_bundle uses the full role-filler scene bundle; stricter "
+            "context_bundle_* variants use query-side partial context traces."
+        ),
+    )
+    parser.add_argument(
+        "--context_roles",
+        nargs="+",
+        type=int,
+        default=[1],
+        help=(
+            "Observed role count for context_bundle_observed_prefix. The known "
+            "role is included first, then deterministic non-query roles fill "
+            "the prefix. Ignored by other scene-token sources."
         ),
     )
     parser.add_argument(
@@ -505,6 +635,7 @@ def main() -> int:
         f"scene_token_weight={args.scene_token_weight} "
         f"scene_token_source={args.scene_token_source} "
         f"scene_token_pool_size={args.scene_token_pool_size} "
+        f"context_roles={args.context_roles} "
         f"cooccurrence={args.cooccurrence}"
     )
 
@@ -527,48 +658,56 @@ def main() -> int:
                                         else args.scene_token_pool_size
                                     )
                                     for token_pool_size in pools:
-                                        for cooccurrence in args.cooccurrence:
-                                            key = (
-                                                f"{condition}|D={D}|K={K}|N={N}|noise={noise}|"
-                                                f"scene_token={int(scene_token_flag)}|"
-                                                f"token_weight={token_weight}|"
-                                                f"token_source={token_source}|"
-                                                f"token_pool={token_pool_size}|"
-                                                f"cooc={cooccurrence}"
-                                            )
-                                            cell: List[CellResult] = []
-                                            for seed in args.seeds:
-                                                result = run_cell(
-                                                    condition=condition,
-                                                    D=D,
-                                                    N=N,
-                                                    K_roles=K,
-                                                    cue_noise=noise,
-                                                    scene_token=bool(scene_token_flag),
-                                                    scene_token_weight=token_weight,
-                                                    scene_token_source=token_source,
-                                                    scene_token_pool_size=token_pool_size,
-                                                    cooccurrence=cooccurrence,
-                                                    seed=seed,
-                                                    n_queries=args.n_queries,
-                                                    beta=args.beta,
-                                                    C_codebook=args.C_codebook,
-                                                    device=device,
+                                        context_counts = (
+                                            args.context_roles
+                                            if token_source == "context_bundle_observed_prefix"
+                                            else [0]
+                                        )
+                                        for context_roles in context_counts:
+                                            for cooccurrence in args.cooccurrence:
+                                                key = (
+                                                    f"{condition}|D={D}|K={K}|N={N}|noise={noise}|"
+                                                    f"scene_token={int(scene_token_flag)}|"
+                                                    f"token_weight={token_weight}|"
+                                                    f"token_source={token_source}|"
+                                                    f"token_pool={token_pool_size}|"
+                                                    f"context_roles={context_roles}|"
+                                                    f"cooc={cooccurrence}"
                                                 )
-                                                cell.append(result)
-                                                raw.append(result)
-                                            agg = _aggregate(cell)
-                                            aggregates[key] = agg
-                                            print(
-                                                f"{key} top1={agg['top1_mean']:.4f} "
-                                                f"CI=[{agg['wilson_lo']:.4f},{agg['wilson_hi']:.4f}] "
-                                                f"scene_tix={agg['scene_tix']}/{agg['n_total']} "
-                                                f"content_tix={agg['content_tix']}/{agg['n_total']} "
-                                                f"ent=({agg['mean_scene_entropy']:.3f},"
-                                                f"{agg['mean_content_entropy']:.3f}) "
-                                                f"margin=({agg['mean_scene_margin']:.4f},"
-                                                f"{agg['mean_content_margin']:.4f})"
-                                            )
+                                                cell: List[CellResult] = []
+                                                for seed in args.seeds:
+                                                    result = run_cell(
+                                                        condition=condition,
+                                                        D=D,
+                                                        N=N,
+                                                        K_roles=K,
+                                                        cue_noise=noise,
+                                                        scene_token=bool(scene_token_flag),
+                                                        scene_token_weight=token_weight,
+                                                        scene_token_source=token_source,
+                                                        scene_token_pool_size=token_pool_size,
+                                                        context_roles=context_roles,
+                                                        cooccurrence=cooccurrence,
+                                                        seed=seed,
+                                                        n_queries=args.n_queries,
+                                                        beta=args.beta,
+                                                        C_codebook=args.C_codebook,
+                                                        device=device,
+                                                    )
+                                                    cell.append(result)
+                                                    raw.append(result)
+                                                agg = _aggregate(cell)
+                                                aggregates[key] = agg
+                                                print(
+                                                    f"{key} top1={agg['top1_mean']:.4f} "
+                                                    f"CI=[{agg['wilson_lo']:.4f},{agg['wilson_hi']:.4f}] "
+                                                    f"scene_tix={agg['scene_tix']}/{agg['n_total']} "
+                                                    f"content_tix={agg['content_tix']}/{agg['n_total']} "
+                                                    f"ent=({agg['mean_scene_entropy']:.3f},"
+                                                    f"{agg['mean_content_entropy']:.3f}) "
+                                                    f"margin=({agg['mean_scene_margin']:.4f},"
+                                                    f"{agg['mean_content_margin']:.4f})"
+                                                )
 
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -595,6 +734,7 @@ def main() -> int:
             "scene_token_weight": args.scene_token_weight,
             "scene_token_source": args.scene_token_source,
             "scene_token_pool_size": args.scene_token_pool_size,
+            "context_roles": args.context_roles,
             "cooccurrence": args.cooccurrence,
             "device": device,
         },
@@ -610,6 +750,7 @@ def main() -> int:
                 "scene_token_weight": r.scene_token_weight,
                 "scene_token_source": r.scene_token_source,
                 "scene_token_pool_size": r.scene_token_pool_size,
+                "context_roles": r.context_roles,
                 "cooccurrence": r.cooccurrence,
                 "seed": r.seed,
                 "n_queries": r.n_queries,
