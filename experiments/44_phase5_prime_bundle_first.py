@@ -20,6 +20,9 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 import torch
 
+from energy_memory.phase2.encoding import encode_window_with_provenance
+from energy_memory.phase4.replay_loop import ReplayStore
+from energy_memory.phase4.trajectory import TrajectoryTrace
 from energy_memory.substrate.torch_fhrr import TorchFHRR
 
 CONTEXT_BUNDLE_SOURCES = {
@@ -27,17 +30,24 @@ CONTEXT_BUNDLE_SOURCES = {
     "context_bundle_exclude_query_role",
     "context_bundle_observed_prefix",
     "context_bundle_observed_prefix_plan",
+    "context_trace_observed_prefix_plan",
 }
 
 PARTIAL_CONTEXT_SOURCES = {
     "context_bundle_exclude_query_role",
     "context_bundle_observed_prefix",
     "context_bundle_observed_prefix_plan",
+    "context_trace_observed_prefix_plan",
 }
 
 CONTEXT_ROLE_SOURCES = {
     "context_bundle_observed_prefix",
     "context_bundle_observed_prefix_plan",
+    "context_trace_observed_prefix_plan",
+}
+
+TRACE_CONTEXT_SOURCES = {
+    "context_trace_observed_prefix_plan",
 }
 
 
@@ -252,6 +262,34 @@ def _sample_observed_context_roles(
     return roles
 
 
+def _trace_context_token(
+    fhrr: TorchFHRR,
+    roles: torch.Tensor,
+    content: torch.Tensor,
+    filler_tensor: torch.Tensor,
+    *,
+    scene: int,
+    selected_roles: Sequence[int],
+) -> Optional[TrajectoryTrace]:
+    if not selected_roles:
+        return None
+    atoms = [int(filler_tensor[scene, role].detach().cpu()) for role in selected_roles]
+    positions = [roles[role] for role in selected_roles]
+    query, _local_terms = encode_window_with_provenance(
+        fhrr,
+        positions,
+        content,
+        atoms,
+    )
+    return TrajectoryTrace(
+        query=query.detach().clone(),
+        encoder_terms=[
+            (int(role), int(atom))
+            for role, atom in zip(selected_roles, atoms)
+        ],
+    )
+
+
 def _query_context_tokens(
     fhrr: TorchFHRR,
     roles: torch.Tensor,
@@ -276,13 +314,19 @@ def _query_context_tokens(
 
     zero = torch.zeros(roles.shape[1], dtype=roles.dtype, device=fhrr.device)
     tokens: List[torch.Tensor] = []
+    trace_store: Optional[ReplayStore] = None
+    if source in TRACE_CONTEXT_SOURCES:
+        trace_store = ReplayStore(capacity=max(1, int(scene_idx.shape[0])))
     for i in range(scene_idx.shape[0]):
         scene = int(scene_idx[i].detach().cpu())
         known = int(known_role[i].detach().cpu())
         query = int(query_role[i].detach().cpu())
         if source == "context_bundle_exclude_query_role":
             selected_roles = [role for role in range(roles.shape[0]) if role != query]
-        elif source == "context_bundle_observed_prefix_plan":
+        elif source in {
+            "context_bundle_observed_prefix_plan",
+            "context_trace_observed_prefix_plan",
+        }:
             if observed_role_plan is None:
                 raise ValueError(f"{source} requires an observed role plan")
             selected_roles = [int(role) for role in observed_role_plan[i]]
@@ -295,6 +339,22 @@ def _query_context_tokens(
             )
         if not selected_roles:
             tokens.append(zero)
+            continue
+        if source in TRACE_CONTEXT_SOURCES:
+            assert trace_store is not None
+            trace = _trace_context_token(
+                fhrr,
+                roles,
+                content,
+                filler_tensor,
+                scene=scene,
+                selected_roles=selected_roles,
+            )
+            if trace is None:
+                tokens.append(zero)
+                continue
+            trace_store.add(trace, gate_signal=1.0)
+            tokens.append(trace_store.get(len(trace_store) - 1).query.to(fhrr.device))
             continue
         terms = [
             roles[role] * content[int(filler_tensor[scene, role].detach().cpu())]
@@ -449,7 +509,10 @@ def run_cell(
         device=fhrr.device,
     )
     observed_role_plan: Optional[List[List[int]]] = None
-    if scene_token_source == "context_bundle_observed_prefix_plan":
+    if scene_token_source in {
+        "context_bundle_observed_prefix_plan",
+        "context_trace_observed_prefix_plan",
+    }:
         observed_role_plan = [
             _sample_observed_context_roles(
                 known_role=known,
@@ -637,7 +700,9 @@ def main() -> int:
             "context_bundle uses the full role-filler scene bundle; stricter "
             "context_bundle_* variants use query-side partial context traces. "
             "context_bundle_observed_prefix_plan samples the observed prefix "
-            "roles in the query plan instead of using deterministic hidden roles."
+            "roles in the query plan instead of using deterministic hidden roles. "
+            "context_trace_observed_prefix_plan builds that prefix through the "
+            "Phase 2/4 provenance trace and ReplayStore path."
         ),
     )
     parser.add_argument(
@@ -649,8 +714,9 @@ def main() -> int:
             "Observed role count for context_bundle_observed_prefix* sources. "
             "The known role is included first. The deterministic source fills "
             "from non-query roles by index; the *_plan source samples the "
-            "additional observed roles in the query plan. Ignored by other "
-            "scene-token sources."
+            "additional observed roles in the query plan. The context_trace_* "
+            "source encodes the sampled prefix as a TrajectoryTrace before "
+            "using it as query context. Ignored by other scene-token sources."
         ),
     )
     parser.add_argument(
