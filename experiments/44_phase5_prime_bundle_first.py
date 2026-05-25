@@ -20,7 +20,6 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 import torch
 
-from energy_memory.memory.torch_hopfield import TorchHopfieldMemory
 from energy_memory.substrate.torch_fhrr import TorchFHRR
 
 
@@ -68,13 +67,6 @@ def wilson_ci(n_success: int, n_total: int, z: float = 1.96) -> WilsonCI:
         / denom
     )
     return WilsonCI(mean=p, lo=max(0.0, center - half), hi=min(1.0, center + half), n=n_total)
-
-
-def _margin(scores: Sequence[float]) -> float:
-    if len(scores) < 2:
-        return 0.0
-    top2 = sorted(scores, reverse=True)[:2]
-    return float(top2[0] - top2[1])
 
 
 def _filler_indices(
@@ -147,6 +139,72 @@ def _role_permutation(K_roles: int, *, generator: torch.Generator) -> List[int]:
     return perm
 
 
+def _perturb_batch(fhrr: TorchFHRR, vectors: torch.Tensor, noise: float) -> torch.Tensor:
+    if noise <= 0.0:
+        return vectors
+    if noise < 0.0:
+        raise ValueError("noise must be non-negative")
+    phase = torch.randn(vectors.shape, generator=fhrr.generator, device="cpu") * noise
+    phase = phase.to(fhrr.device)
+    return vectors * torch.polar(torch.ones_like(phase, device=fhrr.device), phase)
+
+
+def _batched_hopfield_retrieve(
+    fhrr: TorchFHRR,
+    patterns: torch.Tensor,
+    queries: torch.Tensor,
+    *,
+    beta: float,
+    max_iter: int = 10,
+    tol: float = 1e-8,
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Batched softmax Hopfield settling for the MQAR diagnostic.
+
+    The scalar TorchHopfieldMemory path is intentionally general-purpose, but
+    this experiment is query-parallel and was spending most of its wall time in
+    Python loops. This helper preserves the same fixed iterative softmax update
+    while running all queries for a cell as GPU matrix multiplies.
+    """
+    if patterns.numel() == 0:
+        raise ValueError("cannot retrieve from an empty pattern matrix")
+    if beta <= 0.0:
+        raise ValueError("beta must be positive")
+
+    state = queries.to(fhrr.device)
+    patterns = patterns.to(fhrr.device)
+    frozen = torch.zeros(state.shape[0], dtype=torch.bool, device=fhrr.device)
+    final_state = state
+    prev_energy: Optional[torch.Tensor] = None
+
+    for _ in range(max_iter):
+        scores = (state @ patterns.conj().T).real / patterns.shape[1]
+        energy = -torch.logsumexp(beta * scores, dim=1) / beta
+        weights = torch.softmax(beta * scores, dim=1)
+        next_state = fhrr.normalize(weights.to(patterns.dtype) @ patterns)
+        if prev_energy is not None:
+            converged_now = ((energy - prev_energy).abs() < tol) & (~frozen)
+            final_state = torch.where(converged_now[:, None], next_state, final_state)
+            frozen = frozen | converged_now
+        prev_energy = energy
+        state = next_state
+
+    final_state = torch.where(frozen[:, None], final_state, state)
+    final_scores = (final_state @ patterns.conj().T).real / patterns.shape[1]
+    final_weights = torch.softmax(beta * final_scores, dim=1)
+    top_index = torch.argmax(final_scores, dim=1)
+
+    if final_weights.shape[1] > 1:
+        safe = final_weights.clamp_min(1e-12)
+        entropy = -(safe * safe.log()).sum(dim=1) / math.log(final_weights.shape[1])
+        top2 = torch.topk(final_scores, k=2, dim=1).values
+        margin = top2[:, 0] - top2[:, 1]
+    else:
+        entropy = torch.zeros(final_weights.shape[0], device=fhrr.device)
+        margin = torch.zeros(final_weights.shape[0], device=fhrr.device)
+
+    return final_state, top_index, entropy, margin
+
+
 def run_cell(
     *,
     condition: str,
@@ -193,89 +251,73 @@ def run_cell(
         fillers,
         scene_tokens=scene_tokens,
     )
-
-    scene_hop = TorchHopfieldMemory(substrate=fhrr)
-    for idx, bundle in enumerate(scene_bundles):
-        scene_hop.store(bundle, label=f"scene_{idx}")
-
-    content_hop = TorchHopfieldMemory(substrate=fhrr)
-    for idx in range(C_codebook):
-        content_hop.store(content[idx], label=f"content_{idx}")
+    scene_matrix = torch.stack(scene_bundles, dim=0)
+    filler_tensor = torch.tensor(fillers, dtype=torch.long, device=fhrr.device)
 
     role_shuffle = _role_permutation(K_roles, generator=generator)
+    role_shuffle_tensor = torch.tensor(role_shuffle, dtype=torch.long, device=fhrr.device)
     plan = _query_plan(N, K_roles, n_queries, generator=generator)
+    plan_tensor = torch.tensor(plan, dtype=torch.long, device=fhrr.device)
+    scene_idx = plan_tensor[:, 0]
+    known_role = plan_tensor[:, 1]
+    query_role = plan_tensor[:, 2]
+    target_atom = filler_tensor[scene_idx, query_role]
 
-    n_correct = 0
-    scene_tix = 0
-    content_tix = 0
-    scene_entropy: List[float] = []
-    content_entropy: List[float] = []
-    scene_margin: List[float] = []
-    content_margin: List[float] = []
+    cue_role = known_role
+    unbind_role = query_role
+    if condition == "random_role" and K_roles > 1:
+        unbind_role = (query_role + 1) % K_roles
+    elif condition == "shuffled_role":
+        cue_role = role_shuffle_tensor[known_role]
+        unbind_role = role_shuffle_tensor[query_role]
 
-    for scene_idx, known_role, query_role in plan:
-        target_atom = fillers[scene_idx][query_role]
+    known_atom = filler_tensor[scene_idx, known_role]
+    cue = roles[cue_role] * content[known_atom]
+    if scene_tokens is not None:
+        cue = cue + 0.5 * scene_tokens[scene_idx]
+    cue = fhrr.normalize(cue)
+    cue = _perturb_batch(fhrr, cue, cue_noise)
 
-        cue_role = known_role
-        unbind_role = query_role
-        if condition == "random_role" and K_roles > 1:
-            unbind_role = (query_role + 1) % K_roles
-        elif condition == "shuffled_role":
-            cue_role = role_shuffle[known_role]
-            unbind_role = role_shuffle[query_role]
+    scene_query = scene_matrix[scene_idx] if condition == "perfect_cue" else cue
 
-        known_atom = fillers[scene_idx][known_role]
-        cue = roles[cue_role] * content[known_atom]
-        if scene_tokens is not None:
-            cue = cue + 0.5 * scene_tokens[scene_idx]
-        cue = fhrr.normalize(cue)
-        if cue_noise > 0.0:
-            cue = fhrr.perturb(cue, noise=cue_noise)
+    zero_stats = torch.zeros(n_queries, device=fhrr.device)
+    if condition == "bundle_positive":
+        scene_state = scene_matrix[scene_idx]
+        scene_top_index = scene_idx
+        scene_entropy = zero_stats
+        scene_margin = zero_stats
+    elif condition == "content_cleanup_positive":
+        scene_state = None
+        scene_top_index = scene_idx
+        scene_entropy = zero_stats
+        scene_margin = zero_stats
+    else:
+        scene_state, scene_top_index, scene_entropy, scene_margin = _batched_hopfield_retrieve(
+            fhrr,
+            scene_matrix,
+            scene_query,
+            beta=beta,
+        )
 
-        if condition == "perfect_cue":
-            scene_query = scene_bundles[scene_idx]
-        else:
-            scene_query = cue
+    scene_tix = int((scene_top_index == scene_idx).sum().detach().cpu())
 
-        if condition == "bundle_positive":
-            scene_state = scene_bundles[scene_idx]
-            scene_top_index = scene_idx
-            scene_entropy.append(0.0)
-            scene_margin.append(0.0)
-        elif condition == "content_cleanup_positive":
-            scene_state = None
-            scene_top_index = scene_idx
-            scene_entropy.append(0.0)
-            scene_margin.append(0.0)
-        else:
-            scene_result = scene_hop.retrieve(scene_query, beta=beta)
-            scene_state = scene_result.state
-            scene_top_index = int(scene_result.top_index)
-            scene_entropy.append(float(scene_result.entropy))
-            scene_margin.append(_margin(scene_result.scores))
+    if condition == "content_cleanup_positive":
+        content_query = content[target_atom]
+        content_query = _perturb_batch(fhrr, content_query, cue_noise)
+    else:
+        assert scene_state is not None
+        content_query = fhrr.normalize(fhrr.unbind(scene_state, roles[unbind_role]))
 
-        if scene_top_index == scene_idx:
-            scene_tix += 1
+    content_state, content_top_index, content_entropy, content_margin = _batched_hopfield_retrieve(
+        fhrr,
+        content,
+        content_query,
+        beta=beta,
+    )
+    content_tix = int((content_top_index == target_atom).sum().detach().cpu())
 
-        if condition == "content_cleanup_positive":
-            content_query = content[target_atom]
-            if cue_noise > 0.0:
-                content_query = fhrr.perturb(content_query, noise=cue_noise)
-        else:
-            assert scene_state is not None
-            content_query = fhrr.unbind(scene_state, roles[unbind_role])
-            content_query = fhrr.normalize(content_query)
-
-        content_result = content_hop.retrieve(content_query, beta=beta)
-        if int(content_result.top_index) == int(target_atom):
-            content_tix += 1
-        content_entropy.append(float(content_result.entropy))
-        content_margin.append(_margin(content_result.scores))
-
-        sims = (content.conj() * content_result.state[None, :]).real.mean(dim=1)
-        pred = int(sims.argmax().item())
-        if pred == int(target_atom):
-            n_correct += 1
+    pred = torch.argmax((content_state @ content.conj().T).real / content.shape[1], dim=1)
+    n_correct = int((pred == target_atom).sum().detach().cpu())
 
     return CellResult(
         condition=condition,
@@ -290,10 +332,10 @@ def run_cell(
         n_correct=n_correct,
         scene_tix=scene_tix,
         content_tix=content_tix,
-        scene_entropy=sum(scene_entropy) / len(scene_entropy),
-        content_entropy=sum(content_entropy) / len(content_entropy),
-        scene_margin=sum(scene_margin) / len(scene_margin),
-        content_margin=sum(content_margin) / len(content_margin),
+        scene_entropy=float(scene_entropy.mean().detach().cpu()),
+        content_entropy=float(content_entropy.mean().detach().cpu()),
+        scene_margin=float(scene_margin.mean().detach().cpu()),
+        content_margin=float(content_margin.mean().detach().cpu()),
     )
 
 
