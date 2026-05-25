@@ -27,9 +27,9 @@ controls. n=3 MQAR runs are diagnostic gates only.
 | # | Item | Status | Evidence |
 | -- | --- | :---: | --- |
 | C1 | Run no-scene-token baseline | partial | Report 075 records no-anchor / zero-weight skewed baselines near `~0.23` |
-| C2 | Run optional scene-token condition | partial | Report 075 records random-anchor sweep; Report 076 records full-scene `context_bundle`; Reports 077-086 record strict partial-context, context-size, fixed observed-prefix, available-prefix, trace-backed, replay-observed, and matched v2 context-source diagnostics |
+| C2 | Run optional scene-token condition | partial | Report 075 records random-anchor sweep; Report 076 records full-scene `context_bundle`; Reports 077-087 record strict partial-context, context-size, fixed observed-prefix, available-prefix, trace-backed, replay-observed, matched v2, and native-provenance preflight diagnostics |
 | C3 | Confirm scene tokens do not inflate top1 through identity leakage | partial | Reports 077-086 random-role and deranged-role controls stay near zero despite high scene/context rates; shuffled-role residual remains bounded/dirty |
-| C4 | Replace generated-scene trace construction with a replay-derived, trajectory-derived, learned, or naturally observed passive context trace before any full matrix | blocked | Reports 082-083 run replay-observed passive hard cells and are positive vs controls but degraded; Report 084 localizes a role-universe/learned-geometry mismatch; Report 085 passes the matched 4-role v2 preflight; Report 086 partially recovers the passive source but leaves learned-token context weak. Next allowed work is the true provenance-source preflight in [2026-05-25-phase5-prime-true-provenance-source-gate.md](../notes/2026-05-25-phase5-prime-true-provenance-source-gate.md), not a full matrix |
+| C4 | Replace generated-scene trace construction with a replay-derived, trajectory-derived, learned, or naturally observed passive context trace before any full matrix | blocked | Reports 082-083 run replay-observed passive hard cells and are positive vs controls but degraded; Report 084 localizes a role-universe/learned-geometry mismatch; Report 085 passes the matched 4-role v2 preflight; Report 086 partially recovers the passive source but leaves learned-token context weak; Report 087 passes the synthetic controlled native-provenance preflight. Next allowed work is the fixed native-provenance candidate/control gate, not a full matrix |
 
 ## D. Co-Occurrence Statistics
 
@@ -71,11 +71,11 @@ are diagnostics, not a route selector.
 
 | # | Item | Status | Evidence |
 | -- | --- | :---: | --- |
-| G1 | n_seeds >= 10 for any verification claim | partial | Reports 075-086 pasted, attached, committed, or transcribed diagnostics are n=10 where applicable but not verification claims |
-| G2 | Confidence intervals reported on headline | partial | Reports 075-086 record Wilson CIs for diagnostic cells where candidate/control retrieval is run |
+| G1 | n_seeds >= 10 for any verification claim | partial | Reports 075-087 pasted, attached, committed, or transcribed diagnostics are n=10 where applicable but not verification claims |
+| G2 | Confidence intervals reported on headline | partial | Reports 075-086 record Wilson CIs for diagnostic cells where candidate/control retrieval is run; Report 087 is preflight-only |
 | G3 | Leave-one-seed-out sensitivity reported | partial | Reports 082-083 and 086 include candidate leave-one-seed-out sensitivity for replay-observed context-source gates |
-| G4 | Controls E1-E6 run on the same test set | partial | Reports 075-086 controls are matched where available; full matrix still open |
-| G5 | Report explicitly says no graduation claim unless all gates pass | done | Reports 069-086 explicitly preserve no-graduation boundary |
+| G4 | Controls E1-E6 run on the same test set | partial | Reports 075-086 controls are matched where available; Report 087 fixes source rows/query schedule before the next control run; full matrix still open |
+| G5 | Report explicitly says no graduation claim unless all gates pass | done | Reports 069-087 explicitly preserve no-graduation boundary |
 
 ## H. Anti-Homunculus Discipline
 
