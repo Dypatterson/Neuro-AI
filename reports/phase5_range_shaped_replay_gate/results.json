@@ -1,0 +1,77 @@
+{
+  "config": {
+    "seeds": [
+      17,
+      11,
+      23
+    ],
+    "n_traces": 400,
+    "n_roles": 8,
+    "n_atoms": 128,
+    "window_size": 8,
+    "skew_concentration": 4,
+    "n_sampled": 1000,
+    "device": "cpu"
+  },
+  "results": [
+    {
+      "seed": 17,
+      "baseline_n_pairs": 8000,
+      "rangeshape_n_pairs": 8000,
+      "buffer_joint_rect": 2.079435855394098,
+      "baseline_joint_rect": 2.0794358558835766,
+      "rangeshape_joint_rect": 0.012874459568872579,
+      "kl_baseline_to_rangeshape": 2.097478395520477,
+      "kl_rangeshape_to_baseline": 13.042127944850144,
+      "buffer_cells_used": 32,
+      "baseline_cells_reached": 32,
+      "rangeshape_cells_reached": 256,
+      "total_cells": 1024,
+      "role_marginal_L1": 0.017750000000000002,
+      "atom_marginal_L1": 0.06125000000000001,
+      "fraction_missing_pairs": 0.87525
+    },
+    {
+      "seed": 11,
+      "baseline_n_pairs": 8000,
+      "rangeshape_n_pairs": 8000,
+      "buffer_joint_rect": 2.079435855431839,
+      "baseline_joint_rect": 2.0794358557962993,
+      "rangeshape_joint_rect": 0.013704577895483766,
+      "kl_baseline_to_rangeshape": 2.0885971642788204,
+      "kl_rangeshape_to_baseline": 13.002687565065774,
+      "buffer_cells_used": 32,
+      "baseline_cells_reached": 32,
+      "rangeshape_cells_reached": 256,
+      "total_cells": 1024,
+      "role_marginal_L1": 0.026999999999999982,
+      "atom_marginal_L1": 0.06525000000000002,
+      "fraction_missing_pairs": 0.872875
+    },
+    {
+      "seed": 23,
+      "baseline_n_pairs": 8000,
+      "rangeshape_n_pairs": 8000,
+      "buffer_joint_rect": 2.0794358556783576,
+      "baseline_joint_rect": 2.079435856673031,
+      "rangeshape_joint_rect": 0.011921115477928772,
+      "kl_baseline_to_rangeshape": 2.0648975111952894,
+      "kl_rangeshape_to_baseline": 12.975628654829766,
+      "buffer_cells_used": 32,
+      "baseline_cells_reached": 32,
+      "rangeshape_cells_reached": 256,
+      "total_cells": 1024,
+      "role_marginal_L1": 0.025000000000000022,
+      "atom_marginal_L1": 0.06475000000000003,
+      "fraction_missing_pairs": 0.87125
+    }
+  ],
+  "aggregates": {
+    "buffer_joint_rect_mean": 2.0794358555014316,
+    "baseline_joint_rect_mean": 2.0794358561176356,
+    "rangeshape_joint_rect_mean": 0.01283338431409504,
+    "baseline_cells_reached_mean": 32.0,
+    "rangeshape_cells_reached_mean": 256.0,
+    "fraction_missing_pairs_mean": 0.8731249999999999
+  }
+}
