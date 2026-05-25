@@ -12,8 +12,8 @@ controls. n=3 MQAR runs are diagnostic gates only.
 | # | Item | Status | Evidence |
 | -- | --- | :---: | --- |
 | A1 | Reproduce Report 067 bundle-first multi-role MQAR for `K_roles in {2,4,8}` and `N in {16,32,64,128,256,512}` | partial | Report 067, n=3 diagnostic |
-| A2 | Extend to `K_roles=16` | partial | Report 079 covers fixed observed-prefix `K=16` across `N={128,256,512}` and `noise={0.0,0.10,0.15}`; Report 080 covers available-prefix query-side context at the hard K=16 cell; full matrix still open |
-| A3 | Report `top1`, Wilson CI, `scene_tix`, `content_tix`, entropy, and margin for every cell | partial | Reports 079-080 raw JSON includes top1/CI/scene/content/entropy/margins for fixed observed-prefix and available-prefix diagnostics; full matrix still open |
+| A2 | Extend to `K_roles=16` | partial | Report 079 covers fixed observed-prefix `K=16` across `N={128,256,512}` and `noise={0.0,0.10,0.15}`; Reports 080-081 cover available-prefix and trace-backed query-side context at the hard K=16 cell; full matrix still open |
+| A3 | Report `top1`, Wilson CI, `scene_tix`, `content_tix`, entropy, and margin for every cell | partial | Reports 079-081 raw JSON includes top1/CI/scene/content/entropy/margins for fixed observed-prefix, available-prefix, and trace-backed diagnostics; full matrix still open |
 
 ## B. Cue Noise
 
@@ -27,8 +27,8 @@ controls. n=3 MQAR runs are diagnostic gates only.
 | # | Item | Status | Evidence |
 | -- | --- | :---: | --- |
 | C1 | Run no-scene-token baseline | partial | Report 075 records no-anchor / zero-weight skewed baselines near `~0.23` |
-| C2 | Run optional scene-token condition | partial | Report 075 records random-anchor sweep; Report 076 records full-scene `context_bundle`; Reports 077-080 record strict partial-context, context-size, fixed observed-prefix, and available-prefix diagnostics |
-| C3 | Confirm scene tokens do not inflate top1 through identity leakage | partial | Reports 077-080 random-role and deranged-role controls stay near zero despite high scene/context rates; shuffled-role residual remains bounded/dirty |
+| C2 | Run optional scene-token condition | partial | Report 075 records random-anchor sweep; Report 076 records full-scene `context_bundle`; Reports 077-081 record strict partial-context, context-size, fixed observed-prefix, available-prefix, and trace-backed diagnostics |
+| C3 | Confirm scene tokens do not inflate top1 through identity leakage | partial | Reports 077-081 random-role and deranged-role controls stay near zero despite high scene/context rates; shuffled-role residual remains bounded/dirty |
 
 ## D. Co-Occurrence Statistics
 
@@ -70,11 +70,11 @@ are diagnostics, not a route selector.
 
 | # | Item | Status | Evidence |
 | -- | --- | :---: | --- |
-| G1 | n_seeds >= 10 for any verification claim | partial | Reports 075-080 pasted, attached, or committed diagnostics are n=10 but not verification claims |
-| G2 | Confidence intervals reported on headline | partial | Reports 075-080 record Wilson CIs for diagnostic cells |
+| G1 | n_seeds >= 10 for any verification claim | partial | Reports 075-081 pasted, attached, or committed diagnostics are n=10 but not verification claims |
+| G2 | Confidence intervals reported on headline | partial | Reports 075-081 record Wilson CIs for diagnostic cells |
 | G3 | Leave-one-seed-out sensitivity reported | open | not yet run |
-| G4 | Controls E1-E6 run on the same test set | partial | Reports 075-080 controls are matched where available; full matrix still open |
-| G5 | Report explicitly says no graduation claim unless all gates pass | done | Reports 069-080 explicitly preserve no-graduation boundary |
+| G4 | Controls E1-E6 run on the same test set | partial | Reports 075-081 controls are matched where available; full matrix still open |
+| G5 | Report explicitly says no graduation claim unless all gates pass | done | Reports 069-081 explicitly preserve no-graduation boundary |
 
 ## H. Anti-Homunculus Discipline
 
