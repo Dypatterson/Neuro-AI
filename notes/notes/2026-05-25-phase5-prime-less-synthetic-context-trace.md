@@ -11,8 +11,10 @@ tags:
 
 ## Status
 
-Planning note only. No repository experiment has been run from this note. No
-Phase 5 graduation or Delta E claim is made here.
+Report 082 has now run this narrow gate with
+`scene_token_source=replay_observed_context_trace`. The result is diagnostic
+only: no Phase 5 graduation, no Delta E headline, no full matrix, and no M2
+commitment.
 
 ## Anchor
 
@@ -42,8 +44,8 @@ trace.
 
 ## Next diagnostic
 
-Run exactly one narrow context-source discriminator before any full Phase 5'
-matrix:
+The specified narrow context-source discriminator before any full Phase 5'
+matrix is:
 
 ```text
 scene_token_source = replay_observed_context_trace
@@ -125,8 +127,9 @@ Stop and ask before proceeding if the implementation requires any of these:
 
 ## Interpretation
 
-A positive result would strengthen the bundle-first context-completion path by
-showing that Report 081's threshold survives a less-synthetic passive trace
-source. A negative result would localize the current effect to synthetic
-context construction. Either result remains a Phase 5' diagnostic until the
-active Phase 5 spec and checklist criteria are explicitly met or amended.
+Report 082 is a middle result: the signal survives a less-synthetic passive
+trace source versus matched role-negative controls, but drops from Report 081's
+`0.9803` to `0.6762`. That supports continuing the bundle-first path, but it
+also makes the next bounded step artifact/per-seed diagnostics, not a full
+matrix. Any broader claim remains blocked until the active Phase 5 spec and
+checklist criteria are explicitly met or amended.

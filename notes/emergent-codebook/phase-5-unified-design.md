@@ -151,17 +151,19 @@ These are *baselines* against which schema-prior branching is compared.
 
 ### 3. Per-branch settling
 
-Each branch `k` settles the HAM hierarchy with energy biased by its prior `p_k`.
+Each branch `k` settles the HAM hierarchy with logits biased by its prior
+`p_k`. The live Phase 5 implementation uses the per-pattern bias formulation
+closed by Decision 5 below; the earlier global-pull equation is retained only in
+the historical falsifier section.
 
 For layer-1 (the existing Modern Hopfield substrate):
 ```
-E_k(q) = -logsumexp(β · X q*) - γ · Re(⟨q, p_k⟩)
+score_i,k(q) = β · Re(⟨x_i, q⟩) + γ · Re(⟨x_i, p_k⟩)
 ```
 
-where `X` is the stored-pattern matrix, `*` is complex conjugate, and `γ`
-is the prior-weight hyperparameter. The settled state is
-`q_k* = argmin_q E_k(q)` reached by iterated Hopfield retrieval with the
-prior term added to the score.
+where `x_i` is a stored pattern and `γ` is the prior-weight hyperparameter.
+The settled state `q_k*` is reached by iterated Hopfield retrieval with the
+prior term added to each stored-pattern score.
 
 For layer-2 (HAM layer 2): standard HAM retrieval, but with `q_k*` from
 layer-1 as input. The prior `p_k` does not enter layer 2 directly; it
@@ -469,7 +471,7 @@ open menu of mechanisms for current Phase 5' work.
 | 2 | γ (prior weight in per-branch energy). Default 0.5; sweep `{0.0, 0.25, 0.5, 1.0, 2.0}`. | Settled at first experimental run; CPU spike. |
 | 3 | K_main (branches per cue). Default 4; sweep `{2, 4, 8}`. | Settled at first experimental run; compute-cost question, not architectural. |
 | 4 | Bundle re-settle convergence. Verify numerically that the bundled state lands cleanly on an attractor (no oscillation, no high-energy outcome). | Settled at implementation start; ~30-min CPU spike on synthetic cues. |
-| 5 | **Prior formulation: per-pattern bias vs global pull.** The design had internal tension between line 158 (`E_k(q) = -logsumexp(β · X q*) - γ · Re(⟨q, p_k⟩)`, the *global pull* form) and line 164 ("prior term added to the score," the *per-pattern bias* form). | ✅ **CLOSED 2026-05-20 by per-pattern (decision rule #1).** Seed-17 spike on real Phase 4 post-death substrate (W=4, 12 atoms): per-pattern produces ΔE > 0 in **49/50 cues at K=1** (mean +2.6e-5, microscopic but directional) while maintaining alignment 0.997–0.998 across all conditions. Global pull produces ΔE = **−0.027** with role-prior alignment dropping to 0.967 — actively disruptive, not just neutral. The kwarg `formulation` remains in code so the spike is reproducible, but production runs use `per_pattern` exclusively; the spike result lives in `reports/phase5_decision5_local/`. |
+| 5 | **Prior formulation: per-pattern bias vs global pull.** The design had internal tension between the original §3 global-pull equation (`E_k(q) = -logsumexp(β · X q*) - γ · Re(⟨q, p_k⟩)`) and the score-bias implementation wording ("prior term added to the score"). | ✅ **CLOSED 2026-05-20 by per-pattern (decision rule #1).** Seed-17 spike on real Phase 4 post-death substrate (W=4, 12 atoms): per-pattern produces ΔE > 0 in **49/50 cues at K=1** (mean +2.6e-5, microscopic but directional) while maintaining alignment 0.997–0.998 across all conditions. Global pull produces ΔE = **−0.027** with role-prior alignment dropping to 0.967 — actively disruptive, not just neutral. The kwarg `formulation` remains in code so the spike is reproducible, but production runs use `per_pattern` exclusively; the spike result lives in `reports/phase5_decision5_local/`. |
 
 Decision 1 was the architectural blocker. With it closed, decisions 2–4 are
 all addressable during implementation as numerical hyperparameters; decision

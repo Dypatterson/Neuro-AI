@@ -21,7 +21,9 @@ Core commitments:
 - **Contextual completion over token prediction:** the native question is "what
   does this remind the system of, and what fills this unresolved gap?"
 - **Continuous learning:** live experience writes traces; replay consolidates,
-  abstracts, and reshapes the landscape.
+  abstracts, and reshapes the landscape. This is a project principle, not a
+  Phase 5 or Phase 5' evidence claim across multiple domains without an
+  explicit spec and metric.
 - **Latent reasoning:** reasoning should happen in vectors/energy states before
   language is generated.
 - **Energy efficiency:** use compact latent operations, sparse active memory,
@@ -164,7 +166,8 @@ Build:
 
 - Atom metadata: usage, utility, stability, drift, context-bag history.
 - Hebbian success pathway.
-- Error-driven failure pathway.
+- Error-driven learning only in offline/batch reconstruction experiments;
+  runtime online error-driven codebook updates are banned.
 - Local repulsion / anti-collapse dynamics.
 - Decay and budget pressure.
 - Bimodality tracking for later splitting.
@@ -282,4 +285,3 @@ Standing diagnostics:
 3. Finish the Phase 2 static contextual-completion matrix on MPS.
 4. Use Phase 2 results to decide the first Phase 3 codebook-growth objective.
 5. Keep translating every "who decides?" question into a local dynamic.
-

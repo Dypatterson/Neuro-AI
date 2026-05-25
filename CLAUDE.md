@@ -145,8 +145,9 @@ code, and before recommending an approach:
    paper-backed mechanism as new. In this checkout, load-bearing research
    context lives in dated notes under [notes/notes/](notes/notes/) and in
    task-local research briefs under [brainstorm-workspace/](brainstorm-workspace/).
-   There is no canonical root `research/` or `tmp/pdf_text/` directory here;
-   older references to those paths are historical extraction-path breadcrumbs.
+   There is no canonical root `research/`, `tmp_pdf_text/`, or `tmp/pdf_text/`
+   directory here; older references to those paths are historical
+   extraction-path breadcrumbs.
 
 Do not assume a design from first principles when a design document exists.
 If you find a relevant note partway through implementation, stop, read it,

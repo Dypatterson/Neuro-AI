@@ -129,9 +129,11 @@ spec and checklist are updated and n>=10 controls pass.
 ## Next Context-Source Gate
 
 Reports 075-081 identify a strong context-completion operating point, but Report
-081 still builds the trace from generated scene contents. Before any full matrix,
-the next discriminator is the narrow less-synthetic context-source gate specified
-in [2026-05-25-phase5-prime-less-synthetic-context-trace.md](../notes/2026-05-25-phase5-prime-less-synthetic-context-trace.md).
+081 still builds the trace from generated scene contents. Report 082 runs the
+narrow less-synthetic context-source gate specified in
+[2026-05-25-phase5-prime-less-synthetic-context-trace.md](../notes/2026-05-25-phase5-prime-less-synthetic-context-trace.md)
+with a replay-observed passive trace source. It is positive against controls but
+degraded relative to Report 081, so it does not justify a full matrix yet.
 
 Keep the Report 081 hard cell fixed:
 
@@ -142,7 +144,9 @@ context_roles=4, scene_token_weight=0.25
 
 The source must be replay-derived, trajectory-derived, learned, or naturally
 observed. If the passive trace source lacks enough support, report that support
-deficit instead of falling back to direct generated-scene context.
+deficit instead of falling back to direct generated-scene context. After Report
+082, the next bounded action is preserving raw runtime evidence and inspecting
+per-seed entropy/margin diagnostics before widening coverage.
 
 ## Required Controls
 

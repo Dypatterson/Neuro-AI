@@ -285,7 +285,9 @@ Current exit-status framing is stricter than this original readout headline.
 The 2026-05-16 metric-discipline note and Phase 4 checklist promote D1
 (`Delta meta_stable_w3` at the integration regime) as the substrate-pure Phase
 4 headline; Recall@K and cap-coverage are retained as drill-downs. Report 038
-is the Phase 4 graduation evidence for D1.
+is the Phase 4 graduation evidence for D1. Do not revive the original
+Recall@K/cap-coverage readout as the active Phase 4 headline without an
+explicit spec/checklist amendment.
 
 The drift simulates Phase 3's continuous codebook updates. With drift but
 without replay, stored patterns become stale and accuracy degrades. With
@@ -297,9 +299,9 @@ chains.
 empirical regression in `reports/phase34_stable_v2/findings.md` and
 `reports/phase34_hebbian/findings.md` confirmed that online error-driven
 contrastive updates are unsafe regardless of init. Runtime online error-driven
-updates are banned, not merely deprecated. Error-driven learning belongs only in
-offline/batch passes. The codebook drift that Phase 4 is built to handle does
-*not* come from an online error-driven updater running in the streaming loop.
+updates are banned. Error-driven learning belongs only in offline/batch passes.
+The codebook drift that Phase 4 is built to handle does *not* come from an
+online error-driven updater running in the streaming loop.
 The sanctioned drift sources are:
 
 1. **Periodic batch retrains** of the codebook (offline) — e.g., running
