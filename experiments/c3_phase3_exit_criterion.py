@@ -69,6 +69,11 @@ from energy_memory.phase3.regime_diagnostic import (
     compute_codebook_regime_diagnostics,
 )
 from energy_memory.phase3.theta_prime_calibration import load_theta_prime_calibration
+from energy_memory.phase34.online_codebook import OnlineCodebookUpdater
+from energy_memory.phase4.consolidation import (
+    ConsolidationConfig,
+    ConsolidationState,
+)
 from energy_memory.substrate.torch_fhrr import TorchFHRR
 
 
@@ -76,6 +81,37 @@ from energy_memory.substrate.torch_fhrr import TorchFHRR
 
 STRATA = ("tight", "spread", "borderline")
 THETA_PRIME_MODES = ("default", "calibrated")
+STANDARD_MODES = ("random", "consolidated")
+
+# C.2 consolidation defaults for `--standard-mode consolidated` (per task spec):
+#   C.2.1  anti-collapse force:              lambda_ac      = 0.5
+#   C.2.2  splitting-tension modulation:     mu_T, tau_T    = 0.1, 0.5
+#   C.2.3  cap-coverage gradient:            lambda_cc      = 0.5
+#                                            theta_cc       = 0.5
+#                                            tau_cc         = 0.1
+#   C.2.4  metastability replay-priority:    metastability_obs_rate = 0.1
+#                                            (metastability_gain / replay_decay
+#                                             only affect REPLAY priority — they
+#                                             have no effect here because this
+#                                             driver does not run replay; the
+#                                             EMA is still updated so the
+#                                             dynamic is observable.)
+#   C.2.5  drift replay-tension:             drift_ema_rate = 0.1
+#                                            drift_replay_gain = 1.0
+#                                            (gain affects replay priority only.)
+C2_DEFAULTS = {
+    "lambda_ac": 0.5,
+    "mu_T": 0.1,
+    "tau_T": 0.5,
+    "lambda_cc": 0.5,
+    "theta_cc": 0.5,
+    "tau_cc": 0.1,
+    "metastability_obs_rate": 0.1,
+    "metastability_gain": 2.0,             # observed-only here (replay-store knob)
+    "metastability_replay_decay": 0.5,     # observed-only here (replay-store knob)
+    "drift_ema_rate": 0.1,
+    "drift_replay_gain": 1.0,              # observed-only here (replay-store knob)
+}
 
 
 # Synthetic corpus -------------------------------------------------------------
@@ -262,6 +298,170 @@ def _wilson(successes: int, trials: int) -> Tuple[float, float, float]:
     return (successes / trials, lo, hi)
 
 
+# Consolidation orchestrator wiring (C.2 dynamics) ----------------------------
+
+def _build_consolidation_state(
+    *,
+    vocab_size: int,
+    device: str,
+) -> ConsolidationState:
+    """Build a ConsolidationState with all 5 C.2 dynamics turned on.
+
+    Constants come from ``C2_DEFAULTS`` (the task spec's modest values).
+    ``add_pattern()`` is called ``vocab_size`` times so per-atom slots
+    (splitting_tension, drift_tension, metastability_ema) are sized to
+    the codebook. The actuator-side semantics here treat each codebook
+    atom as a "pattern" — the same conflation used in
+    ``tests/test_drift_replay_tension.py`` where the C.2 actuators are
+    exercised at the per-atom slot level.
+    """
+    cfg = ConsolidationConfig(
+        # C.2.1
+        lambda_ac=C2_DEFAULTS["lambda_ac"],
+        # C.2.2
+        mu_T=C2_DEFAULTS["mu_T"],
+        tau_T=C2_DEFAULTS["tau_T"],
+        # C.2.3
+        lambda_cc=C2_DEFAULTS["lambda_cc"],
+        theta_cc=C2_DEFAULTS["theta_cc"],
+        tau_cc=C2_DEFAULTS["tau_cc"],
+        # C.2.4 — observed only (replay-store knobs not applicable here).
+        metastability_obs_rate=C2_DEFAULTS["metastability_obs_rate"],
+        # C.2.5
+        drift_ema_rate=C2_DEFAULTS["drift_ema_rate"],
+        drift_replay_gain=C2_DEFAULTS["drift_replay_gain"],
+    )
+    state = ConsolidationState(cfg, device=device)
+    for _ in range(vocab_size):
+        state.add_pattern(novelty_strength=1.0)
+    return state
+
+
+def _consolidate_codebook(
+    *,
+    substrate: TorchFHRR,
+    codebook: torch.Tensor,
+    positions: Sequence,
+    landscape_windows: Sequence[Tuple[int, ...]],
+    memory: TorchHopfieldMemory[str],
+    train_windows: Sequence[Tuple[int, ...]],
+    window_size: int,
+    beta: float,
+    vocab_size: int,
+    n_events: int,
+    device: str,
+    consolidation_k: int = 100,
+    quality_threshold: float = 0.15,
+    lr_pull: float = 0.1,
+    lr_push: float = 0.05,
+) -> Tuple[torch.Tensor, ConsolidationState, OnlineCodebookUpdater, dict]:
+    """Run ``n_events`` consolidation observations over training windows.
+
+    For each event:
+      1. Sample a training window and mask its last position (matches
+         the test-time evaluation protocol).
+      2. Encode the masked cue with a mask placeholder vector.
+      3. Hopfield-retrieve the settled state at the given β.
+      4. Unbind the masked position → slot_query.
+      5. Compute predicted_id = argmax(sim(slot_query, codebook)).
+      6. Append a basin-trace tuple ``(settled_state, predicted_id)`` to
+         the C.2.1 substrate buffer so the next consolidation can see
+         basin-geometry signals.
+      7. Call ``state.update_metastability(metastability_contribution)``
+         (C.2.4 EMA — observed only here since no replay is running).
+      8. Call ``updater.observe(target_id, slot_query, predicted_id)``;
+         when the buffer fills, ``consolidate_if_ready()`` fires all
+         five C.2 dynamics (pull/push + anti-collapse + cap-coverage +
+         splitting-tension + drift-EMA).
+
+    Returns ``(consolidated_codebook, state, updater, stats)``.
+    """
+    state = _build_consolidation_state(vocab_size=vocab_size, device=device)
+    updater = OnlineCodebookUpdater(
+        substrate=substrate,
+        codebook=codebook,
+        lr_pull=lr_pull,
+        lr_push=lr_push,
+        consolidation_k=consolidation_k,
+        quality_threshold=quality_threshold,
+        consolidation_state=state,
+    )
+
+    masked_idx = window_size - 1
+    mask_id = vocab_size  # out-of-vocab sentinel — same convention as eval
+    mask_vector = substrate.random_vector()
+    extended_codebook = [codebook[i] for i in range(vocab_size)] + [mask_vector]
+
+    n_train = len(train_windows)
+    consolidation_events = 0
+    observations_made = 0
+
+    for event_idx in range(n_events):
+        window = train_windows[event_idx % n_train]
+        true_token = window[masked_idx]
+
+        cue_window = list(window)
+        cue_window[masked_idx] = mask_id
+
+        terms = []
+        for pos_idx, tok_id in enumerate(cue_window):
+            terms.append(
+                substrate.bind(positions[pos_idx], extended_codebook[tok_id])
+            )
+        cue = substrate.bundle(terms)
+
+        result = memory.retrieve(cue, beta=beta, max_iter=12)
+        slot_query = substrate.unbind(result.state, positions[masked_idx])
+
+        # Predicted atom: argmax sim across codebook (uses current,
+        # possibly already-updated codebook — that's intended; observe()
+        # is the substrate-coupled signal).
+        scores = substrate.similarity_matrix(slot_query, codebook)
+        predicted_id = int(scores.argmax().detach().cpu())
+
+        # C.2.1/2.2/2.3 substrate primitive — feed the basin buffer.
+        state.record_retrieval(result.state, predicted_id)
+
+        # C.2.4 metastability EMA (observed only — gates replay priority
+        # in production, no effect in this driver since we don't replay).
+        if result.metastability_contribution is not None:
+            try:
+                state.update_metastability(result.metastability_contribution)
+            except Exception:
+                # If the contribution shape disagrees with n_patterns (e.g.
+                # contributor was computed against Hopfield pattern set, not
+                # codebook), silently skip — we already have C.2.1/2.2/2.3/
+                # 2.5 wired. Don't fail consolidation on a non-load-bearing
+                # diagnostic.
+                pass
+
+        observations_made += 1
+        if updater.observe(
+            target_id=int(true_token),
+            slot_query=slot_query,
+            predicted_id=predicted_id,
+        ):
+            diag = updater.consolidate_if_ready()
+            if diag is not None:
+                consolidation_events += 1
+
+    # Force one final consolidation if there's anything buffered.
+    final_diag = updater.force_consolidate()
+    if final_diag is not None:
+        consolidation_events += 1
+
+    stats = {
+        "n_events_requested": int(n_events),
+        "observations_made": int(observations_made),
+        "consolidations_fired": int(consolidation_events),
+        "buffered_at_end": int(updater.stats()["buffer_size"]),
+        "total_failures": int(updater.stats()["total_failures"]),
+        "failure_rate": float(updater.stats()["failure_rate"]),
+        "c2_config": dict(C2_DEFAULTS),
+    }
+    return codebook, state, updater, stats
+
+
 # Run loop ---------------------------------------------------------------------
 
 def _run_single_seed_condition(
@@ -269,6 +469,8 @@ def _run_single_seed_condition(
     seed: int,
     is_control: bool,
     theta_prime_mode: str,
+    standard_mode: str,
+    n_consolidation_events: int,
     D: int,
     landscape_size: int,
     window_size: int,
@@ -335,8 +537,45 @@ def _run_single_seed_condition(
             label=f"window_{index}",
         )
 
-    # Compute regime diagnostics on this codebook.
+    # Compute regime diagnostics on the *initial* (pre-consolidation)
+    # codebook. For ``random`` standard-mode this is the only diagnostic.
+    # For ``consolidated`` standard-mode this is the BEFORE snapshot.
     theta_fn, theta_info = _build_theta_prime_fn(theta_prime_mode, repo_root)
+    regime_diag_before: CodebookRegimeDiagnostics = (
+        compute_codebook_regime_diagnostics(
+            codebook,
+            k_nn=min(8, vocab_size - 1),
+            beta=beta,
+            theta_prime_fn=theta_fn,
+        )
+    )
+
+    # Phase 3 consolidation pass (standard condition only, when enabled).
+    # The control gets a fresh random codebook by construction.
+    consolidation_stats: Optional[Dict[str, object]] = None
+    if (not is_control) and standard_mode == "consolidated":
+        # Consolidation training corpus: drawn from the training pool but
+        # disjoint from the landscape (already memorized) and from the
+        # test windows (drawn from the corpus RNG after train). Slice
+        # train_windows[landscape_size:] to guarantee train != landscape;
+        # corpus_rng has already advanced past these for test_windows.
+        cons_train = list(train_windows[landscape_size:]) or list(train_windows)
+        codebook, _cstate, _cupd, consolidation_stats = _consolidate_codebook(
+            substrate=substrate,
+            codebook=codebook,
+            positions=positions,
+            landscape_windows=landscape_windows,
+            memory=memory,
+            train_windows=cons_train,
+            window_size=window_size,
+            beta=beta,
+            vocab_size=vocab_size,
+            n_events=n_consolidation_events,
+            device=device,
+        )
+
+    # Recompute regime diagnostics on the (possibly consolidated) codebook
+    # — this is the *evaluation-time* codebook regime.
     regime_diag: CodebookRegimeDiagnostics = compute_codebook_regime_diagnostics(
         codebook, k_nn=min(8, vocab_size - 1), beta=beta, theta_prime_fn=theta_fn,
     )
@@ -364,10 +603,21 @@ def _run_single_seed_condition(
         "seed": seed,
         "substrate_seed": substrate_seed,
         "is_control": is_control,
+        "standard_mode": standard_mode,
         "theta_prime_mode": theta_prime_mode,
         "theta_prime_info": theta_info,
+        # Evaluation-time regime (after consolidation if applied; else
+        # identical to "before").
         "regime_counts": dict(regime_diag.regime_counts),
         "regime_summary": regime_diag.summary,
+        # Pre-consolidation regime — for the consolidated standard
+        # condition, lets us see whether the C.2 dynamics moved any
+        # atoms out of 'spread' into 'tight' / 'borderline'.
+        "regime_counts_before_consolidation": dict(
+            regime_diag_before.regime_counts
+        ),
+        "regime_summary_before_consolidation": regime_diag_before.summary,
+        "consolidation_stats": consolidation_stats,
         "per_stratum": {
             stratum: {
                 "successes": int(s),
@@ -392,6 +642,8 @@ def run(
     k: int,
     beta: float,
     theta_prime_mode: str,
+    standard_mode: str = "consolidated",
+    n_consolidation_events: int = 1000,
     device: str,
     output_dir: Path,
     repo_root: Path,
@@ -420,6 +672,8 @@ def run(
                     seed=seed,
                     is_control=is_control,
                     theta_prime_mode=mode,
+                    standard_mode=standard_mode,
+                    n_consolidation_events=n_consolidation_events,
                     D=D,
                     landscape_size=landscape_size,
                     window_size=window_size,
@@ -500,6 +754,13 @@ def run(
                 "completion vs. genuine shuffled-token control"
             ),
             "graduation_gate_n_seeds": 10,
+            "standard_mode": standard_mode,
+            "n_consolidation_events": (
+                n_consolidation_events if standard_mode == "consolidated" else 0
+            ),
+            "c2_config": (
+                dict(C2_DEFAULTS) if standard_mode == "consolidated" else None
+            ),
             "operating_point": {
                 "D": D,
                 "landscape_size": landscape_size,
@@ -559,6 +820,16 @@ def _format_markdown(summary: dict) -> str:
     lines.append(f"- K = `{op['K']}`")
     lines.append(f"- seeds = `{header['seeds']}`")
     lines.append(f"- theta_prime_modes = `{header['theta_prime_modes_run']}`")
+    lines.append(
+        f"- standard_mode = `{header.get('standard_mode', 'random')}`"
+    )
+    if header.get("standard_mode") == "consolidated":
+        lines.append(
+            f"- n_consolidation_events = `{header['n_consolidation_events']}`"
+        )
+        lines.append(
+            f"- C.2 dynamics config = `{header.get('c2_config')}`"
+        )
     lines.append(f"- device = `{header['device']}`")
     lines.append(f"- wall_clock = `{header['wall_clock_seconds']:.1f}s`")
     lines.append("")
@@ -604,6 +875,34 @@ def _format_markdown(summary: dict) -> str:
         "agree numerically at this β."
     )
     lines.append("")
+    # Regime BEFORE vs AFTER consolidation — only meaningful for the
+    # consolidated standard condition.
+    if header.get("standard_mode") == "consolidated":
+        lines.append("## Regime distribution BEFORE vs AFTER consolidation (STD rows only)")
+        lines.append("")
+        lines.append(
+            "| Seed | Mode | Before (t/s/b) | After (t/s/b) | "
+            "Δtight | Δspread | Δborderline | cons fired |"
+        )
+        lines.append("|---:|---|---|---|---:|---:|---:|---:|")
+        for row in summary["per_cell_rows"]:
+            if row["is_control"]:
+                continue
+            rb = row.get("regime_counts_before_consolidation", {})
+            ra = row.get("regime_counts", {})
+            cs = row.get("consolidation_stats") or {}
+            d_tight = ra.get("tight", 0) - rb.get("tight", 0)
+            d_spread = ra.get("spread", 0) - rb.get("spread", 0)
+            d_border = ra.get("borderline", 0) - rb.get("borderline", 0)
+            lines.append(
+                f"| {row['seed']} | {row['theta_prime_mode']} | "
+                f"{rb.get('tight',0)}/{rb.get('spread',0)}/{rb.get('borderline',0)} | "
+                f"{ra.get('tight',0)}/{ra.get('spread',0)}/{ra.get('borderline',0)} | "
+                f"{d_tight:+d} | {d_spread:+d} | {d_border:+d} | "
+                f"{cs.get('consolidations_fired', 0)} |"
+            )
+        lines.append("")
+
     lines.append("## Per-cell rows (per-seed)")
     lines.append("")
     lines.append(
@@ -643,6 +942,15 @@ def _format_stdout_table(summary: dict) -> str:
         f"vocab={header['operating_point']['vocab_size']} "
         f"test_windows={header['operating_point']['n_test_windows']} "
         f"K={header['operating_point']['K']} β={header['operating_point']['beta']}"
+    )
+    sm = header.get("standard_mode", "random")
+    lines.append(
+        f"standard_mode={sm}"
+        + (
+            f"  n_consolidation_events={header['n_consolidation_events']}"
+            if sm == "consolidated"
+            else ""
+        )
     )
     for mode in header["theta_prime_modes_run"]:
         lines.append(f"\n  theta_prime_mode = {mode}")
@@ -710,6 +1018,30 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         choices=["default", "calibrated", "both"],
         default="both",
     )
+    parser.add_argument(
+        "--standard-mode",
+        choices=list(STANDARD_MODES),
+        default="consolidated",
+        help=(
+            "Composition of the 'standard' (non-control) condition's "
+            "codebook. 'random' = fresh random codebook (the existing "
+            "smoke / backward-compat behavior — methodology gap noted in "
+            "the 2026-05-26 C.3 partial smoke). 'consolidated' = run "
+            "Phase 3 consolidation orchestrator (OnlineCodebookUpdater + "
+            "ConsolidationState with all 5 C.2 dynamics on) over "
+            "--n-consolidation-events retrievals, then evaluate."
+        ),
+    )
+    parser.add_argument(
+        "--n-consolidation-events",
+        type=int,
+        default=1000,
+        help=(
+            "Number of training-window retrievals to drive through the "
+            "consolidation orchestrator before evaluating "
+            "(--standard-mode consolidated only)."
+        ),
+    )
     parser.add_argument("--device", default="cpu")
     parser.add_argument(
         "--output-dir",
@@ -742,6 +1074,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         k=args.K,
         beta=args.beta,
         theta_prime_mode=args.theta_prime_mode,
+        standard_mode=args.standard_mode,
+        n_consolidation_events=args.n_consolidation_events,
         device=args.device,
         output_dir=output_dir,
         repo_root=repo_root,

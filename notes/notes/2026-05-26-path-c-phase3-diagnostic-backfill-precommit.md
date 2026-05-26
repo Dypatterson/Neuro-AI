@@ -578,6 +578,117 @@ instrumentation) + C.2 ✓ (diagnostic-as-actuator) + C.3 PARTIAL
 (scaffolding done; experimental design needs two fixes before n≥10
 graduation). **Phase 5′ remains paused.**
 
+### 2026-05-26 — C.3 second smoke (consolidated standard + extended calibration): substantive NULL
+
+After the first smoke's methodology gaps were partially closed
+(calibration grid extended to β ∈ {0.01, 0.1, 1.0, 3, 10, 30, 100}
+and Phase 3 consolidation wired into the standard condition with all
+five C.2.x dynamics on at modest values), the n=3 smoke produced a
+**substantive null result** on the Phase 3 exit criterion at the
+Phase 2 operating point (D=4096, β=10, vocab=200, n_consolidation_events=1000,
+1137s wall on CPU).
+
+**Calibration extension landed cleanly:**
+- β=10 empirical θ′ = 0.99 (vs 1/β=0.1) → ~10× larger; classifies most
+  atoms as `tight` instead of `spread`.
+- The calibrated regime classifier produces dramatically different
+  results from default at the Phase 2 operating point.
+
+**Substantive findings from the n=3 consolidated smoke:**
+
+1. **Consolidation produces measurable structural change.** Regime
+   distribution shifts under calibrated θ′: random codebook is 0/200/0
+   (tight/spread/borderline); consolidated codebook is 174-193/7-26/0.
+   ~90% of atoms re-classify from `spread` to `tight` after 1000
+   consolidation events. **The Path C C.2 dynamics measurably reshape
+   the codebook's geometry.**
+
+2. **Consolidation does NOT improve overall held-out Recall@K.**
+   Pooled across 3 seeds: standard 0.023 vs control 0.032, Δ = −0.009.
+   Wrong direction; consolidation appears to slightly degrade overall
+   retrieval at this configuration.
+
+3. **The headline's "CI-disjoint in `tight` stratum" is a
+   methodological artifact (error worth recording).** Standard mode
+   shows `tight` Recall@K 0.022 [0.013, 0.039] vs control `tight`
+   0.000 [0.000, 0.000], "disjoint=YES." But the control's `tight`
+   stratum has zero trials — random codebooks have no `tight` atoms
+   by construction. A Wilson CI on 0/0 = [0,0] is degenerate; any
+   positive number trivially "beats" it. The apparent CI-disjointness
+   is NOT a real signal.
+
+**Two methodological errors recorded for this null finding:**
+
+- **Error 1: degenerate stratified comparison.** When the control's
+  stratum has zero trials, the stratified comparison cannot produce
+  meaningful evidence either way. Future C.3 runs must either: (a)
+  use a control that populates the same regime strata as the standard
+  condition (which requires the control to ALSO run consolidation,
+  contradicting the "no-training" framing), or (b) report only on
+  strata where both standard and control have populated trials.
+- **Error 2: shuffled-control conflation.** The C.3 driver's
+  "shuffled control" is actually a *no-consolidation control* (fresh
+  random codebook, no training pipeline). The proper Phase 3
+  shuffled-token control per [`phase-3-deep-dive.md:217-218`](../emergent-codebook/phase-3-deep-dive.md)
+  runs the SAME training pipeline (consolidation) with **random
+  token-to-hypervector assignment**. The current control conflates
+  "did training help?" with "did the substrate ever see the corpus?"
+  — a weaker comparison than the spec calls for.
+
+**Interpretation of the null:**
+
+Path C built a principled diagnostic-as-actuator framework. The
+framework's anti-homunculus properties verified (5 reviewer PASSes
++ 19 binding watch-edges held). The framework PRODUCES measurable
+structural change in the codebook (regime distribution shifts).
+**But the structural change does NOT translate to improved held-out
+Recall@K at the Phase 2 operating point.** Specifically: atoms move
+from `spread` to `tight` regime — i.e., inter-atom distances
+*decrease* under consolidation. This is **composition collapse** at
+the inter-atom level (not within-basin collapse, which C.2.1
+specifically prevents). The 2026-05-09 reformulation's full
+prescription was "bounded non-zero within-basin variability **while
+preserving inter-basin separability**." C.2.1–C.2.5 address the first
+half; the second half — inter-atom separability — is governed by
+`alpha_anti`, which **defaulted to 0.0** during this smoke (audit
+§4.1 noted alpha_anti is "wired but underspecified").
+
+**The audit's §4.3 hypothesis ("regime stratification + correct
+calibration would reveal hidden signal Report 017 missed") is
+falsified at this operating point and configuration.** Regime
+classification *is* dramatically different under calibrated θ′, but
+the classification doesn't carry retrieval signal because composition
+collapse erases the inter-atom separability the regime test depends
+on.
+
+**Path C closure as of 2026-05-26:** C.1 ✓, C.2 ✓, **C.3 produces a
+substantive null at the Phase 2 operating point and current C.2
+configuration**. The Phase 3 exit criterion is NOT met; Phase 3 does
+not graduate. Phase 5′ remains paused.
+
+### Recommended next path
+
+The composition-collapse finding points at a clean, well-scoped next
+experiment: **C.3 re-run with `alpha_anti` enabled** (the existing
+TorchFHRR inter-atom repulsion mechanism, audit §4.1 [F] gap), plus
+the proper shuffled-token control fix per Error 2 above. This tests
+two hypotheses simultaneously:
+
+1. **(Mechanism)** Does inter-atom anti-repulsion (`alpha_anti > 0`)
+   preserve separability under the C.2 dynamics, allowing the
+   structural change to translate to retrieval improvement?
+2. **(Methodology)** Does the proper shuffled-token-with-consolidation
+   control produce a meaningful comparison (vs the current
+   no-consolidation control)?
+
+If this iteration ALSO produces a null, Phase 3 graduation at this
+operating point is genuinely unreachable and the project needs to
+pivot — either to a different operating point (WikiText-2 scale, β
+sweep, different L/W), or to an entirely different Phase 3 mechanism
+design.
+
+If this iteration produces signal, escalate to n=10 graduation.
+
 ---
 
 **Cross-cutting binding findings for C.2 and C.3:**

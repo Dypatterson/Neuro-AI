@@ -235,11 +235,13 @@ def _empirical_theta_prime(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--betas", type=str, default="0.01,0.1,1.0")
+    parser.add_argument(
+        "--betas", type=str, default="0.01,0.1,1.0,3.0,10.0,30.0,100.0"
+    )
     parser.add_argument(
         "--d-bar-grid",
         type=str,
-        default="0.05,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9",
+        default="0.05,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,0.93,0.96,0.99",
     )
     parser.add_argument("--d-eff", type=float, default=8.0)
     parser.add_argument("--n-clusters-per-cell", type=int, default=50)

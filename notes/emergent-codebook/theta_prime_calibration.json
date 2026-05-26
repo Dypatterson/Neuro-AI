@@ -9,7 +9,11 @@
     "betas": [
       0.01,
       0.1,
-      1.0
+      1.0,
+      3.0,
+      10.0,
+      30.0,
+      100.0
     ],
     "d_bar_grid": [
       0.05,
@@ -21,9 +25,12 @@
       0.6,
       0.7,
       0.8,
-      0.9
+      0.9,
+      0.93,
+      0.96,
+      0.99
     ],
-    "wall_clock_seconds": 8.480741024017334,
+    "wall_clock_seconds": 27.97788906097412,
     "device": "mps"
   },
   "calibration": {
@@ -39,7 +46,10 @@
         "0.6": 0.02,
         "0.7": 0.02,
         "0.8": 0.02,
-        "0.9": 0.02
+        "0.9": 0.02,
+        "0.93": 0.02,
+        "0.96": 0.02,
+        "0.99": 0.02
       },
       "cells": {
         "0.05": {
@@ -121,6 +131,30 @@
           "success_rate": 0.02,
           "n_clusters": 50,
           "sigma_used": 1.7705907181677096
+        },
+        "0.93": {
+          "target_d_bar": 0.93,
+          "achieved_d_bar_mean": 0.9314569044113159,
+          "achieved_d_eff_mean": 13.448251914978027,
+          "success_rate": 0.02,
+          "n_clusters": 50,
+          "sigma_used": 1.9758925541651073
+        },
+        "0.96": {
+          "target_d_bar": 0.96,
+          "achieved_d_bar_mean": 0.9576026129722596,
+          "achieved_d_eff_mean": 13.99869421005249,
+          "success_rate": 0.02,
+          "n_clusters": 50,
+          "sigma_used": 2.2153042700761216
+        },
+        "0.99": {
+          "target_d_bar": 0.99,
+          "achieved_d_bar_mean": 0.989803456068039,
+          "achieved_d_eff_mean": 14.755809803009033,
+          "success_rate": 0.02,
+          "n_clusters": 50,
+          "sigma_used": 2.885746486053269
         }
       },
       "boundary_above_grid": false,
@@ -129,104 +163,257 @@
     "0.1": {
       "theta_prime": 0.05,
       "success_curve": {
-        "0.05": 0.32,
-        "0.1": 0.3,
-        "0.2": 0.1,
-        "0.3": 0.04,
-        "0.4": 0.2,
-        "0.5": 0.1,
-        "0.6": 0.2,
-        "0.7": 0.06,
-        "0.8": 0.02,
-        "0.9": 0.04
+        "0.05": 0.04,
+        "0.1": 0.34,
+        "0.2": 0.2,
+        "0.3": 0.26,
+        "0.4": 0.1,
+        "0.5": 0.04,
+        "0.6": 0.12,
+        "0.7": 0.08,
+        "0.8": 0.04,
+        "0.9": 0.02,
+        "0.93": 0.02,
+        "0.96": 0.02,
+        "0.99": 0.02
       },
       "cells": {
         "0.05": {
           "target_d_bar": 0.05,
-          "achieved_d_bar_mean": 0.05151268869638443,
-          "achieved_d_eff_mean": 5.343220348358154,
-          "success_rate": 0.32,
+          "achieved_d_bar_mean": 0.04769214048981667,
+          "achieved_d_eff_mean": 5.313235445022583,
+          "success_rate": 0.04,
           "n_clusters": 50,
-          "sigma_used": 0.23263929149297624
+          "sigma_used": 0.22280390182051635
         },
         "0.1": {
           "target_d_bar": 0.1,
-          "achieved_d_bar_mean": 0.10158162370324135,
-          "achieved_d_eff_mean": 5.607651119232178,
-          "success_rate": 0.3,
+          "achieved_d_bar_mean": 0.09885796710848808,
+          "achieved_d_eff_mean": 5.525365800857544,
+          "success_rate": 0.34,
           "n_clusters": 50,
-          "sigma_used": 0.33220844117673975
+          "sigma_used": 0.3220704728614009
         },
         "0.2": {
           "target_d_bar": 0.2,
-          "achieved_d_bar_mean": 0.20184120982885362,
-          "achieved_d_eff_mean": 6.009421491622925,
-          "success_rate": 0.1,
+          "achieved_d_bar_mean": 0.19003858625888825,
+          "achieved_d_eff_mean": 5.910617446899414,
+          "success_rate": 0.2,
           "n_clusters": 50,
-          "sigma_used": 0.4773949887054524
+          "sigma_used": 0.4656274617098896
         },
         "0.3": {
           "target_d_bar": 0.3,
-          "achieved_d_bar_mean": 0.2859003508090973,
-          "achieved_d_eff_mean": 6.503121395111084,
-          "success_rate": 0.04,
+          "achieved_d_bar_mean": 0.3086271637678146,
+          "achieved_d_eff_mean": 6.571134567260742,
+          "success_rate": 0.26,
           "n_clusters": 50,
-          "sigma_used": 0.5954197820395799
+          "sigma_used": 0.6249520227769966
         },
         "0.4": {
           "target_d_bar": 0.4,
-          "achieved_d_bar_mean": 0.41222618699073793,
-          "achieved_d_eff_mean": 7.260802183151245,
-          "success_rate": 0.2,
+          "achieved_d_bar_mean": 0.3981537401676178,
+          "achieved_d_eff_mean": 7.033875818252564,
+          "success_rate": 0.1,
           "n_clusters": 50,
-          "sigma_used": 0.7479379973931369
+          "sigma_used": 0.7414023971290178
         },
         "0.5": {
           "target_d_bar": 0.5,
-          "achieved_d_bar_mean": 0.5030364578962326,
-          "achieved_d_eff_mean": 7.910501890182495,
-          "success_rate": 0.1,
+          "achieved_d_bar_mean": 0.4873895299434662,
+          "achieved_d_eff_mean": 7.873682727813721,
+          "success_rate": 0.04,
           "n_clusters": 50,
-          "sigma_used": 0.8740206589489761
+          "sigma_used": 0.8570479668791807
         },
         "0.6": {
           "target_d_bar": 0.6,
-          "achieved_d_bar_mean": 0.6031488835811615,
-          "achieved_d_eff_mean": 8.814693126678467,
-          "success_rate": 0.2,
+          "achieved_d_bar_mean": 0.5966739541292191,
+          "achieved_d_eff_mean": 8.732955656051637,
+          "success_rate": 0.12,
           "n_clusters": 50,
-          "sigma_used": 1.024022197850032
+          "sigma_used": 1.007308734475001
         },
         "0.7": {
           "target_d_bar": 0.7,
-          "achieved_d_bar_mean": 0.708684322834015,
-          "achieved_d_eff_mean": 9.860492095947265,
-          "success_rate": 0.06,
+          "achieved_d_bar_mean": 0.6727503263950347,
+          "achieved_d_eff_mean": 9.463310413360595,
+          "success_rate": 0.08,
           "n_clusters": 50,
-          "sigma_used": 1.2113398198441445
+          "sigma_used": 1.1349499004455352
         },
         "0.8": {
           "target_d_bar": 0.8,
-          "achieved_d_bar_mean": 0.785069899559021,
-          "achieved_d_eff_mean": 11.044550018310547,
-          "success_rate": 0.02,
+          "achieved_d_bar_mean": 0.8274719274044037,
+          "achieved_d_eff_mean": 11.58190170288086,
+          "success_rate": 0.04,
           "n_clusters": 50,
-          "sigma_used": 1.3766772639730225
+          "sigma_used": 1.4835097079478414
         },
         "0.9": {
           "target_d_bar": 0.9,
-          "achieved_d_bar_mean": 0.8867836880683899,
-          "achieved_d_eff_mean": 12.551619548797607,
-          "success_rate": 0.04,
+          "achieved_d_bar_mean": 0.8814381897449494,
+          "achieved_d_eff_mean": 12.426138782501221,
+          "success_rate": 0.02,
           "n_clusters": 50,
-          "sigma_used": 1.70646546831942
+          "sigma_used": 1.6846093247355707
+        },
+        "0.93": {
+          "target_d_bar": 0.93,
+          "achieved_d_bar_mean": 0.9333632278442383,
+          "achieved_d_eff_mean": 13.467484226226807,
+          "success_rate": 0.02,
+          "n_clusters": 50,
+          "sigma_used": 1.952726733569973
+        },
+        "0.96": {
+          "target_d_bar": 0.96,
+          "achieved_d_bar_mean": 0.9635718595981598,
+          "achieved_d_eff_mean": 14.134546604156494,
+          "success_rate": 0.02,
+          "n_clusters": 50,
+          "sigma_used": 2.2644483168125102
+        },
+        "0.99": {
+          "target_d_bar": 0.99,
+          "achieved_d_bar_mean": 0.9912456345558166,
+          "achieved_d_eff_mean": 14.791234302520753,
+          "success_rate": 0.02,
+          "n_clusters": 50,
+          "sigma_used": 2.997473178596776
         }
       },
       "boundary_above_grid": false,
       "boundary_below_grid": true
     },
     "1.0": {
-      "theta_prime": 0.9,
+      "theta_prime": 0.93,
+      "success_curve": {
+        "0.05": 1.0,
+        "0.1": 1.0,
+        "0.2": 1.0,
+        "0.3": 1.0,
+        "0.4": 1.0,
+        "0.5": 1.0,
+        "0.6": 1.0,
+        "0.7": 0.88,
+        "0.8": 0.96,
+        "0.9": 0.7,
+        "0.93": 0.4,
+        "0.96": 0.42,
+        "0.99": 0.12
+      },
+      "cells": {
+        "0.05": {
+          "target_d_bar": 0.05,
+          "achieved_d_bar_mean": 0.056012782454490664,
+          "achieved_d_eff_mean": 5.3681634998321535,
+          "success_rate": 1.0,
+          "n_clusters": 50,
+          "sigma_used": 0.24009385494280303
+        },
+        "0.1": {
+          "target_d_bar": 0.1,
+          "achieved_d_bar_mean": 0.10093565180897712,
+          "achieved_d_eff_mean": 5.50625150680542,
+          "success_rate": 1.0,
+          "n_clusters": 50,
+          "sigma_used": 0.32939588157796684
+        },
+        "0.2": {
+          "target_d_bar": 0.2,
+          "achieved_d_bar_mean": 0.19359272688627244,
+          "achieved_d_eff_mean": 5.922857465744019,
+          "success_rate": 1.0,
+          "n_clusters": 50,
+          "sigma_used": 0.47661003122127793
+        },
+        "0.3": {
+          "target_d_bar": 0.3,
+          "achieved_d_bar_mean": 0.2966581544280052,
+          "achieved_d_eff_mean": 6.528663005828857,
+          "success_rate": 1.0,
+          "n_clusters": 50,
+          "sigma_used": 0.5993520124482881
+        },
+        "0.4": {
+          "target_d_bar": 0.4,
+          "achieved_d_bar_mean": 0.4236146605014801,
+          "achieved_d_eff_mean": 7.285104379653931,
+          "success_rate": 1.0,
+          "n_clusters": 50,
+          "sigma_used": 0.7613913396391306
+        },
+        "0.5": {
+          "target_d_bar": 0.5,
+          "achieved_d_bar_mean": 0.5030943095684052,
+          "achieved_d_eff_mean": 8.116127195358276,
+          "success_rate": 1.0,
+          "n_clusters": 50,
+          "sigma_used": 0.8729426048544654
+        },
+        "0.6": {
+          "target_d_bar": 0.6,
+          "achieved_d_bar_mean": 0.5803417301177979,
+          "achieved_d_eff_mean": 8.591969861984253,
+          "success_rate": 1.0,
+          "n_clusters": 50,
+          "sigma_used": 0.9974118807553211
+        },
+        "0.7": {
+          "target_d_bar": 0.7,
+          "achieved_d_bar_mean": 0.7059580087661743,
+          "achieved_d_eff_mean": 9.911131324768066,
+          "success_rate": 0.88,
+          "n_clusters": 50,
+          "sigma_used": 1.1884684319446872
+        },
+        "0.8": {
+          "target_d_bar": 0.8,
+          "achieved_d_bar_mean": 0.795176248550415,
+          "achieved_d_eff_mean": 11.114674606323241,
+          "success_rate": 0.96,
+          "n_clusters": 50,
+          "sigma_used": 1.4134061412184578
+        },
+        "0.9": {
+          "target_d_bar": 0.9,
+          "achieved_d_bar_mean": 0.8913876450061798,
+          "achieved_d_eff_mean": 12.729007911682128,
+          "success_rate": 0.7,
+          "n_clusters": 50,
+          "sigma_used": 1.740737103381737
+        },
+        "0.93": {
+          "target_d_bar": 0.93,
+          "achieved_d_bar_mean": 0.9322729599475861,
+          "achieved_d_eff_mean": 13.420517101287842,
+          "success_rate": 0.4,
+          "n_clusters": 50,
+          "sigma_used": 1.9602391193567512
+        },
+        "0.96": {
+          "target_d_bar": 0.96,
+          "achieved_d_bar_mean": 0.9561675107479095,
+          "achieved_d_eff_mean": 13.971096305847167,
+          "success_rate": 0.42,
+          "n_clusters": 50,
+          "sigma_used": 2.211358479784389
+        },
+        "0.99": {
+          "target_d_bar": 0.99,
+          "achieved_d_bar_mean": 0.9897668695449829,
+          "achieved_d_eff_mean": 14.729181995391846,
+          "success_rate": 0.12,
+          "n_clusters": 50,
+          "sigma_used": 2.914780092185209
+        }
+      },
+      "boundary_above_grid": false,
+      "boundary_below_grid": false
+    },
+    "3.0": {
+      "theta_prime": 0.99,
       "success_curve": {
         "0.05": 1.0,
         "0.1": 1.0,
@@ -236,89 +423,494 @@
         "0.5": 1.0,
         "0.6": 1.0,
         "0.7": 1.0,
-        "0.8": 0.88,
-        "0.9": 0.72
+        "0.8": 1.0,
+        "0.9": 0.88,
+        "0.93": 0.68,
+        "0.96": 0.52,
+        "0.99": 0.36
       },
       "cells": {
         "0.05": {
           "target_d_bar": 0.05,
-          "achieved_d_bar_mean": 0.04644649244844914,
-          "achieved_d_eff_mean": 5.225782814025879,
+          "achieved_d_bar_mean": 0.05549062736332416,
+          "achieved_d_eff_mean": 5.219788208007812,
           "success_rate": 1.0,
           "n_clusters": 50,
-          "sigma_used": 0.21796851419748156
+          "sigma_used": 0.23904256431934923
         },
         "0.1": {
           "target_d_bar": 0.1,
-          "achieved_d_bar_mean": 0.10134309515357018,
-          "achieved_d_eff_mean": 5.5785715675354,
+          "achieved_d_bar_mean": 0.09969293713569641,
+          "achieved_d_eff_mean": 5.578716840744018,
           "success_rate": 1.0,
           "n_clusters": 50,
-          "sigma_used": 0.330617767078161
+          "sigma_used": 0.327504140506447
         },
         "0.2": {
           "target_d_bar": 0.2,
-          "achieved_d_bar_mean": 0.1981892853975296,
-          "achieved_d_eff_mean": 5.979577827453613,
+          "achieved_d_bar_mean": 0.18233562767505646,
+          "achieved_d_eff_mean": 5.9531579685211184,
           "success_rate": 1.0,
           "n_clusters": 50,
-          "sigma_used": 0.4760221602248867
+          "sigma_used": 0.4636522129187751
         },
         "0.3": {
           "target_d_bar": 0.3,
-          "achieved_d_bar_mean": 0.308909005522728,
-          "achieved_d_eff_mean": 6.605727367401123,
+          "achieved_d_bar_mean": 0.2967975088953972,
+          "achieved_d_eff_mean": 6.544192743301392,
           "success_rate": 1.0,
           "n_clusters": 50,
-          "sigma_used": 0.616524857974909
+          "sigma_used": 0.6175402495314124
         },
         "0.4": {
           "target_d_bar": 0.4,
-          "achieved_d_bar_mean": 0.40403898298740387,
-          "achieved_d_eff_mean": 7.144101915359497,
+          "achieved_d_bar_mean": 0.4183580368757248,
+          "achieved_d_eff_mean": 7.289882192611694,
           "success_rate": 1.0,
           "n_clusters": 50,
-          "sigma_used": 0.7413007328160102
+          "sigma_used": 0.7409958235132507
         },
         "0.5": {
           "target_d_bar": 0.5,
-          "achieved_d_bar_mean": 0.4981725084781647,
-          "achieved_d_eff_mean": 7.945585660934448,
+          "achieved_d_bar_mean": 0.5071454679965973,
+          "achieved_d_eff_mean": 8.078166007995605,
           "success_rate": 1.0,
           "n_clusters": 50,
-          "sigma_used": 0.8662645262487546
+          "sigma_used": 0.87390080944459
         },
         "0.6": {
           "target_d_bar": 0.6,
-          "achieved_d_bar_mean": 0.5972775089740753,
-          "achieved_d_eff_mean": 8.771257190704345,
+          "achieved_d_bar_mean": 0.6141021180152894,
+          "achieved_d_eff_mean": 8.882684984207152,
           "success_rate": 1.0,
           "n_clusters": 50,
-          "sigma_used": 1.0077232277746202
+          "sigma_used": 1.0402994289157994
         },
         "0.7": {
           "target_d_bar": 0.7,
-          "achieved_d_bar_mean": 0.6989097893238068,
-          "achieved_d_eff_mean": 9.910931587219238,
+          "achieved_d_bar_mean": 0.7055057394504547,
+          "achieved_d_eff_mean": 9.91618543624878,
           "success_rate": 1.0,
           "n_clusters": 50,
-          "sigma_used": 1.1863515908117819
+          "sigma_used": 1.200754941319314
         },
         "0.8": {
           "target_d_bar": 0.8,
-          "achieved_d_bar_mean": 0.8052076745033264,
-          "achieved_d_eff_mean": 11.188134155273438,
-          "success_rate": 0.88,
+          "achieved_d_bar_mean": 0.7962622535228729,
+          "achieved_d_eff_mean": 11.276516284942627,
+          "success_rate": 1.0,
           "n_clusters": 50,
-          "sigma_used": 1.4402112680027335
+          "sigma_used": 1.403170622038216
         },
         "0.9": {
           "target_d_bar": 0.9,
-          "achieved_d_bar_mean": 0.8938013100624085,
-          "achieved_d_eff_mean": 12.733319339752198,
-          "success_rate": 0.72,
+          "achieved_d_bar_mean": 0.8992186689376831,
+          "achieved_d_eff_mean": 12.913542366027832,
+          "success_rate": 0.88,
           "n_clusters": 50,
-          "sigma_used": 1.717735190301029
+          "sigma_used": 1.7455179323204075
+        },
+        "0.93": {
+          "target_d_bar": 0.93,
+          "achieved_d_bar_mean": 0.948353408575058,
+          "achieved_d_eff_mean": 13.74944833755493,
+          "success_rate": 0.68,
+          "n_clusters": 50,
+          "sigma_used": 2.1074381870657968
+        },
+        "0.96": {
+          "target_d_bar": 0.96,
+          "achieved_d_bar_mean": 0.9649676620960236,
+          "achieved_d_eff_mean": 14.184134559631348,
+          "success_rate": 0.52,
+          "n_clusters": 50,
+          "sigma_used": 2.268177771791151
+        },
+        "0.99": {
+          "target_d_bar": 0.99,
+          "achieved_d_bar_mean": 0.9909114611148834,
+          "achieved_d_eff_mean": 14.748960666656494,
+          "success_rate": 0.36,
+          "n_clusters": 50,
+          "sigma_used": 3.003645345150256
+        }
+      },
+      "boundary_above_grid": false,
+      "boundary_below_grid": false
+    },
+    "10.0": {
+      "theta_prime": 0.99,
+      "success_curve": {
+        "0.05": 1.0,
+        "0.1": 1.0,
+        "0.2": 1.0,
+        "0.3": 1.0,
+        "0.4": 1.0,
+        "0.5": 1.0,
+        "0.6": 1.0,
+        "0.7": 1.0,
+        "0.8": 1.0,
+        "0.9": 0.92,
+        "0.93": 0.94,
+        "0.96": 0.82,
+        "0.99": 0.52
+      },
+      "cells": {
+        "0.05": {
+          "target_d_bar": 0.05,
+          "achieved_d_bar_mean": 0.05043398097157478,
+          "achieved_d_eff_mean": 5.305180249214172,
+          "success_rate": 1.0,
+          "n_clusters": 50,
+          "sigma_used": 0.229093489169334
+        },
+        "0.1": {
+          "target_d_bar": 0.1,
+          "achieved_d_bar_mean": 0.10037404403090477,
+          "achieved_d_eff_mean": 5.4274062824249265,
+          "success_rate": 1.0,
+          "n_clusters": 50,
+          "sigma_used": 0.3263385111900432
+        },
+        "0.2": {
+          "target_d_bar": 0.2,
+          "achieved_d_bar_mean": 0.19292258262634276,
+          "achieved_d_eff_mean": 6.036234931945801,
+          "success_rate": 1.0,
+          "n_clusters": 50,
+          "sigma_used": 0.4697964750683475
+        },
+        "0.3": {
+          "target_d_bar": 0.3,
+          "achieved_d_bar_mean": 0.30595277130603793,
+          "achieved_d_eff_mean": 6.638648414611817,
+          "success_rate": 1.0,
+          "n_clusters": 50,
+          "sigma_used": 0.6161022710691932
+        },
+        "0.4": {
+          "target_d_bar": 0.4,
+          "achieved_d_bar_mean": 0.40529912352561953,
+          "achieved_d_eff_mean": 7.2489524269104,
+          "success_rate": 1.0,
+          "n_clusters": 50,
+          "sigma_used": 0.7459917508365159
+        },
+        "0.5": {
+          "target_d_bar": 0.5,
+          "achieved_d_bar_mean": 0.5028913778066635,
+          "achieved_d_eff_mean": 7.87176100730896,
+          "success_rate": 1.0,
+          "n_clusters": 50,
+          "sigma_used": 0.8663833284892563
+        },
+        "0.6": {
+          "target_d_bar": 0.6,
+          "achieved_d_bar_mean": 0.5747436892986297,
+          "achieved_d_eff_mean": 8.477971057891846,
+          "success_rate": 1.0,
+          "n_clusters": 50,
+          "sigma_used": 0.990053104676329
+        },
+        "0.7": {
+          "target_d_bar": 0.7,
+          "achieved_d_bar_mean": 0.7407778930664063,
+          "achieved_d_eff_mean": 10.263713550567626,
+          "success_rate": 1.0,
+          "n_clusters": 50,
+          "sigma_used": 1.244681304432296
+        },
+        "0.8": {
+          "target_d_bar": 0.8,
+          "achieved_d_bar_mean": 0.7998209309577942,
+          "achieved_d_eff_mean": 11.241823692321777,
+          "success_rate": 1.0,
+          "n_clusters": 50,
+          "sigma_used": 1.415345727538745
+        },
+        "0.9": {
+          "target_d_bar": 0.9,
+          "achieved_d_bar_mean": 0.8905536508560181,
+          "achieved_d_eff_mean": 12.621117305755615,
+          "success_rate": 0.92,
+          "n_clusters": 50,
+          "sigma_used": 1.7059975045104023
+        },
+        "0.93": {
+          "target_d_bar": 0.93,
+          "achieved_d_bar_mean": 0.9334718525409699,
+          "achieved_d_eff_mean": 13.382401237487793,
+          "success_rate": 0.94,
+          "n_clusters": 50,
+          "sigma_used": 1.982406344295207
+        },
+        "0.96": {
+          "target_d_bar": 0.96,
+          "achieved_d_bar_mean": 0.9622962450981141,
+          "achieved_d_eff_mean": 14.112727947235108,
+          "success_rate": 0.82,
+          "n_clusters": 50,
+          "sigma_used": 2.2815921627710956
+        },
+        "0.99": {
+          "target_d_bar": 0.99,
+          "achieved_d_bar_mean": 0.9907275390625,
+          "achieved_d_eff_mean": 14.746866931915283,
+          "success_rate": 0.52,
+          "n_clusters": 50,
+          "sigma_used": 2.9741343942477583
+        }
+      },
+      "boundary_above_grid": true,
+      "boundary_below_grid": false
+    },
+    "30.0": {
+      "theta_prime": 0.99,
+      "success_curve": {
+        "0.05": 1.0,
+        "0.1": 1.0,
+        "0.2": 1.0,
+        "0.3": 1.0,
+        "0.4": 1.0,
+        "0.5": 1.0,
+        "0.6": 1.0,
+        "0.7": 1.0,
+        "0.8": 1.0,
+        "0.9": 0.98,
+        "0.93": 0.96,
+        "0.96": 0.88,
+        "0.99": 0.38
+      },
+      "cells": {
+        "0.05": {
+          "target_d_bar": 0.05,
+          "achieved_d_bar_mean": 0.05186396144330502,
+          "achieved_d_eff_mean": 5.370587358474731,
+          "success_rate": 1.0,
+          "n_clusters": 50,
+          "sigma_used": 0.23136667720146664
+        },
+        "0.1": {
+          "target_d_bar": 0.1,
+          "achieved_d_bar_mean": 0.09295485630631446,
+          "achieved_d_eff_mean": 5.43617615699768,
+          "success_rate": 1.0,
+          "n_clusters": 50,
+          "sigma_used": 0.31616281759329506
+        },
+        "0.2": {
+          "target_d_bar": 0.2,
+          "achieved_d_bar_mean": 0.19182301789522171,
+          "achieved_d_eff_mean": 5.941513633728027,
+          "success_rate": 1.0,
+          "n_clusters": 50,
+          "sigma_used": 0.467611125445823
+        },
+        "0.3": {
+          "target_d_bar": 0.3,
+          "achieved_d_bar_mean": 0.3080065211653709,
+          "achieved_d_eff_mean": 6.642430601119995,
+          "success_rate": 1.0,
+          "n_clusters": 50,
+          "sigma_used": 0.6249520227769966
+        },
+        "0.4": {
+          "target_d_bar": 0.4,
+          "achieved_d_bar_mean": 0.39064294755458834,
+          "achieved_d_eff_mean": 7.072128458023071,
+          "success_rate": 1.0,
+          "n_clusters": 50,
+          "sigma_used": 0.727503687500592
+        },
+        "0.5": {
+          "target_d_bar": 0.5,
+          "achieved_d_bar_mean": 0.5183044719696045,
+          "achieved_d_eff_mean": 8.065326480865478,
+          "success_rate": 1.0,
+          "n_clusters": 50,
+          "sigma_used": 0.8918185320507078
+        },
+        "0.6": {
+          "target_d_bar": 0.6,
+          "achieved_d_bar_mean": 0.6127801728248596,
+          "achieved_d_eff_mean": 8.783260459899902,
+          "success_rate": 1.0,
+          "n_clusters": 50,
+          "sigma_used": 1.012432755533026
+        },
+        "0.7": {
+          "target_d_bar": 0.7,
+          "achieved_d_bar_mean": 0.7120899283885955,
+          "achieved_d_eff_mean": 10.022655334472656,
+          "success_rate": 1.0,
+          "n_clusters": 50,
+          "sigma_used": 1.2017433319882
+        },
+        "0.8": {
+          "target_d_bar": 0.8,
+          "achieved_d_bar_mean": 0.781504956483841,
+          "achieved_d_eff_mean": 10.900576858520507,
+          "success_rate": 1.0,
+          "n_clusters": 50,
+          "sigma_used": 1.3586723055408083
+        },
+        "0.9": {
+          "target_d_bar": 0.9,
+          "achieved_d_bar_mean": 0.9023078715801239,
+          "achieved_d_eff_mean": 12.849072742462159,
+          "success_rate": 0.98,
+          "n_clusters": 50,
+          "sigma_used": 1.7933164444282261
+        },
+        "0.93": {
+          "target_d_bar": 0.93,
+          "achieved_d_bar_mean": 0.9277310860157013,
+          "achieved_d_eff_mean": 13.347215976715088,
+          "success_rate": 0.96,
+          "n_clusters": 50,
+          "sigma_used": 1.9775189924132923
+        },
+        "0.96": {
+          "target_d_bar": 0.96,
+          "achieved_d_bar_mean": 0.9549067890644074,
+          "achieved_d_eff_mean": 13.924299716949463,
+          "success_rate": 0.88,
+          "n_clusters": 50,
+          "sigma_used": 2.198357020659189
+        },
+        "0.99": {
+          "target_d_bar": 0.99,
+          "achieved_d_bar_mean": 0.9905595624446869,
+          "achieved_d_eff_mean": 14.726693153381348,
+          "success_rate": 0.38,
+          "n_clusters": 50,
+          "sigma_used": 2.997473178596776
+        }
+      },
+      "boundary_above_grid": false,
+      "boundary_below_grid": false
+    },
+    "100.0": {
+      "theta_prime": 0.99,
+      "success_curve": {
+        "0.05": 1.0,
+        "0.1": 1.0,
+        "0.2": 1.0,
+        "0.3": 1.0,
+        "0.4": 1.0,
+        "0.5": 1.0,
+        "0.6": 1.0,
+        "0.7": 1.0,
+        "0.8": 1.0,
+        "0.9": 0.98,
+        "0.93": 1.0,
+        "0.96": 0.82,
+        "0.99": 0.62
+      },
+      "cells": {
+        "0.05": {
+          "target_d_bar": 0.05,
+          "achieved_d_bar_mean": 0.05216143816709518,
+          "achieved_d_eff_mean": 5.349083890914917,
+          "success_rate": 1.0,
+          "n_clusters": 50,
+          "sigma_used": 0.22840336888300802
+        },
+        "0.1": {
+          "target_d_bar": 0.1,
+          "achieved_d_bar_mean": 0.09697551518678665,
+          "achieved_d_eff_mean": 5.508774471282959,
+          "success_rate": 1.0,
+          "n_clusters": 50,
+          "sigma_used": 0.32162910827381225
+        },
+        "0.2": {
+          "target_d_bar": 0.2,
+          "achieved_d_bar_mean": 0.20559294521808624,
+          "achieved_d_eff_mean": 6.050183582305908,
+          "success_rate": 1.0,
+          "n_clusters": 50,
+          "sigma_used": 0.48798546241760404
+        },
+        "0.3": {
+          "target_d_bar": 0.3,
+          "achieved_d_bar_mean": 0.28108194082975385,
+          "achieved_d_eff_mean": 6.444084730148315,
+          "success_rate": 1.0,
+          "n_clusters": 50,
+          "sigma_used": 0.5954197820395799
+        },
+        "0.4": {
+          "target_d_bar": 0.4,
+          "achieved_d_bar_mean": 0.3972396612167358,
+          "achieved_d_eff_mean": 7.221924753189087,
+          "success_rate": 1.0,
+          "n_clusters": 50,
+          "sigma_used": 0.7328105103702814
+        },
+        "0.5": {
+          "target_d_bar": 0.5,
+          "achieved_d_bar_mean": 0.4949553829431534,
+          "achieved_d_eff_mean": 7.91571042060852,
+          "success_rate": 1.0,
+          "n_clusters": 50,
+          "sigma_used": 0.8621166950270656
+        },
+        "0.6": {
+          "target_d_bar": 0.6,
+          "achieved_d_bar_mean": 0.6015142512321472,
+          "achieved_d_eff_mean": 8.830193605422973,
+          "success_rate": 1.0,
+          "n_clusters": 50,
+          "sigma_used": 1.018141174564189
+        },
+        "0.7": {
+          "target_d_bar": 0.7,
+          "achieved_d_bar_mean": 0.7082867503166199,
+          "achieved_d_eff_mean": 9.956568183898925,
+          "success_rate": 1.0,
+          "n_clusters": 50,
+          "sigma_used": 1.180347349542108
+        },
+        "0.8": {
+          "target_d_bar": 0.8,
+          "achieved_d_bar_mean": 0.7940077364444733,
+          "achieved_d_eff_mean": 11.0332932472229,
+          "success_rate": 1.0,
+          "n_clusters": 50,
+          "sigma_used": 1.3922453210925854
+        },
+        "0.9": {
+          "target_d_bar": 0.9,
+          "achieved_d_bar_mean": 0.8947083413600921,
+          "achieved_d_eff_mean": 12.762702560424804,
+          "success_rate": 0.98,
+          "n_clusters": 50,
+          "sigma_used": 1.7424089021955487
+        },
+        "0.93": {
+          "target_d_bar": 0.93,
+          "achieved_d_bar_mean": 0.9223221611976623,
+          "achieved_d_eff_mean": 13.23114824295044,
+          "success_rate": 1.0,
+          "n_clusters": 50,
+          "sigma_used": 1.887432713598863
+        },
+        "0.96": {
+          "target_d_bar": 0.96,
+          "achieved_d_bar_mean": 0.9545891284942627,
+          "achieved_d_eff_mean": 13.923590030670166,
+          "success_rate": 0.82,
+          "n_clusters": 50,
+          "sigma_used": 2.2013737778955083
+        },
+        "0.99": {
+          "target_d_bar": 0.99,
+          "achieved_d_bar_mean": 0.9867098450660705,
+          "achieved_d_eff_mean": 14.63968786239624,
+          "success_rate": 0.62,
+          "n_clusters": 50,
+          "sigma_used": 2.839815161790809
         }
       },
       "boundary_above_grid": true,
@@ -328,7 +920,11 @@
   "approximation_baseline": {
     "0.01": 100.0,
     "0.1": 10.0,
-    "1.0": 1.0
+    "1.0": 1.0,
+    "3.0": 0.3333333333333333,
+    "10.0": 0.1,
+    "30.0": 0.03333333333333333,
+    "100.0": 0.01
   },
   "note": "Spike-level n=50 per cell, single d_eff=8.0. Replace with deeper sweep for production use."
 }
