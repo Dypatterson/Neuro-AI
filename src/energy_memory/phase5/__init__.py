@@ -21,6 +21,15 @@ from .natural_source_protocol import (
     validate_cleanup_preflight,
 )
 try:  # pragma: no cover - exercised only when torch is available
+    from .bridge_readouts import (
+        READOUT_ID_CUE_CONDITIONED_SCENE,
+        cue_conditioned_scene_energy,
+        delta_e_content_minus_role,
+    )
+except ModuleNotFoundError:  # pragma: no cover
+    pass
+
+try:  # pragma: no cover - exercised only when torch is available
     from .bundle_first_scene_memory import (
         BundleFirstConfig,
         BundleFirstResult,
@@ -52,6 +61,7 @@ for name in [
     "BundleFirstResult",
     "BundleFirstSeedState",
     "M1Config",
+    "READOUT_ID_CUE_CONDITIONED_SCENE",
     "RoleBindingStats",
     "SPECIAL_ATOMS",
     "aggregate_bundle_first_results",
@@ -60,6 +70,8 @@ for name in [
     "build_query_context_tokens",
     "build_scene_matrix",
     "cap_label",
+    "cue_conditioned_scene_energy",
+    "delta_e_content_minus_role",
     "eligible_triples_for_seed",
     "fixedpoint_free_shuffle",
     "protocol_for_frequency_cap",
