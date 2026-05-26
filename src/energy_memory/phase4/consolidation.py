@@ -30,8 +30,9 @@ consolidation" of an item.
 
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass
-from typing import List, Optional, Sequence
+from typing import Deque, List, Optional, Sequence, Tuple
 
 try:
     import torch
@@ -119,6 +120,25 @@ class ConsolidationConfig:
     # Default 0.0 leaves m_i at zero so the priority composition is bit-
     # identical to baseline (the κ=0 control depends on this).
     metastability_obs_rate: float = 0.0
+    # C.2.1 anti-collapse pressure (NC1 as substrate dynamic).
+    # See notes/notes/2026-05-26-c21-nc1-anti-collapse-precommit.md.
+    # Adds a per-basin anti-collapse term to the consolidation energy
+    # landscape: E_anti_collapse(k) = -λ_ac · log(tr(Σ_k) + ε_ac), whose
+    # gradient w.r.t. atom k is the continuous repulsive force
+    # -λ_ac · 2(μ_k − atom_k) / (tr(Σ_k) + ε_ac), applied at the
+    # consolidation update site. Both λ_ac and ε_ac are FIXED substrate
+    # constants set at construction — never adaptive on any observable
+    # (binding watch-edge from the anti-homunculus reviewer; H8 in the
+    # precommit). Defaults preserve the κ=0 baseline byte-identically.
+    lambda_ac: float = 0.0
+    epsilon_ac: float = 1e-6
+    # C.2.1 substrate-side basin trace buffer. Larger than C.1.1's N=5
+    # because the actuator benefits from more samples per basin (see
+    # C.1.1 finite-sample finding in the Path C precommit). This buffer
+    # is the substrate primitive both the actuator and a future C.1.1
+    # refactor will consume; per H6/H9, the actuator must NOT read
+    # BasinDiagnostics — it reads this buffer directly.
+    basin_trace_buffer_size: int = 64
 
 
 class ConsolidationState:
@@ -163,6 +183,15 @@ class ConsolidationState:
         # retrieve() call via update_metastability(weights). Stays at zero
         # when metastability_obs_rate == 0 (the κ=0 control baseline).
         self.metastability_ema = torch.zeros(0, dtype=torch.float32, device=self.device)
+        # C.2.1 substrate-side basin trace buffer. Holds
+        # (settled_state, top1_atom) tuples bounded by basin_trace_buffer_size.
+        # Both C.2.1 (the actuator) and any future C.1.1 refactor read this
+        # same primitive; per H6/H9 the actuator must never read the
+        # BasinDiagnostics dataclass. The buffer is independent of C.1.1's
+        # BasinTraceBuffer to keep the diagnostic module untouched.
+        self._basin_buffer: Deque[Tuple["torch.Tensor", int]] = deque(
+            maxlen=int(config.basin_trace_buffer_size)
+        )
         self._step_count = 0
 
         if config.strength_weights is not None:
@@ -395,6 +424,77 @@ class ConsolidationState:
             raise IndexError(f"pattern index {idx} out of range")
         f = max(0.0, min(1.0, float(factor)))
         self.metastability_ema[idx] = self.metastability_ema[idx] * f
+
+    def record_retrieval(
+        self,
+        settled_state: "torch.Tensor",
+        top1_atom: int,
+    ) -> None:
+        """Append a settled-state / top1-atom pair to the basin trace buffer.
+
+        This is the substrate-side primitive for C.2.1. Called by the
+        orchestrator after each retrieval at the consolidation timescale.
+
+        Short-circuits when lambda_ac == 0.0: the actuator is off and no
+        other consumer currently shares this buffer (C.1.1's
+        BasinDiagnostics owns its own BasinTraceBuffer), so recording is
+        a pure cost at the baseline.
+        """
+        if self.config.lambda_ac == 0.0:
+            return
+        self._basin_buffer.append((settled_state.detach().clone(), int(top1_atom)))
+
+    def basin_buffer_size(self) -> int:
+        return len(self._basin_buffer)
+
+    def _basin_covariance(
+        self,
+        atom_idx: int,
+    ) -> Tuple[Optional["torch.Tensor"], Optional["torch.Tensor"], float]:
+        """Return (centroid, members, tr(Σ)) for atom_idx's basin.
+
+        Σ is the centered Gram of members; tr(Σ) is the total within-basin
+        variance, the substrate-level quantity C.2.1 bounds from below.
+        For complex (FHRR) members the per-row centered inner product is
+        Hermitian and tr(Σ) is real-positive.
+        """
+        members_list = [s for s, k in self._basin_buffer if k == atom_idx]
+        if not members_list:
+            return None, None, 0.0
+        members = torch.stack(members_list, dim=0)
+        centroid = members.mean(dim=0)
+        diffs = members - centroid.unsqueeze(0)
+        # tr(Σ_k) = (1/N) Σ_i <diff_i, diff_i> = (1/N) Σ_i ||diff_i||² (Hermitian).
+        sq = (diffs.conj() * diffs).real.sum(dim=-1)
+        tr_sigma = float(sq.mean().detach().cpu())
+        return centroid, members, tr_sigma
+
+    def anti_collapse_force(
+        self,
+        atom_idx: int,
+        atom_state: "torch.Tensor",
+    ) -> "torch.Tensor":
+        """C.2.1 per-atom anti-collapse force.
+
+        Returns -λ_ac · 2 · (μ_k − atom_k) / (tr(Σ_k) + ε_ac), the pragmatic
+        operationalization of the formal gradient of
+        E_anti_collapse(k) = -λ_ac · log(tr(Σ_k) + ε_ac) w.r.t. atom_k.
+        See notes/notes/2026-05-26-c21-nc1-anti-collapse-precommit.md.
+
+        Force is repulsive: a basin with zero variance (centroid == atom)
+        yields zero force; once atom drifts toward μ, the −(μ − atom)
+        direction pushes atom away from μ with magnitude amplified by
+        1/(tr(Σ) + ε). Reads Σ_k from the substrate-side buffer, never
+        from BasinDiagnostics (binding watch-edge / H6 / H9).
+        """
+        if self.config.lambda_ac == 0.0:
+            return torch.zeros_like(atom_state)
+        centroid, _, tr_sigma = self._basin_covariance(atom_idx)
+        if centroid is None:
+            return torch.zeros_like(atom_state)
+        centroid = centroid.to(atom_state.device).to(atom_state.dtype)
+        denom = tr_sigma + self.config.epsilon_ac
+        return -self.config.lambda_ac * 2.0 * (centroid - atom_state) / denom
 
     def step_dynamics(
         self,

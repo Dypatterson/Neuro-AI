@@ -487,6 +487,14 @@ class UnifiedReplayMemory(Generic[T]):
             and result.metastability_contribution.shape[0] == self.consolidation.n_patterns
         ):
             self.consolidation.update_metastability(result.metastability_contribution)
+        # C.2.1: substrate-side basin trace recording. The actuator (and
+        # any future C.1.1 refactor) reads from this buffer directly per
+        # H6/H9. record_retrieval() short-circuits when lambda_ac == 0,
+        # so the κ=0 baseline pays no per-retrieval cost.
+        if trace.final_top_index is not None:
+            self.consolidation.record_retrieval(
+                result.state, int(trace.final_top_index),
+            )
         self._retrieval_count += 1
         return result, trace
 

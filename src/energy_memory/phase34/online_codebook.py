@@ -59,6 +59,7 @@ class OnlineCodebookUpdater:
         lr_push: float = 0.05,
         consolidation_k: int = 100,
         quality_threshold: float = 0.15,
+        consolidation_state: Optional["object"] = None,
     ):
         if torch is None:  # pragma: no cover
             raise ModuleNotFoundError("OnlineCodebookUpdater requires torch") from _IMPORT_ERROR
@@ -72,6 +73,11 @@ class OnlineCodebookUpdater:
         self._consolidation_count = 0
         self._total_observations = 0
         self._total_failures = 0
+        # C.2.1 actuator handle. Optional substrate-side state container;
+        # when supplied and lambda_ac > 0, _consolidate() adds the anti-
+        # collapse force to each updated atom. None / lambda_ac == 0
+        # leaves consolidation byte-identical to the pre-C.2.1 baseline.
+        self.consolidation_state = consolidation_state
 
     def observe(
         self,
@@ -141,6 +147,8 @@ class OnlineCodebookUpdater:
             )
             pushed += 1
 
+        self._apply_anti_collapse(pull_targets.keys() | push_targets.keys())
+
         self._consolidation_count += 1
         mean_q = (
             sum(e.quality for e in self._buffer) / len(self._buffer)
@@ -160,6 +168,21 @@ class OnlineCodebookUpdater:
         }
         self._buffer.clear()
         return diagnostics
+
+    def _apply_anti_collapse(self, atom_ids) -> None:
+        # C.2.1: per-atom anti-collapse force added to the existing update.
+        # Early-exit preserves the κ=0 baseline byte-identically.
+        cs = self.consolidation_state
+        if cs is None or getattr(cs.config, "lambda_ac", 0.0) == 0.0:
+            return
+        for atom_id in atom_ids:
+            if atom_id < 0 or atom_id >= self.codebook.shape[0]:
+                continue
+            current = self.codebook[atom_id]
+            force = cs.anti_collapse_force(int(atom_id), current)
+            if force is None:
+                continue
+            self.codebook[atom_id] = self.substrate.normalize(current + force)
 
     def stats(self) -> dict:
         return {

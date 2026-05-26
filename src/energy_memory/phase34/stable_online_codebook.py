@@ -256,6 +256,10 @@ class StableOnlineCodebookUpdaterV2(StableOnlineCodebookUpdater):
             )
             pushed += 1
 
+        # C.2.1: anti-collapse force on the same atoms that just received
+        # pull/push. Early-exits and is byte-identical when lambda_ac=0.
+        self._apply_anti_collapse(pull_targets.keys() | push_targets.keys())
+
         self._consolidation_count += 1
         mean_q = sum(e.quality for e in self._buffer) / len(self._buffer)
         diagnostics = {
