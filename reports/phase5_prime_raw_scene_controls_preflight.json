@@ -1,0 +1,533 @@
+{
+  "anti_homunculus_check": {
+    "pass": true,
+    "reason": "Static control planning only; no metric-triggered route choice, adaptive bias, retrieval, or best-of-N evidence."
+  },
+  "config": {
+    "C_codebook": 2048,
+    "D": 4096,
+    "K_roles": 16,
+    "N": 512,
+    "beta": 30.0,
+    "context_roles": 4,
+    "cooccurrence": "repo_sample_natural",
+    "formulation": "per_pattern",
+    "gamma": 0.5,
+    "include_surprise_branch": false,
+    "k_main": 4,
+    "n_queries_per_seed": 512,
+    "scene_token_weight": 0.25,
+    "score_bias": null,
+    "seeds": [
+      17,
+      11,
+      23,
+      1,
+      2,
+      3,
+      5,
+      7,
+      13,
+      29
+    ],
+    "source_name": "trajectory_native_provenance_context_trace"
+  },
+  "framing": {
+    "baseline_id": "raw_scene_energy_v0",
+    "headline_metric": "Delta E = E_content-prior - E_role-prior",
+    "no_full_matrix": true,
+    "no_headline_claim": true,
+    "no_m1_escalation": true,
+    "no_m2": true,
+    "no_retrieval_run": true,
+    "no_top1": true,
+    "not_a_gate": true,
+    "not_graduation": true,
+    "phase": "Phase 5 prime raw-scene bridge controls preflight",
+    "preflight_only": true
+  },
+  "legacy_headline_default_mismatches": [
+    {
+      "field": "beta",
+      "legacy_headline_default": 10.0,
+      "raw_scene_value": 30.0,
+      "requires_precommit_before_retrieval": true
+    },
+    {
+      "field": "k_main",
+      "legacy_headline_default": 1,
+      "raw_scene_value": 4,
+      "requires_precommit_before_retrieval": true
+    }
+  ],
+  "pass_criteria": {
+    "config_mismatch_flags_recorded": true,
+    "framing_preflight_only": true,
+    "headline_metric_unchanged": true,
+    "k1_pair_planned": true,
+    "main_delta_pair_planned": true,
+    "no_prior_pair_planned": true,
+    "no_retrieval_executed": true,
+    "no_schema_store_pair_planned": true,
+    "no_schema_store_shapes_planned_not_materialized": true,
+    "protocol_name_recorded": true,
+    "query_plan_integrity_ok": true,
+    "random_schema_planned": true,
+    "raw_scene_energy_v0_selected": true,
+    "same_query_set_all_controls": true,
+    "scene_store_shapes_validated": true,
+    "score_bias_none_all_cells": true,
+    "source_manifest_sha_recorded": true,
+    "stop_conditions_encoded": true
+  },
+  "passes_all_criteria": true,
+  "planned_cell_count": 9,
+  "planned_cells": [
+    {
+      "baseline_id": "raw_scene_energy_v0",
+      "beta": 30.0,
+      "cell_id": "main_content_K4_g0.5",
+      "control_family": "paired_delta_main",
+      "energy_readout": "raw_scene_mhn_energy",
+      "formulation": "per_pattern",
+      "gamma": 0.5,
+      "headline_metric": "Delta E = E_content-prior - E_role-prior",
+      "include_surprise_branch": false,
+      "k_main": 4,
+      "memory_shape": [
+        512,
+        4096
+      ],
+      "memory_source": "bundle_first_scene_store",
+      "paired_delta_group": "main",
+      "prior_type": "content",
+      "query_plan_ref": "source.query_plan_by_seed",
+      "retrieval_executed": false,
+      "run_combiners": false,
+      "schema_atom_idx_shape": [
+        512
+      ],
+      "schema_bindings_shape": [
+        512,
+        16,
+        4096
+      ],
+      "schema_source": "scene_store",
+      "schema_store_shape": [
+        512,
+        4096
+      ],
+      "score_bias": null
+    },
+    {
+      "baseline_id": "raw_scene_energy_v0",
+      "beta": 30.0,
+      "cell_id": "main_role_K4_g0.5",
+      "control_family": "paired_delta_main",
+      "energy_readout": "raw_scene_mhn_energy",
+      "formulation": "per_pattern",
+      "gamma": 0.5,
+      "headline_metric": "Delta E = E_content-prior - E_role-prior",
+      "include_surprise_branch": false,
+      "k_main": 4,
+      "memory_shape": [
+        512,
+        4096
+      ],
+      "memory_source": "bundle_first_scene_store",
+      "paired_delta_group": "main",
+      "prior_type": "role",
+      "query_plan_ref": "source.query_plan_by_seed",
+      "retrieval_executed": false,
+      "run_combiners": false,
+      "schema_atom_idx_shape": [
+        512
+      ],
+      "schema_bindings_shape": [
+        512,
+        16,
+        4096
+      ],
+      "schema_source": "scene_store",
+      "schema_store_shape": [
+        512,
+        4096
+      ],
+      "score_bias": null
+    },
+    {
+      "baseline_id": "raw_scene_energy_v0",
+      "beta": 30.0,
+      "cell_id": "random_schema_K4_g0.5",
+      "control_family": "random_schema",
+      "energy_readout": "raw_scene_mhn_energy",
+      "formulation": "per_pattern",
+      "gamma": 0.5,
+      "headline_metric": "Delta E = E_content-prior - E_role-prior",
+      "include_surprise_branch": false,
+      "k_main": 4,
+      "memory_shape": [
+        512,
+        4096
+      ],
+      "memory_source": "bundle_first_scene_store",
+      "paired_delta_group": null,
+      "prior_type": "random",
+      "query_plan_ref": "source.query_plan_by_seed",
+      "retrieval_executed": false,
+      "run_combiners": false,
+      "schema_atom_idx_shape": [
+        512
+      ],
+      "schema_bindings_shape": [
+        512,
+        16,
+        4096
+      ],
+      "schema_source": "scene_store",
+      "schema_store_shape": [
+        512,
+        4096
+      ],
+      "score_bias": null
+    },
+    {
+      "baseline_id": "raw_scene_energy_v0",
+      "beta": 30.0,
+      "cell_id": "k1_content_g0.5",
+      "control_family": "k1",
+      "energy_readout": "raw_scene_mhn_energy",
+      "formulation": "per_pattern",
+      "gamma": 0.5,
+      "headline_metric": "Delta E = E_content-prior - E_role-prior",
+      "include_surprise_branch": false,
+      "k_main": 1,
+      "memory_shape": [
+        512,
+        4096
+      ],
+      "memory_source": "bundle_first_scene_store",
+      "paired_delta_group": "k1",
+      "prior_type": "content",
+      "query_plan_ref": "source.query_plan_by_seed",
+      "retrieval_executed": false,
+      "run_combiners": false,
+      "schema_atom_idx_shape": [
+        512
+      ],
+      "schema_bindings_shape": [
+        512,
+        16,
+        4096
+      ],
+      "schema_source": "scene_store",
+      "schema_store_shape": [
+        512,
+        4096
+      ],
+      "score_bias": null
+    },
+    {
+      "baseline_id": "raw_scene_energy_v0",
+      "beta": 30.0,
+      "cell_id": "k1_role_g0.5",
+      "control_family": "k1",
+      "energy_readout": "raw_scene_mhn_energy",
+      "formulation": "per_pattern",
+      "gamma": 0.5,
+      "headline_metric": "Delta E = E_content-prior - E_role-prior",
+      "include_surprise_branch": false,
+      "k_main": 1,
+      "memory_shape": [
+        512,
+        4096
+      ],
+      "memory_source": "bundle_first_scene_store",
+      "paired_delta_group": "k1",
+      "prior_type": "role",
+      "query_plan_ref": "source.query_plan_by_seed",
+      "retrieval_executed": false,
+      "run_combiners": false,
+      "schema_atom_idx_shape": [
+        512
+      ],
+      "schema_bindings_shape": [
+        512,
+        16,
+        4096
+      ],
+      "schema_source": "scene_store",
+      "schema_store_shape": [
+        512,
+        4096
+      ],
+      "score_bias": null
+    },
+    {
+      "baseline_id": "raw_scene_energy_v0",
+      "beta": 30.0,
+      "cell_id": "no_prior_content_K4_g0",
+      "control_family": "no_prior",
+      "energy_readout": "raw_scene_mhn_energy",
+      "formulation": "per_pattern",
+      "gamma": 0.0,
+      "headline_metric": "Delta E = E_content-prior - E_role-prior",
+      "include_surprise_branch": false,
+      "k_main": 4,
+      "memory_shape": [
+        512,
+        4096
+      ],
+      "memory_source": "bundle_first_scene_store",
+      "paired_delta_group": "no_prior",
+      "prior_type": "content",
+      "query_plan_ref": "source.query_plan_by_seed",
+      "retrieval_executed": false,
+      "run_combiners": false,
+      "schema_atom_idx_shape": [
+        512
+      ],
+      "schema_bindings_shape": [
+        512,
+        16,
+        4096
+      ],
+      "schema_source": "scene_store",
+      "schema_store_shape": [
+        512,
+        4096
+      ],
+      "score_bias": null
+    },
+    {
+      "baseline_id": "raw_scene_energy_v0",
+      "beta": 30.0,
+      "cell_id": "no_prior_role_K4_g0",
+      "control_family": "no_prior",
+      "energy_readout": "raw_scene_mhn_energy",
+      "formulation": "per_pattern",
+      "gamma": 0.0,
+      "headline_metric": "Delta E = E_content-prior - E_role-prior",
+      "include_surprise_branch": false,
+      "k_main": 4,
+      "memory_shape": [
+        512,
+        4096
+      ],
+      "memory_source": "bundle_first_scene_store",
+      "paired_delta_group": "no_prior",
+      "prior_type": "role",
+      "query_plan_ref": "source.query_plan_by_seed",
+      "retrieval_executed": false,
+      "run_combiners": false,
+      "schema_atom_idx_shape": [
+        512
+      ],
+      "schema_bindings_shape": [
+        512,
+        16,
+        4096
+      ],
+      "schema_source": "scene_store",
+      "schema_store_shape": [
+        512,
+        4096
+      ],
+      "score_bias": null
+    },
+    {
+      "baseline_id": "raw_scene_energy_v0",
+      "beta": 30.0,
+      "cell_id": "no_schema_store_content_K4_g0.5",
+      "control_family": "no_schema_store",
+      "energy_readout": "raw_scene_mhn_energy",
+      "formulation": "per_pattern",
+      "gamma": 0.5,
+      "headline_metric": "Delta E = E_content-prior - E_role-prior",
+      "include_surprise_branch": false,
+      "k_main": 4,
+      "memory_shape": [
+        512,
+        4096
+      ],
+      "memory_source": "bundle_first_scene_store",
+      "paired_delta_group": "no_schema_store",
+      "prior_type": "content",
+      "query_plan_ref": "source.query_plan_by_seed",
+      "retrieval_executed": false,
+      "run_combiners": false,
+      "schema_atom_idx_shape": null,
+      "schema_bindings_shape": [
+        2048,
+        16,
+        4096
+      ],
+      "schema_source": "content_codebook",
+      "schema_store_shape": [
+        2048,
+        4096
+      ],
+      "score_bias": null
+    },
+    {
+      "baseline_id": "raw_scene_energy_v0",
+      "beta": 30.0,
+      "cell_id": "no_schema_store_role_K4_g0.5",
+      "control_family": "no_schema_store",
+      "energy_readout": "raw_scene_mhn_energy",
+      "formulation": "per_pattern",
+      "gamma": 0.5,
+      "headline_metric": "Delta E = E_content-prior - E_role-prior",
+      "include_surprise_branch": false,
+      "k_main": 4,
+      "memory_shape": [
+        512,
+        4096
+      ],
+      "memory_source": "bundle_first_scene_store",
+      "paired_delta_group": "no_schema_store",
+      "prior_type": "role",
+      "query_plan_ref": "source.query_plan_by_seed",
+      "retrieval_executed": false,
+      "run_combiners": false,
+      "schema_atom_idx_shape": null,
+      "schema_bindings_shape": [
+        2048,
+        16,
+        4096
+      ],
+      "schema_source": "content_codebook",
+      "schema_store_shape": [
+        2048,
+        4096
+      ],
+      "score_bias": null
+    }
+  ],
+  "query_plan_validation": {
+    "observed_role_counts": [
+      4
+    ],
+    "passes": true,
+    "per_seed": [
+      {
+        "invalid_queries": 0,
+        "invalid_rows": 0,
+        "passes": true,
+        "queries": 512,
+        "rows": 512,
+        "seed": 17
+      },
+      {
+        "invalid_queries": 0,
+        "invalid_rows": 0,
+        "passes": true,
+        "queries": 512,
+        "rows": 512,
+        "seed": 11
+      },
+      {
+        "invalid_queries": 0,
+        "invalid_rows": 0,
+        "passes": true,
+        "queries": 512,
+        "rows": 512,
+        "seed": 23
+      },
+      {
+        "invalid_queries": 0,
+        "invalid_rows": 0,
+        "passes": true,
+        "queries": 512,
+        "rows": 512,
+        "seed": 1
+      },
+      {
+        "invalid_queries": 0,
+        "invalid_rows": 0,
+        "passes": true,
+        "queries": 512,
+        "rows": 512,
+        "seed": 2
+      },
+      {
+        "invalid_queries": 0,
+        "invalid_rows": 0,
+        "passes": true,
+        "queries": 512,
+        "rows": 512,
+        "seed": 3
+      },
+      {
+        "invalid_queries": 0,
+        "invalid_rows": 0,
+        "passes": true,
+        "queries": 512,
+        "rows": 512,
+        "seed": 5
+      },
+      {
+        "invalid_queries": 0,
+        "invalid_rows": 0,
+        "passes": true,
+        "queries": 512,
+        "rows": 512,
+        "seed": 7
+      },
+      {
+        "invalid_queries": 0,
+        "invalid_rows": 0,
+        "passes": true,
+        "queries": 512,
+        "rows": 512,
+        "seed": 13
+      },
+      {
+        "invalid_queries": 0,
+        "invalid_rows": 0,
+        "passes": true,
+        "queries": 512,
+        "rows": 512,
+        "seed": 29
+      }
+    ]
+  },
+  "retrieval_executed": false,
+  "shape_probe": {
+    "content_shape": [
+      2048,
+      4096
+    ],
+    "device": "cpu",
+    "query_context_tokens_shape": [
+      512,
+      4096
+    ],
+    "retrieval_executed": false,
+    "roles_shape": [
+      16,
+      4096
+    ],
+    "scene_matrix_shape": [
+      512,
+      4096
+    ],
+    "seed": 17
+  },
+  "source_manifest": {
+    "cleanup_preflight_path": "reports/phase5_prime_natural_source_control_cleanup_preflight.json",
+    "cleanup_preflight_sha256": "3c3a5c9781c7cb2f2a052923703ad8d4d60a84fcae5a590e82a1c8f29cf40aaf",
+    "prior_gate_path": "reports/phase5_prime_nonsynthetic_native_gate.json",
+    "prior_gate_sha256": "8ada5e4c01104f79545e9da156c3b870279fdff0da214d54d969f1d85a2ef280",
+    "protocol_name": "non_special_unique_target_freq_le_32",
+    "source_artifact_path": "reports/phase5_prime_nonsynthetic_native_context_source.json",
+    "source_artifact_sha256": "2200f3c1b1599c478ce6ecc6a3cb1e783c3bfd51ceda3f335642bb9158989398"
+  },
+  "stop_conditions": [
+    "Do not run retrieval if any planned control cannot share the same fixed query set.",
+    "Do not run retrieval if no-schema-store requires changing the headline metric.",
+    "Do not run retrieval if a scene-level Step-3 score_bias is reintroduced without a fixed mapping precommit.",
+    "Do not run retrieval if beta/gamma/K defaults drift without an explicit precommit.",
+    "Do not interpret this artifact as Phase 5 evidence or graduation."
+  ]
+}
