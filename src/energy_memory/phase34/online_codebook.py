@@ -125,6 +125,16 @@ class OnlineCodebookUpdater:
             if entry.predicted_id != entry.target_id:
                 push_targets[entry.predicted_id].append(entry.slot_query)
 
+        # C.2.2: update splitting tension BEFORE any consolidation force this
+        # event so T_k reflects basin state pre-anti-collapse; modulation
+        # then acts on the next event with that tension value. Early-exits
+        # when mu_T == 0 (κ=0 baseline byte-identical).
+        affected = pull_targets.keys() | push_targets.keys()
+        pre_states = self._snapshot_pre_states(affected)
+        cs = self.consolidation_state
+        if cs is not None:
+            cs.update_splitting_tension()
+
         pulled = 0
         for tid, queries in pull_targets.items():
             avg_dir = self.substrate.normalize(
@@ -147,7 +157,12 @@ class OnlineCodebookUpdater:
             )
             pushed += 1
 
-        self._apply_anti_collapse(pull_targets.keys() | push_targets.keys())
+        self._apply_anti_collapse(affected)
+        # C.2.2: multiplicatively attenuate the combined (pull/push +
+        # anti-collapse) per-atom update by 1/(1 + T_k / τ_T). H12 binding:
+        # modulation is multiplicative, applied to the NET update — not a
+        # new additive force, not a replacement of the update.
+        self._apply_splitting_tension(pre_states)
 
         self._consolidation_count += 1
         mean_q = (
@@ -183,6 +198,34 @@ class OnlineCodebookUpdater:
             if force is None:
                 continue
             self.codebook[atom_id] = self.substrate.normalize(current + force)
+
+    def _snapshot_pre_states(self, atom_ids):
+        # C.2.2: capture pre-update atom states so the multiplicative
+        # modulation can attenuate the *net* delta after pull/push +
+        # anti-collapse run. Empty / no-op when actuator off.
+        cs = self.consolidation_state
+        if cs is None or getattr(cs.config, "mu_T", 0.0) == 0.0:
+            return {}
+        return {
+            int(a): self.codebook[a].detach().clone()
+            for a in atom_ids
+            if 0 <= a < self.codebook.shape[0]
+        }
+
+    def _apply_splitting_tension(self, pre_states) -> None:
+        # C.2.2: blend codebook[k] = pre + modulation * (post - pre), then
+        # renormalize. Multiplicative attenuation of the net update (H12).
+        # Early-exits via pre_states being empty when mu_T == 0.
+        if not pre_states:
+            return
+        cs = self.consolidation_state
+        for atom_id, pre in pre_states.items():
+            modulation = cs.splitting_tension_modulation(atom_id)
+            if modulation == 1.0:
+                continue
+            post = self.codebook[atom_id]
+            blended = pre + modulation * (post - pre)
+            self.codebook[atom_id] = self.substrate.normalize(blended)
 
     def stats(self) -> dict:
         return {

@@ -139,6 +139,18 @@ class ConsolidationConfig:
     # refactor will consume; per H6/H9, the actuator must NOT read
     # BasinDiagnostics — it reads this buffer directly.
     basin_trace_buffer_size: int = 64
+    # C.2.2 splitting-tension EMA over per-basin λ_2/λ_1 (spatial bimodality).
+    # See notes/notes/2026-05-26-c22-splitting-tension-precommit.md. Per-atom
+    # T_k accumulates the eigenvalue ratio of Σ_k (the same substrate
+    # primitive C.2.1 reads — H11 binds the actuator to never read
+    # BimodalityDiagnostics or ContextBagHistory). The modulation
+    # 1 / (1 + T_k / τ_T) multiplicatively attenuates the per-atom
+    # consolidation update (H12: multiplicative, not additive). All four
+    # constants are FIXED at construction; H10 binds non-adaptivity.
+    mu_T: float = 0.0
+    tau_T: float = 0.5
+    epsilon_T: float = 1e-6
+    min_basin_for_signal: int = 4
 
 
 class ConsolidationState:
@@ -192,6 +204,11 @@ class ConsolidationState:
         self._basin_buffer: Deque[Tuple["torch.Tensor", int]] = deque(
             maxlen=int(config.basin_trace_buffer_size)
         )
+        # C.2.2 per-atom splitting tension T_k ∈ [0, 1]. Grows with sustained
+        # spatial bimodality of basin geometry; modulates the per-atom
+        # consolidation update via 1/(1 + T_k / τ_T). Stays at zero when
+        # mu_T == 0 (κ=0 baseline; modulation is exactly 1.0).
+        self.splitting_tension = torch.zeros(0, dtype=torch.float32, device=self.device)
         self._step_count = 0
 
         if config.strength_weights is not None:
@@ -258,6 +275,11 @@ class ConsolidationState:
         # The audit binds this — no "prior" derived from population stats.
         self.metastability_ema = torch.cat([
             self.metastability_ema,
+            torch.zeros(1, dtype=torch.float32, device=self.device),
+        ])
+        # C.2.2: new atoms enter with zero splitting tension (no prior basin).
+        self.splitting_tension = torch.cat([
+            self.splitting_tension,
             torch.zeros(1, dtype=torch.float32, device=self.device),
         ])
         return self.n_patterns - 1
@@ -496,6 +518,73 @@ class ConsolidationState:
         denom = tr_sigma + self.config.epsilon_ac
         return -self.config.lambda_ac * 2.0 * (centroid - atom_state) / denom
 
+    def _spatial_bimodality_signal(self, atom_idx: int) -> "torch.Tensor":
+        """C.2.2 substrate signal: λ_2 / (λ_1 + ε_T) from per-basin Σ_k.
+
+        Returns a 0-dim float32 tensor on self.device. Stays on-device
+        through the eigendecomposition; the caller is responsible for any
+        sync. Returns 0 when basin has < min_basin_for_signal members
+        (per the C.1.1 finite-sample finding).
+        """
+        zero = torch.zeros((), device=self.device, dtype=torch.float32)
+        members_list = [s for s, k in self._basin_buffer if k == atom_idx]
+        if len(members_list) < self.config.min_basin_for_signal:
+            return zero
+        members = torch.stack(members_list, dim=0)
+        centroid = members.mean(dim=0)
+        diffs = members - centroid.unsqueeze(0)
+        n = diffs.shape[0]
+        # Hermitian Gram of centered basin members. For complex (FHRR)
+        # tensors, diffs.conj().T @ diffs is Hermitian → real eigenvalues
+        # via torch.linalg.eigh.
+        sigma = (diffs.conj().transpose(-1, -2) @ diffs) / float(n)
+        # Eigh returns ascending eigenvalues. Take top two: λ_1 (last),
+        # λ_2 (second-to-last). All ops stay on-device.
+        eigvals = torch.linalg.eigvalsh(sigma)
+        lam_1 = eigvals[-1]
+        lam_2 = eigvals[-2] if eigvals.shape[0] >= 2 else torch.zeros_like(lam_1)
+        # Clamp at 0 — eigh may return tiny negatives for near-singular Σ.
+        lam_1 = lam_1.clamp(min=0.0)
+        lam_2 = lam_2.clamp(min=0.0)
+        ratio = lam_2 / (lam_1 + self.config.epsilon_T)
+        return ratio.to(self.device).to(torch.float32)
+
+    def update_splitting_tension(self) -> None:
+        """EMA-update T_k from substrate-side basin covariance.
+
+        Early-exit at mu_T == 0 (κ=0 byte-identical baseline). Per H11
+        the actuator reads Σ_k from self._basin_buffer (the C.2.1
+        substrate primitive); it never reads BimodalityDiagnostics or
+        ContextBagHistory.
+        """
+        mu = self.config.mu_T
+        if mu == 0.0:
+            return
+        if self.n_patterns == 0:
+            return
+        signals = torch.stack([
+            self._spatial_bimodality_signal(k)
+            for k in range(self.n_patterns)
+        ])
+        self.splitting_tension = (
+            (1.0 - mu) * self.splitting_tension + mu * signals
+        )
+
+    def splitting_tension_modulation(self, atom_idx: int) -> float:
+        """Per-atom attenuation factor 1 / (1 + T_k / τ_T).
+
+        Returns 1.0 exactly when mu_T == 0 (κ=0 baseline byte-identity).
+        The per-atom sync via float() is necessary for the orchestrator's
+        per-atom modulation application; the precommit's perf budget
+        accepts one sync per atom per consolidation event.
+        """
+        if self.config.mu_T == 0.0:
+            return 1.0
+        if not 0 <= atom_idx < self.n_patterns:
+            raise IndexError(f"atom index {atom_idx} out of range")
+        t_k = float(self.splitting_tension[atom_idx].detach().cpu())
+        return 1.0 / (1.0 + t_k / self.config.tau_T)
+
     def step_dynamics(
         self,
         input_vector: Optional["torch.Tensor"] = None,
@@ -624,6 +713,7 @@ class ConsolidationState:
         self.retrieval_count = self.retrieval_count[keep]
         self.r_ema = self.r_ema[keep]
         self.metastability_ema = self.metastability_ema[keep]
+        self.splitting_tension = self.splitting_tension[keep]
 
     def stats(self) -> dict:
         if self.n_patterns == 0:
@@ -644,6 +734,8 @@ class ConsolidationState:
                 "coverage_r_ema_max": 0.0,
                 "metastability_ema_mean": 0.0,
                 "metastability_ema_max": 0.0,
+                "splitting_tension_mean": 0.0,
+                "splitting_tension_max": 0.0,
             }
         strength = self.effective_strength().abs()
         rc = self.retrieval_count
@@ -667,6 +759,8 @@ class ConsolidationState:
             "coverage_r_ema_max": float(self.r_ema.max().detach().cpu()),
             "metastability_ema_mean": float(self.metastability_ema.mean().detach().cpu()),
             "metastability_ema_max": float(self.metastability_ema.max().detach().cpu()),
+            "splitting_tension_mean": float(self.splitting_tension.mean().detach().cpu()),
+            "splitting_tension_max": float(self.splitting_tension.max().detach().cpu()),
         }
 
 
