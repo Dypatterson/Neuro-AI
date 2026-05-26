@@ -58,6 +58,14 @@ from typing import Callable, Dict, List, Optional, Sequence, Tuple
 import torch
 
 from energy_memory.memory.torch_hopfield import TorchHopfieldMemory
+from energy_memory.phase2.corpus import (
+    Vocabulary,
+    build_vocabulary,
+    encode_texts,
+    load_corpus_splits,
+    make_windows,
+    sample_windows,
+)
 from energy_memory.phase2.encoding import (
     build_position_vectors,
     encode_window,
@@ -82,6 +90,7 @@ from energy_memory.substrate.torch_fhrr import TorchFHRR
 STRATA = ("tight", "spread", "borderline")
 THETA_PRIME_MODES = ("default", "calibrated")
 STANDARD_MODES = ("random", "consolidated")
+CORPUS_SOURCES = ("synthetic", "wikitext")
 # Path α (2026-05-26): the proper Phase 3 shuffled-token control runs
 # the SAME consolidation pipeline as the standard condition over the
 # SAME training corpus, but with a random permutation of the
@@ -122,6 +131,66 @@ C2_DEFAULTS = {
 
 
 # Synthetic corpus -------------------------------------------------------------
+
+@dataclass
+class _WikiTextCorpus:
+    """Pre-loaded WikiText-2 corpus for sharing across seeds in one run.
+
+    Holds the vocabulary (top-``vocab_cap`` tokens + ``<UNK>`` + ``<MASK>``
+    from the train split) and the encoded train / val / test token id
+    streams. Each seed in the run draws its own train / test window
+    samples from these streams (so different seeds see different sub-
+    samples but the underlying corpus is fixed).
+
+    The "effective" vocab_size used by the rest of the driver is
+    ``len(vocab.id_to_token)`` (= vocab_cap + 2 special tokens). ``<MASK>``
+    is the in-vocab token id used by the encoding/decoding utilities;
+    the driver still uses ``vocab_size`` as the out-of-vocab "mask"
+    sentinel for the masked-cue construction so it does not collide
+    with the special tokens. The masked-token *answer* (the regime
+    label and the topk membership) ranges over [0, vocab_size).
+    """
+
+    vocab: Vocabulary
+    train_ids: List[int]
+    val_ids: List[int]
+    test_ids: List[int]
+
+    @property
+    def vocab_size(self) -> int:
+        return len(self.vocab.id_to_token)
+
+
+def _load_wikitext_corpus(
+    *,
+    repo_root: Path,
+    wikitext_name: str,
+    vocab_cap: int,
+) -> _WikiTextCorpus:
+    """Load WikiText-2, build a capped vocabulary, encode all splits.
+
+    Uses the same loader / builder / encoder Phase 2 uses
+    (``experiments/02_phase2_retrieval_baseline.py:55-58``). Looks up
+    the loader / builder / encoder names on the module at call time so
+    tests can monkeypatch them (``mock.patch.object(mod,
+    'load_corpus_splits', ...)``) without re-binding the default.
+    """
+    # Module-level lookups so ``mock.patch.object`` works at call time.
+    module = sys.modules[__name__]
+    corpus_loader = getattr(module, "load_corpus_splits")
+    vocab_builder = getattr(module, "build_vocabulary")
+    text_encoder = getattr(module, "encode_texts")
+    splits = corpus_loader(
+        "wikitext", repo_root, wikitext_name=wikitext_name,
+    )
+    vocab = vocab_builder(splits["train"], max_vocab=vocab_cap)
+    train_ids = text_encoder(splits["train"], vocab)
+    val_ids = text_encoder(splits["validation"], vocab)
+    test_ids = text_encoder(splits["test"], vocab)
+    return _WikiTextCorpus(
+        vocab=vocab, train_ids=train_ids, val_ids=val_ids, test_ids=test_ids,
+    )
+
 
 def _make_synthetic_windows(
     *,
@@ -509,6 +578,7 @@ def _run_single_seed_condition(
     repulsion_step_size: float,
     device: str,
     repo_root: Path,
+    wikitext_corpus: Optional[_WikiTextCorpus] = None,
 ) -> Dict[str, object]:
     """Run one (seed, mode, condition) cell.
 
@@ -569,22 +639,61 @@ def _run_single_seed_condition(
     # see the same training-window indices and the same test windows.
     # ``train_windows`` is sampled down to ``landscape_size`` for the
     # Hopfield landscape.
-    train_windows = _make_synthetic_windows(
-        n_windows=n_train_windows,
-        window_size=window_size,
-        vocab_size=vocab_size,
-        rng=corpus_rng,
-    )
+    #
+    # Two corpus modes:
+    #   synthetic (``wikitext_corpus is None``): uniform-random token
+    #     id windows from [0, vocab_size).
+    #   wikitext  (``wikitext_corpus`` provided): sliding-window
+    #     extraction from the WikiText-2 train split (for the
+    #     training pool, which the landscape and consolidation share)
+    #     and from the val+test split concatenation (for the
+    #     held-out test pool). Both main and control share the same
+    #     seeded window subsamples so the comparison is matched.
+    if wikitext_corpus is None:
+        train_windows = _make_synthetic_windows(
+            n_windows=n_train_windows,
+            window_size=window_size,
+            vocab_size=vocab_size,
+            rng=corpus_rng,
+        )
+        test_windows = _make_synthetic_windows(
+            n_windows=n_test_windows,
+            window_size=window_size,
+            vocab_size=vocab_size,
+            rng=corpus_rng,
+        )
+    else:
+        # WikiText: build all non-overlapping windows once over the
+        # encoded streams, then per-seed subsample. Use
+        # ``sample_windows`` from the Phase 2 corpus module — same
+        # primitive Phase 2 uses (deterministic given a seed).
+        all_train_windows = make_windows(
+            wikitext_corpus.train_ids, window_size,
+        )
+        held_out_ids = list(wikitext_corpus.val_ids) + list(
+            wikitext_corpus.test_ids
+        )
+        all_test_windows = make_windows(held_out_ids, window_size)
+        if not all_train_windows or not all_test_windows:
+            raise RuntimeError(
+                "WikiText corpus produced no windows at the requested "
+                f"window_size={window_size}."
+            )
+        # Per-seed window sampling. Subsample seeds are disjoint from
+        # the substrate / shuffle / control RNG streams used above.
+        train_windows = sample_windows(
+            all_train_windows,
+            min(n_train_windows, len(all_train_windows)),
+            seed=seed + 50000,
+        )
+        test_windows = sample_windows(
+            all_test_windows,
+            min(n_test_windows, len(all_test_windows)),
+            seed=seed + 60000,
+        )
     if landscape_size > len(train_windows):
         landscape_size = len(train_windows)
     landscape_windows = train_windows[:landscape_size]
-
-    test_windows = _make_synthetic_windows(
-        n_windows=n_test_windows,
-        window_size=window_size,
-        vocab_size=vocab_size,
-        rng=corpus_rng,
-    )
 
     # Memorize the landscape into Hopfield memory.
     memory = TorchHopfieldMemory[str](substrate)
@@ -732,6 +841,10 @@ def run(
     device: str,
     output_dir: Path,
     repo_root: Path,
+    corpus_source: str = "synthetic",
+    wikitext_name: str = "wikitext-2-raw-v1",
+    vocab_cap: int = 1000,
+    wikitext_corpus: Optional[_WikiTextCorpus] = None,
 ) -> dict:
     """Run the full C.3 experiment.
 
@@ -745,8 +858,44 @@ def run(
     else:
         modes = [theta_prime_mode]
 
+    if corpus_source not in CORPUS_SOURCES:
+        raise ValueError(
+            f"unknown corpus_source: {corpus_source!r}; expected one of "
+            f"{CORPUS_SOURCES}."
+        )
+
     start = time.time()
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Load WikiText-2 once for the whole run if requested. The vocabulary
+    # is built from the train split; vocab_size used by everything
+    # downstream becomes ``len(vocab.id_to_token)`` (= vocab_cap + 2
+    # special tokens — <UNK>, <MASK>). The caller can also inject a
+    # pre-built ``wikitext_corpus`` (used by tests to mock the loader).
+    effective_vocab_size = vocab_size
+    corpus_info: Dict[str, object] = {
+        "corpus_source": corpus_source,
+        "wikitext_name": wikitext_name if corpus_source == "wikitext" else None,
+        "vocab_cap": vocab_cap if corpus_source == "wikitext" else None,
+    }
+    if corpus_source == "wikitext" and wikitext_corpus is None:
+        wikitext_corpus = _load_wikitext_corpus(
+            repo_root=repo_root,
+            wikitext_name=wikitext_name,
+            vocab_cap=vocab_cap,
+        )
+    if wikitext_corpus is not None:
+        effective_vocab_size = wikitext_corpus.vocab_size
+        corpus_info.update(
+            {
+                "effective_vocab_size": effective_vocab_size,
+                "n_train_tokens": len(wikitext_corpus.train_ids),
+                "n_val_tokens": len(wikitext_corpus.val_ids),
+                "n_test_tokens": len(wikitext_corpus.test_ids),
+                "unk_token_id": int(wikitext_corpus.vocab.unk_id),
+                "mask_token_id": int(wikitext_corpus.vocab.mask_id),
+            }
+        )
 
     per_cell_rows: List[Dict[str, object]] = []
 
@@ -764,7 +913,7 @@ def run(
                     landscape_size=landscape_size,
                     window_size=window_size,
                     n_test_windows=n_test_windows,
-                    vocab_size=vocab_size,
+                    vocab_size=effective_vocab_size,
                     n_train_windows=n_train_windows,
                     beta=beta,
                     k=k,
@@ -772,6 +921,7 @@ def run(
                     repulsion_step_size=repulsion_step_size,
                     device=device,
                     repo_root=repo_root,
+                    wikitext_corpus=wikitext_corpus,
                 )
                 per_cell_rows.append(row)
 
@@ -864,12 +1014,13 @@ def run(
                 "D": D,
                 "landscape_size": landscape_size,
                 "window_size": window_size,
-                "vocab_size": vocab_size,
+                "vocab_size": effective_vocab_size,
                 "n_train_windows": n_train_windows,
                 "n_test_windows": n_test_windows,
                 "beta": beta,
                 "K": k,
             },
+            "corpus": corpus_info,
             "theta_prime_modes_run": modes,
             "device": device,
             "wall_clock_seconds": None,  # filled in below
@@ -939,6 +1090,18 @@ def _format_markdown(summary: dict) -> str:
     )
     lines.append(f"- device = `{header['device']}`")
     lines.append(f"- wall_clock = `{header['wall_clock_seconds']:.1f}s`")
+    corpus = header.get("corpus")
+    if corpus is not None:
+        lines.append(f"- corpus_source = `{corpus.get('corpus_source')}`")
+        if corpus.get("corpus_source") == "wikitext":
+            lines.append(f"- wikitext_name = `{corpus.get('wikitext_name')}`")
+            lines.append(f"- vocab_cap = `{corpus.get('vocab_cap')}`")
+            lines.append(
+                f"- effective_vocab_size = `{corpus.get('effective_vocab_size')}`"
+            )
+            lines.append(f"- n_train_tokens = `{corpus.get('n_train_tokens')}`")
+            lines.append(f"- n_val_tokens = `{corpus.get('n_val_tokens')}`")
+            lines.append(f"- n_test_tokens = `{corpus.get('n_test_tokens')}`")
     lines.append("")
     lines.append("## Headline table — per-mode, per-stratum")
     lines.append("")
@@ -1067,6 +1230,20 @@ def _format_stdout_table(summary: dict) -> str:
         f"repulsion_step_size={header.get('repulsion_step_size', 0.0)}  "
         f"substrate_repulsion_active={header.get('substrate_repulsion_active', False)}"
     )
+    corpus = header.get("corpus")
+    if corpus is not None:
+        src = corpus.get("corpus_source")
+        if src == "wikitext":
+            lines.append(
+                f"corpus=wikitext({corpus.get('wikitext_name')}) "
+                f"vocab_cap={corpus.get('vocab_cap')} "
+                f"effective_vocab={corpus.get('effective_vocab_size')} "
+                f"n_train_tok={corpus.get('n_train_tokens')} "
+                f"n_val_tok={corpus.get('n_val_tokens')} "
+                f"n_test_tok={corpus.get('n_test_tokens')}"
+            )
+        else:
+            lines.append(f"corpus={src}")
     for mode in header["theta_prime_modes_run"]:
         lines.append(f"\n  theta_prime_mode = {mode}")
         lines.append(
@@ -1204,7 +1381,51 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             "test_phase5_ab_death_dynamic.py exercises 50.0 at D=256."
         ),
     )
-    parser.add_argument("--device", default="cpu")
+    parser.add_argument(
+        "--corpus-source",
+        choices=list(CORPUS_SOURCES),
+        default="synthetic",
+        help=(
+            "Source corpus for training and held-out windows. "
+            "'synthetic' (default, Path α / pre-Path β) uses uniform-"
+            "random token-id windows over [0, vocab_size). 'wikitext' "
+            "(Path β) loads WikiText-2 via the same loader Phase 2 "
+            "uses (experiments/02_phase2_retrieval_baseline.py:55-58), "
+            "builds a top --vocab-cap vocabulary from the train split "
+            "(with <UNK>+<MASK> special tokens), and uses sliding-"
+            "window extraction from the train split for training/"
+            "consolidation and from the val+test split for held-out "
+            "test windows. The shuffled-token control still applies a "
+            "random row permutation to the codebook — it tests whether "
+            "the standard condition's edge depends on the corpus-"
+            "specific token-to-hypervector assignment."
+        ),
+    )
+    parser.add_argument(
+        "--wikitext-name",
+        default="wikitext-2-raw-v1",
+        help="HuggingFace WikiText config name (default wikitext-2-raw-v1).",
+    )
+    parser.add_argument(
+        "--vocab-cap",
+        type=int,
+        default=1000,
+        help=(
+            "For --corpus-source wikitext, cap vocabulary to the top-K "
+            "most frequent train-split tokens (default 1000). The "
+            "effective vocab_size (incl. <UNK>+<MASK>) becomes "
+            "--vocab-cap + 2. Out-of-vocab tokens map to <UNK>. "
+            "Ignored when --corpus-source synthetic."
+        ),
+    )
+    parser.add_argument(
+        "--device",
+        default=None,
+        help=(
+            "Compute device. Default auto-detects MPS if available, "
+            "else CPU. Pass 'cpu' explicitly to force CPU."
+        ),
+    )
     parser.add_argument(
         "--output-dir",
         default=None,
@@ -1217,6 +1438,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     args = parser.parse_args(argv)
     repo_root = Path(__file__).resolve().parents[1]
     seeds = _parse_seeds(args.seeds)
+    if args.device is None:
+        args.device = (
+            "mps" if torch.backends.mps.is_available()
+            else "cuda" if torch.cuda.is_available()
+            else "cpu"
+        )
     if args.output_dir is None:
         ts = time.strftime("%Y%m%d_%H%M%S")
         output_dir = repo_root / "reports" / f"c3_smoke_{ts}"
@@ -1244,6 +1471,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         device=args.device,
         output_dir=output_dir,
         repo_root=repo_root,
+        corpus_source=args.corpus_source,
+        wikitext_name=args.wikitext_name,
+        vocab_cap=args.vocab_cap,
     )
     json_path, md_path = write_outputs(summary, output_dir)
     print(_format_stdout_table(summary))

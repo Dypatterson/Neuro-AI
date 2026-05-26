@@ -342,5 +342,172 @@ class TestShuffledTokenControl(unittest.TestCase):
         self.assertEqual(ctrl_rows[0]["substrate_seed"], 0 + 10000)
 
 
+class TestWikiTextCorpusPathArgs(unittest.TestCase):
+    """T7 — ``--corpus-source wikitext`` CLI flags wire through to ``run()``.
+
+    Path β (2026-05-26): the driver gains a WikiText-2 corpus mode. This
+    test only exercises argument parsing + corpus-loader invocation; the
+    loader itself is replaced by a monkeypatched fake so the test does
+    not actually fetch ~3 MB of corpus data. It verifies:
+
+      - the CLI accepts ``--corpus-source wikitext``, ``--wikitext-name``,
+        and ``--vocab-cap``;
+      - the driver's ``run()`` calls ``load_corpus_splits`` with the
+        right arguments when ``corpus_source='wikitext'``;
+      - the header records the corpus block (source, name, vocab cap,
+        token counts);
+      - the effective vocab size is ``vocab_cap + 2`` (special tokens).
+    """
+
+    def _make_fake_corpus(self):
+        """Build a tiny synthetic WikiText-shaped corpus for the test.
+
+        The Phase 2 vocabulary builder takes a list of text strings, so
+        the fake loader returns one long string per split with enough
+        token diversity to populate the capped vocabulary.
+        """
+        # ~80 unique tokens, repeated; enough to satisfy vocab_cap=16.
+        train_tokens = " ".join(
+            f"tok{i % 80}" for i in range(2000)
+        )
+        val_tokens = " ".join(f"tok{i % 80}" for i in range(400))
+        test_tokens = " ".join(f"tok{i % 80}" for i in range(400))
+        return {
+            "train": [train_tokens],
+            "validation": [val_tokens],
+            "test": [test_tokens],
+        }
+
+    def test_run_invokes_loader_with_wikitext_args(self):
+        mod = importlib.import_module("c3_phase3_exit_criterion")
+        import tempfile
+        from pathlib import Path as _Path
+        from unittest import mock
+
+        fake_corpus = self._make_fake_corpus()
+        loader_calls = []
+
+        def fake_loader(source, repo_root, wikitext_name="wikitext-2-raw-v1"):
+            loader_calls.append((source, str(repo_root), wikitext_name))
+            return fake_corpus
+
+        with mock.patch.object(mod, "load_corpus_splits", new=fake_loader):
+            with tempfile.TemporaryDirectory() as tmp:
+                summary = mod.run(
+                    seeds=[0],
+                    D=128,
+                    landscape_size=4,
+                    window_size=4,
+                    n_test_windows=8,
+                    n_train_windows=32,
+                    vocab_size=200,  # ignored under wikitext mode
+                    k=3,
+                    beta=10.0,
+                    theta_prime_mode="default",
+                    standard_mode="consolidated",
+                    control_mode="shuffled-token",
+                    n_consolidation_events=10,
+                    alpha_anti=0.0,
+                    repulsion_step_size=0.0,
+                    device="cpu",
+                    output_dir=_Path(tmp),
+                    repo_root=REPO_ROOT,
+                    corpus_source="wikitext",
+                    wikitext_name="wikitext-2-raw-v1",
+                    vocab_cap=16,
+                )
+        # Loader called exactly once for the whole run.
+        self.assertEqual(len(loader_calls), 1)
+        src, _root, name = loader_calls[0]
+        self.assertEqual(src, "wikitext")
+        self.assertEqual(name, "wikitext-2-raw-v1")
+
+        # Header records the corpus block.
+        corpus = summary["header"]["corpus"]
+        self.assertEqual(corpus["corpus_source"], "wikitext")
+        self.assertEqual(corpus["wikitext_name"], "wikitext-2-raw-v1")
+        self.assertEqual(corpus["vocab_cap"], 16)
+        # vocab_cap=16 + <UNK>/<MASK> specials = 18 effective.
+        self.assertEqual(corpus["effective_vocab_size"], 18)
+        self.assertGreater(corpus["n_train_tokens"], 0)
+        self.assertGreater(corpus["n_val_tokens"], 0)
+        self.assertGreater(corpus["n_test_tokens"], 0)
+        # Operating point reflects the effective vocab.
+        self.assertEqual(summary["header"]["operating_point"]["vocab_size"], 18)
+
+    def test_cli_parses_wikitext_flags(self):
+        """``main`` accepts the three new CLI flags without explosion."""
+        mod = importlib.import_module("c3_phase3_exit_criterion")
+        import tempfile
+        from pathlib import Path as _Path
+        from unittest import mock
+
+        fake_corpus = self._make_fake_corpus()
+
+        def fake_loader(source, repo_root, wikitext_name="wikitext-2-raw-v1"):
+            return fake_corpus
+
+        with mock.patch.object(mod, "load_corpus_splits", new=fake_loader):
+            with tempfile.TemporaryDirectory() as tmp:
+                rc = mod.main(
+                    [
+                        "--seeds", "0",
+                        "--D", "128",
+                        "--landscape-size", "4",
+                        "--window", "4",
+                        "--n-test-windows", "8",
+                        "--n-train-windows", "32",
+                        "--K", "3",
+                        "--beta", "10.0",
+                        "--theta-prime-mode", "default",
+                        "--standard-mode", "consolidated",
+                        "--control-mode", "shuffled-token",
+                        "--n-consolidation-events", "10",
+                        "--alpha-anti", "0.0",
+                        "--repulsion-step-size", "0.0",
+                        "--corpus-source", "wikitext",
+                        "--wikitext-name", "wikitext-2-raw-v1",
+                        "--vocab-cap", "16",
+                        "--output-dir", tmp,
+                    ]
+                )
+        self.assertEqual(rc, 0)
+
+    def test_synthetic_mode_unchanged_backward_compat(self):
+        """Default synthetic mode keeps working without WikiText loader."""
+        mod = importlib.import_module("c3_phase3_exit_criterion")
+        import tempfile
+        from pathlib import Path as _Path
+
+        with tempfile.TemporaryDirectory() as tmp:
+            summary = mod.run(
+                seeds=[0],
+                D=128,
+                landscape_size=4,
+                window_size=4,
+                n_test_windows=8,
+                n_train_windows=32,
+                vocab_size=16,
+                k=3,
+                beta=10.0,
+                theta_prime_mode="default",
+                standard_mode="consolidated",
+                control_mode="shuffled-token",
+                n_consolidation_events=10,
+                alpha_anti=0.0,
+                repulsion_step_size=0.0,
+                device="cpu",
+                output_dir=_Path(tmp),
+                repo_root=REPO_ROOT,
+                # corpus_source omitted -> defaults to "synthetic"
+            )
+        corpus = summary["header"]["corpus"]
+        self.assertEqual(corpus["corpus_source"], "synthetic")
+        self.assertIsNone(corpus["wikitext_name"])
+        self.assertIsNone(corpus["vocab_cap"])
+        # Synthetic mode keeps the requested vocab_size.
+        self.assertEqual(summary["header"]["operating_point"]["vocab_size"], 16)
+
+
 if __name__ == "__main__":
     unittest.main()

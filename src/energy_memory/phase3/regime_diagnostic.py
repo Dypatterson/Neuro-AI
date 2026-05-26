@@ -34,18 +34,17 @@ def pairwise_fhrr_distance(patterns: torch.Tensor) -> torch.Tensor:
 
 
 def participation_ratio(patterns: torch.Tensor) -> float:
-    # Gram on [N,N] shares non-zero eigvals with feature covariance — O(N^3) vs O(D^3).
+    # Hermitian-Gram trace/Frobenius form: (sum λ_i)² / sum λ_i² = (tr Σ)² / ||Σ||_F². MPS-native (no eigh).
     n = patterns.shape[0]
     if n < 2:
         return float("nan")
     centered = patterns - patterns.mean(dim=0, keepdim=True)
     gram = centered @ centered.conj().T / n
-    eigvals = torch.linalg.eigvalsh(gram).clamp(min=0)
-    s = eigvals.sum()
-    sq = (eigvals * eigvals).sum()
-    if float(sq) <= 0:
+    tr_g = gram.diagonal().real.sum()
+    tr_g_sq = (gram.abs() * gram.abs()).sum()
+    if float(tr_g_sq) <= 0:
         return float("nan")
-    return float(s * s / sq)
+    return float(tr_g * tr_g / tr_g_sq)
 
 
 def summary_stats(values: List[float]) -> Dict[str, float]:
