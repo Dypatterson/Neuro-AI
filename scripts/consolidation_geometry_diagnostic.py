@@ -48,56 +48,19 @@ from typing import Dict, List
 
 import torch
 
-
-def _pairwise_fhrr_similarity(patterns: torch.Tensor) -> torch.Tensor:
-    """Return [N, N] mean-Re(a*·b) similarity matrix among complex patterns.
-
-    For normalized FHRR vectors with |x_i| = 1, diagonal is exactly 1.
-    """
-    n, d = patterns.shape
-    # X X^H  but using conj on the second argument keeps the math right:
-    # sim[i,j] = (1/D) Σ_k Re(conj(x_ik) x_jk)
-    inner = patterns @ patterns.conj().T  # [N, N] complex
-    return inner.real / d
-
-
-def _pairwise_fhrr_distance(patterns: torch.Tensor) -> torch.Tensor:
-    return 1.0 - _pairwise_fhrr_similarity(patterns)
-
-
-def _participation_ratio(patterns: torch.Tensor) -> float:
-    """(Σ λ)² / Σ λ². NaN for empty input.
-
-    Uses the Gram matrix X̃ X̃^H / N (shape [N, N]) instead of the
-    feature covariance X^H X / N (shape [D, D]). They share the same
-    non-zero eigenvalues, so participation ratio is identical, but
-    eigh on [N, N] is O(N³) vs O(D³) — for N=1024, D=4096 this is
-    a ~64× speedup. The 4096×4096 complex eigh on CPU is intractable
-    when called once per atom × 1024 atoms × 5 snapshots.
-    """
-    n = patterns.shape[0]
-    if n < 2:
-        return float("nan")
-    centered = patterns - patterns.mean(dim=0, keepdim=True)
-    # Gram matrix is [N, N] complex Hermitian.
-    gram = centered @ centered.conj().T / n
-    eigvals = torch.linalg.eigvalsh(gram).clamp(min=0)
-    s = eigvals.sum()
-    sq = (eigvals * eigvals).sum()
-    if float(sq) <= 0:
-        return float("nan")
-    return float(s * s / sq)
+from energy_memory.phase3.regime_diagnostic import (
+    pairwise_fhrr_similarity as _pairwise_fhrr_similarity,
+    pairwise_fhrr_distance as _pairwise_fhrr_distance,
+    participation_ratio as _participation_ratio,
+    summary_stats as _summary_stats,
+)
 
 
 def _per_atom_diagnostics(
     patterns: torch.Tensor,
     k_nn: int,
 ) -> List[Dict]:
-    """For each atom t, compute d̄_t, d_eff_t over its k-NN cluster.
-
-    The atom itself is excluded from its own k-NN. If there are fewer
-    than 3 atoms total, per-atom diagnostics are returned as NaN.
-    """
+    """For each atom t, compute d̄_t, d_eff_t over its k-NN cluster."""
     n = patterns.shape[0]
     out: List[Dict] = []
     if n < 2:
@@ -111,27 +74,21 @@ def _per_atom_diagnostics(
         return out
 
     sim = _pairwise_fhrr_similarity(patterns)
-    # Mask self by setting diagonal to -inf for top-k selection.
     sim_masked = sim.clone()
     sim_masked.fill_diagonal_(float("-inf"))
 
-    # k_used per atom = min(k_nn, n-1).
     k_eff = min(k_nn, n - 1)
-    # topk over rows: for each atom, the k_eff most-similar OTHER atoms.
-    top_idx = torch.topk(sim_masked, k=k_eff, dim=1).indices  # [N, k_eff]
+    top_idx = torch.topk(sim_masked, k=k_eff, dim=1).indices
 
     for i in range(n):
         neighbors_idx = top_idx[i].tolist()
-        cluster = patterns[neighbors_idx]  # [k_eff, D]
-        # d̄_t = mean pairwise distance among cluster members.
+        cluster = patterns[neighbors_idx]
         if k_eff >= 2:
             dist_mat = 1.0 - _pairwise_fhrr_similarity(cluster)
-            # off-diagonal mean
             mask = ~torch.eye(k_eff, dtype=torch.bool, device=dist_mat.device)
             d_bar = float(dist_mat[mask].mean())
         else:
             d_bar = float("nan")
-        # d_eff_t = participation ratio of cluster covariance.
         d_eff = _participation_ratio(cluster)
         out.append({
             "atom_idx": i,
@@ -140,22 +97,6 @@ def _per_atom_diagnostics(
             "d_eff": d_eff,
         })
     return out
-
-
-def _summary_stats(values: List[float]) -> Dict[str, float]:
-    finite = [v for v in values if math.isfinite(v)]
-    if not finite:
-        return {"n": 0, "mean": float("nan"), "min": float("nan"),
-                "max": float("nan"), "median": float("nan")}
-    finite_sorted = sorted(finite)
-    n = len(finite_sorted)
-    return {
-        "n": n,
-        "mean": sum(finite) / n,
-        "min": finite_sorted[0],
-        "max": finite_sorted[-1],
-        "median": finite_sorted[n // 2],
-    }
 
 
 def diagnose(snapshot_path: Path, k_nn: int, beta: float) -> Dict:
