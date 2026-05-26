@@ -8,10 +8,10 @@ import unittest
 class TestNaturalSourceControlCleanupPreflight(unittest.TestCase):
 
     def test_protocol_requires_non_special_unique_targets_and_zero_opportunity(self):
-        from scripts.phase5_prime_natural_source_control_cleanup_preflight import (
-            _eligible_triples_for_seed,
-            _same_scene_opportunities,
-            _select_queries,
+        from energy_memory.phase5.natural_source_protocol import (
+            eligible_triples_for_seed,
+            same_scene_opportunities,
+            select_queries,
         )
 
         rows = [
@@ -20,8 +20,7 @@ class TestNaturalSourceControlCleanupPreflight(unittest.TestCase):
             [9, 9, 10, 11],
         ]
         selected_context_roles = [[0, 1], [0, 1], [0, 1]]
-        eligible = _eligible_triples_for_seed(
-            seed=17,
+        eligible = eligible_triples_for_seed(
             rows=rows,
             selected_context_roles=selected_context_roles,
             k_roles=4,
@@ -34,7 +33,7 @@ class TestNaturalSourceControlCleanupPreflight(unittest.TestCase):
         self.assertEqual(len(eligible), 12)
         self.assertTrue(all(item["target_atom"] not in {0, 1} for item in eligible))
 
-        selected = _select_queries(
+        selected = select_queries(
             seed=17,
             eligible=eligible,
             n_queries=4,
@@ -42,7 +41,7 @@ class TestNaturalSourceControlCleanupPreflight(unittest.TestCase):
             k_roles=4,
             n_rows=len(rows),
         )
-        opportunities = _same_scene_opportunities(
+        opportunities = same_scene_opportunities(
             rows=rows,
             selected=selected,
             seed=17,

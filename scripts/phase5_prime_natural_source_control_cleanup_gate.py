@@ -9,6 +9,12 @@ from typing import Dict, List
 
 import torch
 
+from energy_memory.phase5.natural_source_protocol import (
+    fixedpoint_free_shuffle as _fixedpoint_free_shuffle_indices,
+    protocol_payload as _protocol_payload,
+    source_with_protocol_plan as _source_with_protocol_plan,
+    validate_cleanup_preflight,
+)
 from scripts import phase5_prime_nonsynthetic_native_gate as base_gate
 
 
@@ -22,35 +28,14 @@ CONDITIONS = {
 
 
 def _fixedpoint_free_shuffle(seed: int, k_roles: int) -> torch.Tensor:
-    generator = torch.Generator(device="cpu").manual_seed(seed * 4001 + k_roles)
     return torch.tensor(
-        base_gate.EXP44._role_derangement(k_roles, generator=generator),
+        _fixedpoint_free_shuffle_indices(seed, k_roles),
         dtype=torch.long,
     )
 
 
 def _load_json(path: Path) -> dict:
     return json.loads(path.read_text())
-
-
-def _protocol_payload(preflight: dict, protocol_name: str | None) -> dict:
-    selected = protocol_name or preflight.get("recommended_protocol")
-    if not selected:
-        raise ValueError("cleanup preflight does not name a recommended protocol")
-    for protocol in preflight.get("protocols", []):
-        if protocol.get("protocol_name") == selected:
-            if not protocol.get("passes_all_criteria"):
-                raise ValueError(f"cleanup protocol does not pass: {selected}")
-            return protocol
-    raise ValueError(f"cleanup protocol not found: {selected}")
-
-
-def _source_with_protocol_plan(source: dict, protocol: dict) -> dict:
-    out = dict(source)
-    out["query_plan_by_seed"] = protocol["selected_query_plan_by_seed"]
-    out["config"] = dict(source["config"])
-    out["config"]["n_queries"] = int(protocol["required_queries_per_seed"])
-    return out
 
 
 def _run_fixedpoint_free_shuffled(
@@ -231,13 +216,11 @@ def _run_seed_condition(
 
 
 def _validate_preflight(preflight: dict, source_sha: str, gate_sha: str) -> None:
-    manifest = preflight.get("source_manifest", {})
-    if manifest.get("source_artifact_sha256") != source_sha:
-        raise ValueError("cleanup preflight source SHA mismatch")
-    if manifest.get("gate_artifact_sha256") != gate_sha:
-        raise ValueError("cleanup preflight gate SHA mismatch")
-    if not preflight.get("framing", {}).get("preflight_only"):
-        raise ValueError("cleanup artifact is not marked preflight_only")
+    validate_cleanup_preflight(
+        preflight,
+        source_sha=source_sha,
+        gate_sha=gate_sha,
+    )
 
 
 def main() -> int:
