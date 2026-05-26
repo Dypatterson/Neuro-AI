@@ -65,7 +65,7 @@ are diagnostics, not a route selector.
 | F6 | Single-binding rebind returns `TrajectoryTrace.encoder_terms` | done | unit tests |
 | F7 | Window-preserving rebind returns `TrajectoryTrace.encoder_terms` | done | unit tests |
 | F8 | `UnifiedReplayMemory` uses static config: `standard` or `range_shaped` | done | unit tests |
-| F9 | Run downstream Phase 4 consolidation comparison | open | no downstream ΔE evidence yet |
+| F9 | Run downstream Phase 4 consolidation comparison | done | Reports 110-111 precommit and run fixed n=10 downstream comparison. `range_postsettle` increases candidate/provenance support but stores near-duplicates, lowers `d_eff`, and does not move held-out retrieval; `range_presettle` preserves novelty/d_eff but still lacks retrieval movement. Current range-shaped downstream lane closed as not viable; no Phase 5 `Delta E` run authorized |
 
 ## G. Verification Standard
 
@@ -75,7 +75,7 @@ are diagnostics, not a route selector.
 | G2 | Confidence intervals reported on headline | partial | Reports 075-090 and 093 record Wilson CIs for diagnostic cells where candidate/control retrieval is run; Reports 087, 089, 092, 096, and 098-102 are preflight/precommit/extraction/bridge-only; Report 091 is analysis-only; Report 097 is a diagnostic gate, not a headline run |
 | G3 | Leave-one-seed-out sensitivity reported | partial | Reports 082-083, 086, 088, 090, and 093 include candidate leave-one-seed-out sensitivity for context-source gates |
 | G4 | Controls E1-E6 run on the same test set | partial | Reports 075-090 controls are matched where available; Report 091 cross-checks residual analysis against the same Report 090 test set; Report 093 runs cleaned matched controls on the same selected query plan; Report 094 adds reusable selected-plan/control parity tests against Report 092; Report 095 proves reusable-path gate parity with byte-identical Report 093 JSON; Report 096 preflights a same-query-plan mini-matrix with positive controls and no-scene-token baseline; Report 097 runs that fixed mini-matrix gate; Report 099 preserves cleaned-gate parity after module extraction; full matrix still open |
-| G5 | Report explicitly says no graduation claim unless all gates pass | done | Reports 069-109 explicitly preserve no-graduation boundary |
+| G5 | Report explicitly says no graduation claim unless all gates pass | done | Reports 069-111 explicitly preserve no-graduation boundary |
 
 ## H. Anti-Homunculus Discipline
 
@@ -101,4 +101,4 @@ are diagnostics, not a route selector.
 | I9 | Analyze cue-conditioned condition-collapse before widening | done | Report 107 reads the Report 106 artifact without rerunning retrieval and localizes collapse to `min_branch_target_scene_attractor_collapse`: 118/120 branches and 36/36 min selections land on the probe target scene |
 | I10 | Precommit a stricter discriminator or fixed query subset before any widening | done | Report 108 statically audits all 512 seed-17 queries and fixes the four strict-disagreement probes `[29,110,220,331]` where role top-K contains target and content top-K excludes it |
 | I11 | Determine current bridge-path viability on the strict discriminator before widening | done | Report 109 runs the fixed strict probes with the preferred bundle-resettle combiner and beta/gamma sweep; no operating point passes, max mean `Delta E` is `0.00217 < 0.0055`, role does not separate from random, and the current bridge path is closed as not viable |
-| I12 | Choose the next Phase 5' lane only by fresh precommit | open | Reports 108-109 close the current bridge/readout path only; do not widen this path to n=3/n=10/gate/full-matrix/headline |
+| I12 | Choose the next Phase 5' lane only by fresh precommit | done | Report 110 precommits the F9 range-shaped replay downstream lane after Report 109 closes the bridge/readout path. Report 111 runs that fixed lane and closes it as not viable; no bridge widening, n=3/n=10 gate, full matrix, headline, M2, or graduation escalation |
