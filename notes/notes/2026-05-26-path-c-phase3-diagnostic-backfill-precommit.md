@@ -689,6 +689,83 @@ design.
 
 If this iteration produces signal, escalate to n=10 graduation.
 
+### 2026-05-26 — Path α smoke: STRONGER NULL than the C.3 baseline
+
+Path α executed:
+- `alpha_anti = 0.01` enabled in `TorchFHRR` (audit §4.1 [F] gap closed at the C.3 operating point for the first time at D=4096).
+- `repulsion_step_size = 0.05` in `ReplayConfig`; substrate repulsion-force consolidation step at `replay_loop.py:786-798` now active.
+- Shuffled-token control corrected per Error 2: now runs the SAME consolidation pipeline as the standard condition, but with a random token-to-hypervector permutation.
+
+n=3 smoke result at the Phase 2 operating point:
+
+| Mode | Stratum | std R@K [CI] | ctrl R@K [CI] | Δ | disjoint? |
+|---|---|---|---|---:|:--:|
+| default | spread | 0.023 [0.014, 0.039] | 0.022 [0.013, 0.037] | +0.002 | no |
+| calibrated | tight | 0.022 [0.013, 0.039] | 0.021 [0.012, 0.038] | +0.001 | no |
+| calibrated | spread | 0.032 [0.009, 0.109] | 0.024 [0.007, 0.083] | +0.008 | no |
+
+**The shuffled-token control with consolidation produces essentially
+identical Recall@K to the standard condition.** Standard's tiny edge
+over control (+0.001 to +0.008 across strata) sits well within the
+Wilson CIs at n=3. Far from CI-disjoint.
+
+**Interpretation (stronger than the original C.3 null):** with the
+proper shuffled-token-with-consolidation control, "did consolidation
+help?" is no longer conflated with "did the substrate ever see the
+corpus?" The comparison is now between (a) consolidation on real
+token assignments and (b) consolidation on randomly-permuted token
+assignments. **At this configuration the two are statistically
+indistinguishable.**
+
+The diagnosis sharpens: **consolidation produces structural change
+that is largely independent of corpus-specific token assignment.**
+Pull/push (the Hebbian mechanism inside `_consolidate()` at
+`online_codebook.py:144`) IS firing in both conditions; the C.2.x
+dynamics IS firing in both conditions; `alpha_anti` IS firing in
+both conditions. None of these mechanisms produce a measurable
+preference for the real-corpus standard over a randomly-permuted
+control.
+
+**Two candidate explanations** (both worth testing in Path β):
+
+1. **Consolidation is too weak to differentiate at this scale.** At
+   `lr_pull` default values + 1000 events + vocab=200, the
+   accumulated pull/push signal may not be strong enough to encode
+   corpus-specific structure above noise. Sweep `lr_pull` and
+   `n_consolidation_events`.
+2. **Synthetic vocab=200 is too simple.** Real corpora have
+   long-tail distributions, co-occurrence regularities, and rare-word
+   patterns that the synthetic random-sentence generator doesn't
+   capture. WikiText-2 (~30K vocab, real text statistics) would test
+   whether consolidation differentiates at meaningful scale.
+
+The audit's §4.3 hypothesis remains FALSIFIED at this operating point.
+**The structural-change-without-corpus-specific-learning finding is
+the dominant signal from this session.**
+
+### Recommended next path (post-Path-α)
+
+The Path α null rules out "inter-atom-separability was the missing
+piece." The next test should be **Path β: WikiText-2 operating
+point**, because:
+
+1. It's the project's actual target scale (real text, ~30K vocab).
+2. The synthetic-corpus null doesn't generalize cleanly to real
+   corpora — the consolidation mechanism may simply require richer
+   statistical structure to express corpus-specific learning.
+3. The Phase 2 baseline pipeline already supports WikiText-2 (audit
+   §4.2; `experiments/02_phase2_retrieval_baseline.py` has a
+   `--corpus-source wikitext` flag).
+4. If WikiText-2 still produces null, the conclusion is much
+   stronger: Phase 3 graduation is unreachable with this mechanism
+   regardless of operating point, and Path γ (mechanism redesign per
+   Eugenio's Self-Organizing Language / Hyperseed / Predictive Coding
+   directions per `literature-and-principles.md`) is the only honest
+   remaining option.
+
+This is a falsification ladder: synthetic null → real-corpus null →
+mechanism redesign required.
+
 ---
 
 **Cross-cutting binding findings for C.2 and C.3:**

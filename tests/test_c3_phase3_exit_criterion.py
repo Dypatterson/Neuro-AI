@@ -163,5 +163,184 @@ class TestRecallAtKOnTinyExample(unittest.TestCase):
         self.assertIn(11, topk)
 
 
+class TestPathAlphaCLIPropagation(unittest.TestCase):
+    """T5 — ``--alpha-anti`` and ``--repulsion-step-size`` propagate.
+
+    Path α (2026-05-26): both knobs must reach the substrate and the
+    consolidation step so the inter-atom-separability force fires. This
+    test runs a tiny n=1-seed sub-config of the driver and asserts the
+    summary header records the knobs at their CLI values and that the
+    per-cell ``consolidation_stats`` reflects the substrate state.
+    """
+
+    def test_alpha_anti_and_repulsion_step_size_propagate(self):
+        mod = importlib.import_module("c3_phase3_exit_criterion")
+        import tempfile
+        from pathlib import Path as _Path
+
+        with tempfile.TemporaryDirectory() as tmp:
+            summary = mod.run(
+                seeds=[0],
+                D=128,
+                landscape_size=4,
+                window_size=4,
+                n_test_windows=8,
+                n_train_windows=32,
+                vocab_size=16,
+                k=3,
+                beta=10.0,
+                theta_prime_mode="default",
+                standard_mode="consolidated",
+                control_mode="shuffled-token",
+                n_consolidation_events=20,
+                alpha_anti=0.5,
+                repulsion_step_size=0.1,
+                device="cpu",
+                output_dir=_Path(tmp),
+                repo_root=REPO_ROOT,
+            )
+        header = summary["header"]
+        self.assertEqual(header["alpha_anti"], 0.5)
+        self.assertEqual(header["repulsion_step_size"], 0.1)
+        self.assertTrue(header["substrate_repulsion_active"])
+        self.assertEqual(header["control_mode"], "shuffled-token")
+
+        # Both the standard row and the shuffled-token control row ran
+        # consolidation, and at least one repulsion application fired.
+        std_rows = [r for r in summary["per_cell_rows"] if not r["is_control"]]
+        ctrl_rows = [r for r in summary["per_cell_rows"] if r["is_control"]]
+        self.assertEqual(len(std_rows), 1)
+        self.assertEqual(len(ctrl_rows), 1)
+        for r in std_rows + ctrl_rows:
+            cs = r["consolidation_stats"]
+            self.assertIsNotNone(cs)
+            self.assertEqual(cs["alpha_anti"], 0.5)
+            self.assertEqual(cs["repulsion_step_size"], 0.1)
+            self.assertGreater(
+                cs["repulsion_applications"],
+                0,
+                "repulsion should fire at least once when both knobs > 0",
+            )
+
+    def test_alpha_anti_zero_disables_repulsion(self):
+        mod = importlib.import_module("c3_phase3_exit_criterion")
+        import tempfile
+        from pathlib import Path as _Path
+
+        with tempfile.TemporaryDirectory() as tmp:
+            summary = mod.run(
+                seeds=[0],
+                D=128,
+                landscape_size=4,
+                window_size=4,
+                n_test_windows=8,
+                n_train_windows=32,
+                vocab_size=16,
+                k=3,
+                beta=10.0,
+                theta_prime_mode="default",
+                standard_mode="consolidated",
+                control_mode="shuffled-token",
+                n_consolidation_events=20,
+                alpha_anti=0.0,
+                repulsion_step_size=0.05,
+                device="cpu",
+                output_dir=_Path(tmp),
+                repo_root=REPO_ROOT,
+            )
+        self.assertFalse(summary["header"]["substrate_repulsion_active"])
+        for r in summary["per_cell_rows"]:
+            cs = r["consolidation_stats"]
+            if cs is not None:
+                self.assertEqual(cs["repulsion_applications"], 0)
+
+
+class TestShuffledTokenControl(unittest.TestCase):
+    """T6 — shuffled-token control is a permutation, not a fresh codebook.
+
+    Path α (2026-05-26): per the task spec, the proper Phase 3 shuffled
+    control re-uses the standard condition's atom set (same substrate
+    seed) but applies a random row permutation to the codebook tensor
+    before any training. Then the SAME consolidation pipeline is run.
+    This test asserts the two key invariants:
+      - the standard and control codebooks share the same atom set
+        (each control row equals some standard row); and
+      - the row order is not identity (it's an actual permutation).
+    """
+
+    def test_shuffled_codebook_is_permutation_of_standard(self):
+        # Reproduce the driver's pre-consolidation codebook construction
+        # for both standard and shuffled-token control at seed 0, and
+        # check that one is a row-permutation of the other.
+        D = 64
+        vocab_size = 32
+        seed = 0
+
+        standard_substrate = TorchFHRR(dim=D, seed=seed, device="cpu", alpha_anti=0.0)
+        standard_codebook = standard_substrate.random_vectors(vocab_size)
+
+        control_substrate = TorchFHRR(dim=D, seed=seed, device="cpu", alpha_anti=0.0)
+        control_codebook = control_substrate.random_vectors(vocab_size)
+        import random as _random
+        perm_rng = _random.Random(seed + 70000)
+        perm_indices = list(range(vocab_size))
+        perm_rng.shuffle(perm_indices)
+        idx_tensor = torch.tensor(perm_indices, dtype=torch.long)
+        control_codebook = control_codebook.index_select(0, idx_tensor).contiguous()
+
+        # Sanity: pre-shuffle, the two substrates produce identical
+        # atom sets (same seed). Post-shuffle, the control's row i
+        # equals the standard's row perm_indices[i].
+        for i in range(vocab_size):
+            self.assertTrue(
+                torch.allclose(control_codebook[i], standard_codebook[perm_indices[i]])
+            )
+
+        # Permutation must not be identity (probability under uniform
+        # shuffle is ~ 1/vocab_size! — vanishing for vocab_size=32).
+        self.assertNotEqual(perm_indices, list(range(vocab_size)))
+
+        # As a set, the rows match.
+        standard_rows = {tuple(standard_codebook[i].tolist()) for i in range(vocab_size)}
+        control_rows = {tuple(control_codebook[i].tolist()) for i in range(vocab_size)}
+        self.assertEqual(standard_rows, control_rows)
+
+    def test_random_control_mode_preserves_legacy_no_consolidation(self):
+        mod = importlib.import_module("c3_phase3_exit_criterion")
+        import tempfile
+        from pathlib import Path as _Path
+
+        with tempfile.TemporaryDirectory() as tmp:
+            summary = mod.run(
+                seeds=[0],
+                D=128,
+                landscape_size=4,
+                window_size=4,
+                n_test_windows=8,
+                n_train_windows=32,
+                vocab_size=16,
+                k=3,
+                beta=10.0,
+                theta_prime_mode="default",
+                standard_mode="consolidated",
+                control_mode="random",
+                n_consolidation_events=20,
+                alpha_anti=0.01,
+                repulsion_step_size=0.05,
+                device="cpu",
+                output_dir=_Path(tmp),
+                repo_root=REPO_ROOT,
+            )
+        # Standard ran consolidation; legacy random control did NOT.
+        ctrl_rows = [r for r in summary["per_cell_rows"] if r["is_control"]]
+        std_rows = [r for r in summary["per_cell_rows"] if not r["is_control"]]
+        self.assertEqual(len(ctrl_rows), 1)
+        self.assertEqual(len(std_rows), 1)
+        self.assertIsNone(ctrl_rows[0]["consolidation_stats"])
+        self.assertIsNotNone(std_rows[0]["consolidation_stats"])
+        # Random-mode control gets the disjoint substrate seed.
+        self.assertEqual(ctrl_rows[0]["substrate_seed"], 0 + 10000)
+
+
 if __name__ == "__main__":
     unittest.main()

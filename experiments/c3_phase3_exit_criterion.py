@@ -82,6 +82,13 @@ from energy_memory.substrate.torch_fhrr import TorchFHRR
 STRATA = ("tight", "spread", "borderline")
 THETA_PRIME_MODES = ("default", "calibrated")
 STANDARD_MODES = ("random", "consolidated")
+# Path α (2026-05-26): the proper Phase 3 shuffled-token control runs
+# the SAME consolidation pipeline as the standard condition over the
+# SAME training corpus, but with a random permutation of the
+# token-to-hypervector assignment. ``random`` (the previous default)
+# was actually a no-consolidation control — it built a fresh random
+# codebook with no training and is preserved for backward compat only.
+CONTROL_MODES = ("random", "shuffled-token")
 
 # C.2 consolidation defaults for `--standard-mode consolidated` (per task spec):
 #   C.2.1  anti-collapse force:              lambda_ac      = 0.5
@@ -354,6 +361,7 @@ def _consolidate_codebook(
     quality_threshold: float = 0.15,
     lr_pull: float = 0.1,
     lr_push: float = 0.05,
+    repulsion_step_size: float = 0.0,
 ) -> Tuple[torch.Tensor, ConsolidationState, OnlineCodebookUpdater, dict]:
     """Run ``n_events`` consolidation observations over training windows.
 
@@ -394,8 +402,31 @@ def _consolidate_codebook(
 
     n_train = len(train_windows)
     consolidation_events = 0
-    observations_made = 0
 
+    # Path α: track the substrate-side repulsion contribution so we can
+    # report it in the consolidation_stats. Mirrors the replay-loop
+    # snippet at src/energy_memory/phase4/replay_loop.py:786-798 — the
+    # repulsion fires whenever both ``substrate.alpha_anti > 0.0`` AND
+    # ``repulsion_step_size > 0.0``, applied to the full codebook
+    # matrix after each consolidation event so the C.2 within-basin
+    # tightening is balanced by the substrate-level inter-basin
+    # separation force from the 2026-05-09 reformulation.
+    repulsion_applications = 0
+
+    def _apply_repulsion_to_codebook() -> int:
+        if substrate.alpha_anti <= 0.0 or repulsion_step_size <= 0.0:
+            return 0
+        if codebook.shape[0] < 2:
+            return 0
+        force = substrate.repulsion_force(codebook)
+        new_patterns = substrate.normalize(codebook + repulsion_step_size * force)
+        codebook[:] = new_patterns
+        # OnlineCodebookUpdater holds the SAME tensor reference (we
+        # passed `codebook=` into its constructor and only ever
+        # mutate it in place), so no rebinding is needed.
+        return 1
+
+    observations_made = 0
     for event_idx in range(n_events):
         window = train_windows[event_idx % n_train]
         true_token = window[masked_idx]
@@ -413,26 +444,15 @@ def _consolidate_codebook(
         result = memory.retrieve(cue, beta=beta, max_iter=12)
         slot_query = substrate.unbind(result.state, positions[masked_idx])
 
-        # Predicted atom: argmax sim across codebook (uses current,
-        # possibly already-updated codebook — that's intended; observe()
-        # is the substrate-coupled signal).
         scores = substrate.similarity_matrix(slot_query, codebook)
         predicted_id = int(scores.argmax().detach().cpu())
 
-        # C.2.1/2.2/2.3 substrate primitive — feed the basin buffer.
         state.record_retrieval(result.state, predicted_id)
 
-        # C.2.4 metastability EMA (observed only — gates replay priority
-        # in production, no effect in this driver since we don't replay).
         if result.metastability_contribution is not None:
             try:
                 state.update_metastability(result.metastability_contribution)
             except Exception:
-                # If the contribution shape disagrees with n_patterns (e.g.
-                # contributor was computed against Hopfield pattern set, not
-                # codebook), silently skip — we already have C.2.1/2.2/2.3/
-                # 2.5 wired. Don't fail consolidation on a non-load-bearing
-                # diagnostic.
                 pass
 
         observations_made += 1
@@ -444,11 +464,13 @@ def _consolidate_codebook(
             diag = updater.consolidate_if_ready()
             if diag is not None:
                 consolidation_events += 1
+                repulsion_applications += _apply_repulsion_to_codebook()
 
     # Force one final consolidation if there's anything buffered.
     final_diag = updater.force_consolidate()
     if final_diag is not None:
         consolidation_events += 1
+        repulsion_applications += _apply_repulsion_to_codebook()
 
     stats = {
         "n_events_requested": int(n_events),
@@ -458,6 +480,9 @@ def _consolidate_codebook(
         "total_failures": int(updater.stats()["total_failures"]),
         "failure_rate": float(updater.stats()["failure_rate"]),
         "c2_config": dict(C2_DEFAULTS),
+        "alpha_anti": float(substrate.alpha_anti),
+        "repulsion_step_size": float(repulsion_step_size),
+        "repulsion_applications": int(repulsion_applications),
     }
     return codebook, state, updater, stats
 
@@ -470,6 +495,7 @@ def _run_single_seed_condition(
     is_control: bool,
     theta_prime_mode: str,
     standard_mode: str,
+    control_mode: str,
     n_consolidation_events: int,
     D: int,
     landscape_size: int,
@@ -479,33 +505,64 @@ def _run_single_seed_condition(
     n_train_windows: int,
     beta: float,
     k: int,
+    alpha_anti: float,
+    repulsion_step_size: float,
     device: str,
     repo_root: Path,
 ) -> Dict[str, object]:
     """Run one (seed, mode, condition) cell.
 
-    The shuffled-token control is operationalized by giving the control
-    a **disjoint substrate seed** (``seed + 10000``). That fresh seed
-    drives both:
-      - the substrate's RNG (so the codebook is freshly drawn), and
-      - the corpus RNG used here for window sampling.
+    Two control-mode operationalizations are supported:
 
-    The window distribution used for training and test is held fixed
-    across the (main, control) pair *within a seed* — same training
-    windows, same test windows — so the only difference between main
-    and control is the token→hypervector assignment. This is the
-    canonical "shuffled-token" intervention.
+      ``random`` (legacy, backward-compat): the control gets a
+      **disjoint substrate seed** (``seed + 10000``) and skips
+      consolidation. This was the pre-Path-α default — see the
+      2026-05-26 STATUS.md walk-back which flagged it as actually a
+      no-consolidation control rather than a shuffled-token control.
+
+      ``shuffled-token`` (Path α default per the precommit at
+      ``notes/notes/2026-05-26-path-c-phase3-diagnostic-backfill-precommit.md``):
+      the control shares the SAME substrate seed (so identical atoms)
+      and the SAME training/test windows, but its codebook is a random
+      permutation of the standard codebook's rows (token-id π(i) gets
+      atom i). The control then runs the SAME consolidation pipeline
+      (all 5 C.2 dynamics + alpha_anti + repulsion_step_size) over the
+      SAME training corpus. The eval ranks slot_query against the
+      control's own (shuffled-then-trained) codebook with the standard
+      token-id ground truth — so any structure reflected in Recall@K
+      under the control is corpus-statistical artefact rather than
+      learned token-meaning, per
+      ``notes/emergent-codebook/phase-3-deep-dive.md:217-218``.
     """
     # Substrate / corpus seeds. Main and control share the corpus draws
-    # (so identical windows are evaluated) but disagree on the codebook.
+    # (so identical windows are evaluated).
     corpus_rng = random.Random(seed)  # shared by main + control
-    if is_control:
+
+    if is_control and control_mode == "random":
         substrate_seed = seed + 10000
     else:
+        # Both ``standard`` and ``shuffled-token`` control share the
+        # substrate seed so the atom set is identical; the control's
+        # permutation reshuffles row-id → atom assignment on top of
+        # that shared atom set.
         substrate_seed = seed
 
-    substrate = TorchFHRR(dim=D, seed=substrate_seed, device=device)
+    substrate = TorchFHRR(
+        dim=D, seed=substrate_seed, device=device, alpha_anti=alpha_anti,
+    )
     codebook = _generate_codebook(substrate=substrate, vocab_size=vocab_size)
+    # Path α shuffled-token control: permute the codebook row order so
+    # token-id i is assigned atom π(i). Permutation seed is deterministic
+    # in the substrate seed (``seed + 70000`` keeps it disjoint from any
+    # other seed-derived RNG in this driver). The permutation is fixed
+    # for the lifetime of this cell, so memorize / consolidate / eval
+    # all see the same shuffled assignment.
+    if is_control and control_mode == "shuffled-token":
+        perm_rng = random.Random(seed + 70000)
+        perm_indices = list(range(vocab_size))
+        perm_rng.shuffle(perm_indices)
+        idx_tensor = torch.tensor(perm_indices, dtype=torch.long, device=codebook.device)
+        codebook = codebook.index_select(0, idx_tensor).contiguous()
     positions = build_position_vectors(substrate, window_size)
 
     # Generate corpus (training + test windows). Both main and control
@@ -550,10 +607,28 @@ def _run_single_seed_condition(
         )
     )
 
-    # Phase 3 consolidation pass (standard condition only, when enabled).
-    # The control gets a fresh random codebook by construction.
+    # Phase 3 consolidation pass.
+    #
+    # Path α policy: the standard condition runs consolidation when
+    # standard_mode == 'consolidated'. The control runs consolidation
+    # when control_mode == 'shuffled-token' (so the comparison is
+    # consolidated-vs-consolidated with only the codebook permutation
+    # differing) and skips it when control_mode == 'random' (legacy
+    # no-consolidation control kept for backward compat). The two
+    # condition-vs-control matchups are:
+    #   standard='consolidated' × control='shuffled-token'
+    #     → real Phase 3 graduation gate
+    #   standard='consolidated' × control='random'
+    #     → legacy consolidated-vs-fresh-random (the 2026-05-26 smoke's
+    #       methodology gap)
+    #   standard='random'       × *                       → pre-Path-C
     consolidation_stats: Optional[Dict[str, object]] = None
+    run_consolidation = False
     if (not is_control) and standard_mode == "consolidated":
+        run_consolidation = True
+    if is_control and control_mode == "shuffled-token":
+        run_consolidation = True
+    if run_consolidation:
         # Consolidation training corpus: drawn from the training pool but
         # disjoint from the landscape (already memorized) and from the
         # test windows (drawn from the corpus RNG after train). Slice
@@ -572,6 +647,7 @@ def _run_single_seed_condition(
             vocab_size=vocab_size,
             n_events=n_consolidation_events,
             device=device,
+            repulsion_step_size=repulsion_step_size,
         )
 
     # Recompute regime diagnostics on the (possibly consolidated) codebook
@@ -603,6 +679,12 @@ def _run_single_seed_condition(
         "seed": seed,
         "substrate_seed": substrate_seed,
         "is_control": is_control,
+        "control_mode": control_mode if is_control else None,
+        "shuffled_token_permutation_seed": (
+            (seed + 70000) if (is_control and control_mode == "shuffled-token") else None
+        ),
+        "alpha_anti": float(alpha_anti),
+        "repulsion_step_size": float(repulsion_step_size),
         "standard_mode": standard_mode,
         "theta_prime_mode": theta_prime_mode,
         "theta_prime_info": theta_info,
@@ -643,7 +725,10 @@ def run(
     beta: float,
     theta_prime_mode: str,
     standard_mode: str = "consolidated",
+    control_mode: str = "shuffled-token",
     n_consolidation_events: int = 1000,
+    alpha_anti: float = 0.0,
+    repulsion_step_size: float = 0.0,
     device: str,
     output_dir: Path,
     repo_root: Path,
@@ -673,6 +758,7 @@ def run(
                     is_control=is_control,
                     theta_prime_mode=mode,
                     standard_mode=standard_mode,
+                    control_mode=control_mode,
                     n_consolidation_events=n_consolidation_events,
                     D=D,
                     landscape_size=landscape_size,
@@ -682,6 +768,8 @@ def run(
                     n_train_windows=n_train_windows,
                     beta=beta,
                     k=k,
+                    alpha_anti=alpha_anti,
+                    repulsion_step_size=repulsion_step_size,
                     device=device,
                     repo_root=repo_root,
                 )
@@ -755,11 +843,22 @@ def run(
             ),
             "graduation_gate_n_seeds": 10,
             "standard_mode": standard_mode,
+            "control_mode": control_mode,
             "n_consolidation_events": (
                 n_consolidation_events if standard_mode == "consolidated" else 0
             ),
             "c2_config": (
                 dict(C2_DEFAULTS) if standard_mode == "consolidated" else None
+            ),
+            # Path α (2026-05-26): the inter-atom separability half of
+            # the 2026-05-09 NC1/NC2 reformulation. Both must be > 0 to
+            # fire, mirroring the gate at replay_loop.py:780-781. The
+            # consolidation pipeline applies repulsion to the full
+            # codebook matrix after each consolidate_if_ready() event.
+            "alpha_anti": float(alpha_anti),
+            "repulsion_step_size": float(repulsion_step_size),
+            "substrate_repulsion_active": bool(
+                alpha_anti > 0.0 and repulsion_step_size > 0.0
             ),
             "operating_point": {
                 "D": D,
@@ -823,6 +922,9 @@ def _format_markdown(summary: dict) -> str:
     lines.append(
         f"- standard_mode = `{header.get('standard_mode', 'random')}`"
     )
+    lines.append(
+        f"- control_mode = `{header.get('control_mode', 'random')}`"
+    )
     if header.get("standard_mode") == "consolidated":
         lines.append(
             f"- n_consolidation_events = `{header['n_consolidation_events']}`"
@@ -830,6 +932,11 @@ def _format_markdown(summary: dict) -> str:
         lines.append(
             f"- C.2 dynamics config = `{header.get('c2_config')}`"
         )
+    lines.append(
+        f"- alpha_anti = `{header.get('alpha_anti', 0.0)}`"
+        f"  repulsion_step_size = `{header.get('repulsion_step_size', 0.0)}`"
+        f"  substrate_repulsion_active = `{header.get('substrate_repulsion_active', False)}`"
+    )
     lines.append(f"- device = `{header['device']}`")
     lines.append(f"- wall_clock = `{header['wall_clock_seconds']:.1f}s`")
     lines.append("")
@@ -878,28 +985,30 @@ def _format_markdown(summary: dict) -> str:
     # Regime BEFORE vs AFTER consolidation — only meaningful for the
     # consolidated standard condition.
     if header.get("standard_mode") == "consolidated":
-        lines.append("## Regime distribution BEFORE vs AFTER consolidation (STD rows only)")
+        lines.append(
+            "## Regime distribution BEFORE vs AFTER consolidation (STD + CTRL)"
+        )
         lines.append("")
         lines.append(
-            "| Seed | Mode | Before (t/s/b) | After (t/s/b) | "
-            "Δtight | Δspread | Δborderline | cons fired |"
+            "| Seed | Cond | Mode | Before (t/s/b) | After (t/s/b) | "
+            "Δtight | Δspread | Δborderline | cons fired | repulsion fires |"
         )
-        lines.append("|---:|---|---|---|---:|---:|---:|---:|")
+        lines.append("|---:|:--:|---|---|---|---:|---:|---:|---:|---:|")
         for row in summary["per_cell_rows"]:
-            if row["is_control"]:
-                continue
             rb = row.get("regime_counts_before_consolidation", {})
             ra = row.get("regime_counts", {})
             cs = row.get("consolidation_stats") or {}
             d_tight = ra.get("tight", 0) - rb.get("tight", 0)
             d_spread = ra.get("spread", 0) - rb.get("spread", 0)
             d_border = ra.get("borderline", 0) - rb.get("borderline", 0)
+            cond = "CTRL" if row["is_control"] else "STD"
             lines.append(
-                f"| {row['seed']} | {row['theta_prime_mode']} | "
+                f"| {row['seed']} | {cond} | {row['theta_prime_mode']} | "
                 f"{rb.get('tight',0)}/{rb.get('spread',0)}/{rb.get('borderline',0)} | "
                 f"{ra.get('tight',0)}/{ra.get('spread',0)}/{ra.get('borderline',0)} | "
                 f"{d_tight:+d} | {d_spread:+d} | {d_border:+d} | "
-                f"{cs.get('consolidations_fired', 0)} |"
+                f"{cs.get('consolidations_fired', 0)} | "
+                f"{cs.get('repulsion_applications', 0)} |"
             )
         lines.append("")
 
@@ -944,13 +1053,19 @@ def _format_stdout_table(summary: dict) -> str:
         f"K={header['operating_point']['K']} β={header['operating_point']['beta']}"
     )
     sm = header.get("standard_mode", "random")
+    cm = header.get("control_mode", "random")
     lines.append(
-        f"standard_mode={sm}"
+        f"standard_mode={sm}  control_mode={cm}"
         + (
             f"  n_consolidation_events={header['n_consolidation_events']}"
             if sm == "consolidated"
             else ""
         )
+    )
+    lines.append(
+        f"alpha_anti={header.get('alpha_anti', 0.0)}  "
+        f"repulsion_step_size={header.get('repulsion_step_size', 0.0)}  "
+        f"substrate_repulsion_active={header.get('substrate_repulsion_active', False)}"
     )
     for mode in header["theta_prime_modes_run"]:
         lines.append(f"\n  theta_prime_mode = {mode}")
@@ -1042,6 +1157,53 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             "(--standard-mode consolidated only)."
         ),
     )
+    parser.add_argument(
+        "--control-mode",
+        choices=list(CONTROL_MODES),
+        default="shuffled-token",
+        help=(
+            "Operationalization of the control condition. "
+            "'shuffled-token' (Path α default) shares the standard "
+            "condition's substrate seed and atom set but permutes the "
+            "row order of the codebook (token-id π(i) gets atom i) and "
+            "runs the SAME consolidation pipeline over the SAME training "
+            "corpus. This is the proper Phase 3 shuffled-token control "
+            "per notes/emergent-codebook/phase-3-deep-dive.md:217-218. "
+            "'random' (legacy backward-compat) uses a disjoint substrate "
+            "seed (seed + 10000) and skips consolidation — the 2026-05-26 "
+            "smoke's methodology gap."
+        ),
+    )
+    parser.add_argument(
+        "--alpha-anti",
+        type=float,
+        default=0.01,
+        help=(
+            "Substrate-side anti-collapse strength α for the "
+            "H_anti = -α·log(d_eff) repulsion energy. Both alpha_anti > 0 "
+            "AND --repulsion-step-size > 0 must hold for the repulsion "
+            "force to fire on the codebook after each consolidation event "
+            "(mirrors src/energy_memory/phase4/replay_loop.py:780-798). "
+            "Default 0.01 is the modest Path α value chosen for the first "
+            "D=4096 exercise at the Phase 2 operating point; the existing "
+            "test_phase5_ab_death_dynamic.py exercises 1.0 at D=512. The "
+            "audit's §4.1 [F] flagged alpha_anti as 'wired but "
+            "underspecified' before this driver — this is the first D=4096 "
+            "exercise. Set to 0.0 to reproduce the 2026-05-26 partial "
+            "smoke (no inter-atom-separability force)."
+        ),
+    )
+    parser.add_argument(
+        "--repulsion-step-size",
+        type=float,
+        default=0.05,
+        help=(
+            "Step size for the per-consolidation-event substrate update "
+            "under the H_anti = -α·log(d_eff) gradient. Companion to "
+            "--alpha-anti. Default 0.05 is modest; the existing "
+            "test_phase5_ab_death_dynamic.py exercises 50.0 at D=256."
+        ),
+    )
     parser.add_argument("--device", default="cpu")
     parser.add_argument(
         "--output-dir",
@@ -1075,7 +1237,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         beta=args.beta,
         theta_prime_mode=args.theta_prime_mode,
         standard_mode=args.standard_mode,
+        control_mode=args.control_mode,
         n_consolidation_events=args.n_consolidation_events,
+        alpha_anti=args.alpha_anti,
+        repulsion_step_size=args.repulsion_step_size,
         device=args.device,
         output_dir=output_dir,
         repo_root=repo_root,
