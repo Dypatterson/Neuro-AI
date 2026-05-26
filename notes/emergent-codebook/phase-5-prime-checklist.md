@@ -72,10 +72,10 @@ are diagnostics, not a route selector.
 | # | Item | Status | Evidence |
 | -- | --- | :---: | --- |
 | G1 | n_seeds >= 10 for any verification claim | partial | Reports 075-097 pasted, attached, committed, or transcribed diagnostics are n=10 where applicable but not verification claims |
-| G2 | Confidence intervals reported on headline | partial | Reports 075-090 and 093 record Wilson CIs for diagnostic cells where candidate/control retrieval is run; Reports 087, 089, 092, 096, and 098 are preflight/precommit-only; Report 091 is analysis-only; Report 097 is a diagnostic gate, not a headline run |
+| G2 | Confidence intervals reported on headline | partial | Reports 075-090 and 093 record Wilson CIs for diagnostic cells where candidate/control retrieval is run; Reports 087, 089, 092, 096, 098, and 099 are preflight/precommit/extraction-only; Report 091 is analysis-only; Report 097 is a diagnostic gate, not a headline run |
 | G3 | Leave-one-seed-out sensitivity reported | partial | Reports 082-083, 086, 088, 090, and 093 include candidate leave-one-seed-out sensitivity for context-source gates |
-| G4 | Controls E1-E6 run on the same test set | partial | Reports 075-090 controls are matched where available; Report 091 cross-checks residual analysis against the same Report 090 test set; Report 093 runs cleaned matched controls on the same selected query plan; Report 094 adds reusable selected-plan/control parity tests against Report 092; Report 095 proves reusable-path gate parity with byte-identical Report 093 JSON; Report 096 preflights a same-query-plan mini-matrix with positive controls and no-scene-token baseline; Report 097 runs that fixed mini-matrix gate; full matrix still open |
-| G5 | Report explicitly says no graduation claim unless all gates pass | done | Reports 069-098 explicitly preserve no-graduation boundary |
+| G4 | Controls E1-E6 run on the same test set | partial | Reports 075-090 controls are matched where available; Report 091 cross-checks residual analysis against the same Report 090 test set; Report 093 runs cleaned matched controls on the same selected query plan; Report 094 adds reusable selected-plan/control parity tests against Report 092; Report 095 proves reusable-path gate parity with byte-identical Report 093 JSON; Report 096 preflights a same-query-plan mini-matrix with positive controls and no-scene-token baseline; Report 097 runs that fixed mini-matrix gate; Report 099 preserves cleaned-gate parity after module extraction; full matrix still open |
+| G5 | Report explicitly says no graduation claim unless all gates pass | done | Reports 069-099 explicitly preserve no-graduation boundary |
 
 ## H. Anti-Homunculus Discipline
 

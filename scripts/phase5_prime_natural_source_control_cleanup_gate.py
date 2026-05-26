@@ -57,101 +57,27 @@ def _run_fixedpoint_free_shuffled(
     max_iter: int,
     device: str,
 ) -> base_gate.GateResult:
-    seed_key = str(seed)
-    rows_raw = source["source_rows_by_seed"][seed_key]
-    query_plan = source["query_plan_by_seed"][seed_key]
-    if len(rows_raw) != N:
-        raise ValueError(f"source rows for seed {seed} have len {len(rows_raw)} != {N}")
-    if len(query_plan) != n_queries:
-        raise ValueError(
-            f"query plan for seed {seed} has len {len(query_plan)} != {n_queries}"
-        )
-
-    fhrr = base_gate.TorchFHRR(dim=D, seed=seed, device=device)
-    roles = base_gate._native_roles(fhrr, K_roles)
-    content = fhrr.random_vectors(C_codebook)
-    rows = torch.tensor(rows_raw, dtype=torch.long, device=fhrr.device)
-    scene_matrix = base_gate._scene_bundles(
-        fhrr,
-        roles,
-        content,
-        rows,
-        scene_token_weight=scene_token_weight,
-    )
-
-    scene_idx = torch.tensor(
-        [int(item["scene"]) for item in query_plan],
-        dtype=torch.long,
-        device=fhrr.device,
-    )
-    known_role = torch.tensor(
-        [int(item["known_role"]) for item in query_plan],
-        dtype=torch.long,
-        device=fhrr.device,
-    )
-    query_role = torch.tensor(
-        [int(item["query_role"]) for item in query_plan],
-        dtype=torch.long,
-        device=fhrr.device,
-    )
-    target_atom = rows[scene_idx, query_role]
-    role_shuffle = _fixedpoint_free_shuffle(seed, K_roles).to(fhrr.device)
-
-    cue_role = role_shuffle[known_role]
-    unbind_role = role_shuffle[query_role]
-    known_atom = rows[scene_idx, known_role]
-    cue = roles[cue_role] * content[known_atom]
-    query_tokens = base_gate._query_context_tokens(fhrr, roles, content, rows, query_plan)
-    cue = fhrr.normalize(cue + scene_token_weight * query_tokens)
-    cue = base_gate.EXP44._perturb_batch(fhrr, cue, cue_noise)
-    scene_state, scene_top_index, scene_entropy, scene_margin = (
-        base_gate.EXP44._batched_hopfield_retrieve(
-            fhrr,
-            scene_matrix,
-            cue,
-            beta=beta,
-            max_iter=max_iter,
-        )
-    )
-    content_query = fhrr.normalize(fhrr.unbind(scene_state, roles[unbind_role]))
-    scene_tix = int((scene_top_index == scene_idx).sum().detach().cpu())
-    content_state, content_top_index, content_entropy, content_margin = (
-        base_gate.EXP44._batched_hopfield_retrieve(
-            fhrr,
-            content,
-            content_query,
-            beta=beta,
-            max_iter=max_iter,
-        )
-    )
-    content_tix = int((content_top_index == target_atom).sum().detach().cpu())
-    pred = torch.argmax((content_state @ content.conj().T).real / content.shape[1], dim=1)
-    n_correct = int((pred == target_atom).sum().detach().cpu())
-    return base_gate.GateResult(
+    return base_gate.run_bundle_first_seed_condition(
         condition="fixedpoint_free_shuffled_role",
-        D=D,
-        N=N,
-        K_roles=K_roles,
-        cue_noise=cue_noise,
-        scene_token_weight=scene_token_weight,
-        source_name=base_gate.SOURCE_NAME,
-        context_roles=context_roles,
-        cooccurrence=cooccurrence,
         seed=seed,
-        n_queries=n_queries,
-        n_correct=n_correct,
-        scene_tix=scene_tix,
-        content_tix=content_tix,
-        scene_entropy=float(scene_entropy.mean().detach().cpu()),
-        content_entropy=float(content_entropy.mean().detach().cpu()),
-        scene_margin=float(scene_margin.mean().detach().cpu()),
-        content_margin=float(content_margin.mean().detach().cpu()),
-        source_rows_available=len(rows_raw),
-        source_rows_used=N,
-        source_rows_invalid=0,
-        source_rows_too_short=0,
-        source_artifact_path=str(source_path),
-        source_artifact_sha256=source_sha,
+        source=source,
+        source_path=source_path,
+        source_sha=source_sha,
+        config=base_gate.BundleFirstConfig(
+            D=D,
+            N=N,
+            K_roles=K_roles,
+            C_codebook=C_codebook,
+            context_roles=context_roles,
+            n_queries=n_queries,
+            beta=beta,
+            max_iter=max_iter,
+            scene_token_weight=scene_token_weight,
+            cooccurrence=cooccurrence,
+            source_name=base_gate.SOURCE_NAME,
+        ),
+        cue_noise=cue_noise,
+        device=device,
     )
 
 

@@ -20,6 +20,18 @@ from .natural_source_protocol import (
     source_with_protocol_plan,
     validate_cleanup_preflight,
 )
+try:  # pragma: no cover - exercised only when torch is available
+    from .bundle_first_scene_memory import (
+        BundleFirstConfig,
+        BundleFirstResult,
+        aggregate_bundle_first_results,
+        build_native_roles,
+        build_query_context_tokens,
+        build_scene_matrix,
+        run_bundle_first_seed_condition,
+    )
+except ModuleNotFoundError:  # pragma: no cover
+    pass
 
 try:  # pragma: no cover - exercised only when torch is available
     from .m1_role_energy import (
@@ -34,15 +46,22 @@ except ModuleNotFoundError:  # pragma: no cover
 __all__ = []
 for name in [
     "DEFAULT_FREQUENCY_CAPS",
+    "BundleFirstConfig",
+    "BundleFirstResult",
     "M1Config",
     "RoleBindingStats",
     "SPECIAL_ATOMS",
+    "aggregate_bundle_first_results",
+    "build_native_roles",
+    "build_query_context_tokens",
+    "build_scene_matrix",
     "cap_label",
     "eligible_triples_for_seed",
     "fixedpoint_free_shuffle",
     "protocol_for_frequency_cap",
     "protocol_payload",
     "run_m1_stack",
+    "run_bundle_first_seed_condition",
     "run_s2_weighted_mhn_check",
     "same_scene_opportunities",
     "select_queries",

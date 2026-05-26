@@ -9,20 +9,24 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import importlib
 import json
-import math
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Sequence
+from typing import Dict, List
 
 import torch
 
-from energy_memory.phase2.encoding import build_position_vectors
-from energy_memory.substrate.torch_fhrr import TorchFHRR
-
-
-EXP44 = importlib.import_module("experiments.44_phase5_prime_bundle_first")
+from energy_memory.phase5.bundle_first_scene_memory import (
+    EXP44,
+    BundleFirstConfig,
+    BundleFirstResult as GateResult,
+    TorchFHRR,
+    aggregate_bundle_first_results,
+    build_native_roles,
+    build_query_context_tokens,
+    build_scene_matrix,
+    run_bundle_first_seed_condition,
+    wilson_ci,
+)
 
 SOURCE_NAME = "trajectory_native_provenance_context_trace"
 SOURCE_FAMILY = "trajectory_derived_native"
@@ -37,38 +41,6 @@ CONDITIONS = {
 }
 
 
-@dataclass(frozen=True)
-class GateResult:
-    condition: str
-    D: int
-    N: int
-    K_roles: int
-    cue_noise: float
-    scene_token_weight: float
-    source_name: str
-    context_roles: int
-    cooccurrence: str
-    seed: int
-    n_queries: int
-    n_correct: int
-    scene_tix: int
-    content_tix: int
-    scene_entropy: float
-    content_entropy: float
-    scene_margin: float
-    content_margin: float
-    source_rows_available: int
-    source_rows_used: int
-    source_rows_invalid: int
-    source_rows_too_short: int
-    source_artifact_path: str
-    source_artifact_sha256: str
-
-    @property
-    def top1(self) -> float:
-        return self.n_correct / self.n_queries if self.n_queries else 0.0
-
-
 def _sha256(path: Path) -> str:
     h = hashlib.sha256()
     with path.open("rb") as fh:
@@ -78,22 +50,7 @@ def _sha256(path: Path) -> str:
 
 
 def _wilson(n_success: int, n_total: int, z: float = 1.96) -> dict:
-    if n_total == 0:
-        return {"mean": 0.0, "lo": 0.0, "hi": 0.0, "n": 0}
-    p = n_success / n_total
-    denom = 1.0 + z * z / n_total
-    center = (p + z * z / (2 * n_total)) / denom
-    half = (
-        z
-        * math.sqrt(p * (1.0 - p) / n_total + z * z / (4.0 * n_total * n_total))
-        / denom
-    )
-    return {
-        "mean": p,
-        "lo": max(0.0, center - half),
-        "hi": min(1.0, center + half),
-        "n": n_total,
-    }
+    return wilson_ci(n_success, n_total, z=z)
 
 
 def _load_json(path: Path) -> dict:
@@ -184,7 +141,7 @@ def _validate_preflight(preflight: dict, source_path: Path, source_sha: str) -> 
 
 
 def _native_roles(fhrr: TorchFHRR, K_roles: int) -> torch.Tensor:
-    return torch.stack(build_position_vectors(fhrr, K_roles), dim=0)
+    return build_native_roles(fhrr, K_roles)
 
 
 def _scene_bundles(
@@ -195,15 +152,13 @@ def _scene_bundles(
     *,
     scene_token_weight: float,
 ) -> torch.Tensor:
-    base_bundles = []
-    for scene in range(rows.shape[0]):
-        terms = [
-            roles[role] * content[int(rows[scene, role].detach().cpu())]
-            for role in range(rows.shape[1])
-        ]
-        full_context = fhrr.bundle(terms)
-        base_bundles.append(fhrr.bundle([*terms, scene_token_weight * full_context]))
-    return torch.stack(base_bundles, dim=0)
+    return build_scene_matrix(
+        fhrr,
+        roles,
+        content,
+        rows,
+        scene_token_weight=scene_token_weight,
+    )
 
 
 def _query_context_tokens(
@@ -211,18 +166,9 @@ def _query_context_tokens(
     roles: torch.Tensor,
     content: torch.Tensor,
     rows: torch.Tensor,
-    query_plan: Sequence[dict],
+    query_plan: list[dict],
 ) -> torch.Tensor:
-    tokens = []
-    for item in query_plan:
-        scene = int(item["scene"])
-        observed_roles = [int(role) for role in item["observed_roles"]]
-        terms = [
-            roles[role] * content[int(rows[scene, role].detach().cpu())]
-            for role in observed_roles
-        ]
-        tokens.append(fhrr.bundle(terms))
-    return torch.stack(tokens, dim=0)
+    return build_query_context_tokens(fhrr, roles, content, rows, query_plan)
 
 
 def _run_seed_condition(
@@ -247,198 +193,32 @@ def _run_seed_condition(
 ) -> GateResult:
     if condition not in CONDITIONS:
         raise ValueError(f"unknown condition: {condition}")
-
-    seed_key = str(seed)
-    rows_raw = source["source_rows_by_seed"][seed_key]
-    query_plan = source["query_plan_by_seed"][seed_key]
-    if len(rows_raw) != N:
-        raise ValueError(f"source rows for seed {seed} have len {len(rows_raw)} != {N}")
-    if len(query_plan) != n_queries:
-        raise ValueError(
-            f"query plan for seed {seed} has len {len(query_plan)} != {n_queries}"
-        )
-
-    fhrr = TorchFHRR(dim=D, seed=seed, device=device)
-    roles = _native_roles(fhrr, K_roles)
-    content = fhrr.random_vectors(C_codebook)
-    rows = torch.tensor(rows_raw, dtype=torch.long, device=fhrr.device)
-    scene_matrix = _scene_bundles(
-        fhrr,
-        roles,
-        content,
-        rows,
-        scene_token_weight=scene_token_weight,
-    )
-
-    scene_idx = torch.tensor(
-        [int(item["scene"]) for item in query_plan],
-        dtype=torch.long,
-        device=fhrr.device,
-    )
-    known_role = torch.tensor(
-        [int(item["known_role"]) for item in query_plan],
-        dtype=torch.long,
-        device=fhrr.device,
-    )
-    query_role = torch.tensor(
-        [int(item["query_role"]) for item in query_plan],
-        dtype=torch.long,
-        device=fhrr.device,
-    )
-    target_atom = rows[scene_idx, query_role]
-
-    perm_generator = torch.Generator(device="cpu").manual_seed(seed * 4001 + K_roles)
-    role_shuffle = torch.tensor(
-        EXP44._role_permutation(K_roles, generator=perm_generator),
-        dtype=torch.long,
-        device=fhrr.device,
-    )
-    derange_generator = torch.Generator(device="cpu").manual_seed(seed * 5003 + K_roles)
-    role_derangement = torch.tensor(
-        EXP44._role_derangement(K_roles, generator=derange_generator),
-        dtype=torch.long,
-        device=fhrr.device,
-    )
-
-    cue_role = known_role
-    unbind_role = query_role
-    if condition == "random_role" and K_roles > 1:
-        unbind_role = (query_role + 1) % K_roles
-    elif condition == "shuffled_role":
-        cue_role = role_shuffle[known_role]
-        unbind_role = role_shuffle[query_role]
-    elif condition == "deranged_role":
-        cue_role = role_derangement[known_role]
-        unbind_role = role_derangement[query_role]
-
-    known_atom = rows[scene_idx, known_role]
-    cue = roles[cue_role] * content[known_atom]
-    query_tokens = _query_context_tokens(fhrr, roles, content, rows, query_plan)
-    cue = fhrr.normalize(cue + scene_token_weight * query_tokens)
-    cue = EXP44._perturb_batch(fhrr, cue, cue_noise)
-
-    zero_stats = torch.zeros(n_queries, device=fhrr.device)
-    if condition == "content_cleanup_positive":
-        scene_state = None
-        scene_top_index = scene_idx
-        scene_entropy = zero_stats
-        scene_margin = zero_stats
-        content_query = EXP44._perturb_batch(fhrr, content[target_atom], cue_noise)
-    else:
-        scene_state, scene_top_index, scene_entropy, scene_margin = (
-            EXP44._batched_hopfield_retrieve(
-                fhrr,
-                scene_matrix,
-                cue,
-                beta=beta,
-                max_iter=max_iter,
-            )
-        )
-        content_query = fhrr.normalize(fhrr.unbind(scene_state, roles[unbind_role]))
-
-    scene_tix = int((scene_top_index == scene_idx).sum().detach().cpu())
-    content_state, content_top_index, content_entropy, content_margin = (
-        EXP44._batched_hopfield_retrieve(
-            fhrr,
-            content,
-            content_query,
+    return run_bundle_first_seed_condition(
+        condition=condition,
+        seed=seed,
+        source=source,
+        source_path=source_path,
+        source_sha=source_sha,
+        config=BundleFirstConfig(
+            D=D,
+            N=N,
+            K_roles=K_roles,
+            C_codebook=C_codebook,
+            context_roles=context_roles,
+            n_queries=n_queries,
             beta=beta,
             max_iter=max_iter,
-        )
-    )
-    content_tix = int((content_top_index == target_atom).sum().detach().cpu())
-    pred = torch.argmax((content_state @ content.conj().T).real / content.shape[1], dim=1)
-    n_correct = int((pred == target_atom).sum().detach().cpu())
-
-    return GateResult(
-        condition=condition,
-        D=D,
-        N=N,
-        K_roles=K_roles,
+            scene_token_weight=scene_token_weight,
+            cooccurrence=cooccurrence,
+            source_name=SOURCE_NAME,
+        ),
         cue_noise=cue_noise,
-        scene_token_weight=scene_token_weight,
-        source_name=SOURCE_NAME,
-        context_roles=context_roles,
-        cooccurrence=cooccurrence,
-        seed=seed,
-        n_queries=n_queries,
-        n_correct=n_correct,
-        scene_tix=scene_tix,
-        content_tix=content_tix,
-        scene_entropy=float(scene_entropy.mean().detach().cpu()),
-        content_entropy=float(content_entropy.mean().detach().cpu()),
-        scene_margin=float(scene_margin.mean().detach().cpu()),
-        content_margin=float(content_margin.mean().detach().cpu()),
-        source_rows_available=len(rows_raw),
-        source_rows_used=N,
-        source_rows_invalid=0,
-        source_rows_too_short=0,
-        source_artifact_path=str(source_path),
-        source_artifact_sha256=source_sha,
+        device=device,
     )
 
 
-def _leave_one_seed_out(cell: Sequence[GateResult]) -> List[dict]:
-    if len(cell) <= 1:
-        return []
-    out = []
-    for held_out in cell:
-        kept = [row for row in cell if row.seed != held_out.seed]
-        n_total = sum(row.n_queries for row in kept)
-        n_correct = sum(row.n_correct for row in kept)
-        out.append({
-            "held_out_seed": held_out.seed,
-            "top1": n_correct / n_total if n_total else 0.0,
-            "n_total": n_total,
-            "n_correct": n_correct,
-        })
-    return out
-
-
-def _aggregate(cell: Sequence[GateResult]) -> dict:
-    n_total = sum(r.n_queries for r in cell)
-    n_correct = sum(r.n_correct for r in cell)
-    ci = _wilson(n_correct, n_total)
-    scene_tix = sum(r.scene_tix for r in cell)
-    content_tix = sum(r.content_tix for r in cell)
-    loo = _leave_one_seed_out(cell)
-    loo_vals = [float(row["top1"]) for row in loo]
-    return {
-        "top1_mean": ci["mean"],
-        "wilson_lo": ci["lo"],
-        "wilson_hi": ci["hi"],
-        "n_total": n_total,
-        "n_correct": n_correct,
-        "per_seed_top1": [r.top1 for r in cell],
-        "per_seed": [
-            {
-                "seed": r.seed,
-                "top1": r.top1,
-                "n_correct": r.n_correct,
-                "n_queries": r.n_queries,
-                "scene_tix": r.scene_tix,
-                "content_tix": r.content_tix,
-            }
-            for r in cell
-        ],
-        "leave_one_seed_out_top1": loo,
-        "leave_one_seed_out_top1_min": min(loo_vals) if loo_vals else None,
-        "leave_one_seed_out_top1_max": max(loo_vals) if loo_vals else None,
-        "scene_tix": scene_tix,
-        "content_tix": content_tix,
-        "scene_tix_rate": scene_tix / n_total if n_total else 0.0,
-        "content_tix_rate": content_tix / n_total if n_total else 0.0,
-        "mean_scene_entropy": sum(r.scene_entropy for r in cell) / len(cell),
-        "mean_content_entropy": sum(r.content_entropy for r in cell) / len(cell),
-        "mean_scene_margin": sum(r.scene_margin for r in cell) / len(cell),
-        "mean_content_margin": sum(r.content_margin for r in cell) / len(cell),
-        "source_rows_available": [r.source_rows_available for r in cell],
-        "source_rows_used": [r.source_rows_used for r in cell],
-        "source_rows_invalid": [r.source_rows_invalid for r in cell],
-        "source_rows_too_short": [r.source_rows_too_short for r in cell],
-        "source_artifact_paths": sorted({r.source_artifact_path for r in cell}),
-        "source_artifact_sha256": sorted({r.source_artifact_sha256 for r in cell}),
-    }
+def _aggregate(cell: list[GateResult]) -> dict:
+    return aggregate_bundle_first_results(cell)
 
 
 def main() -> int:
