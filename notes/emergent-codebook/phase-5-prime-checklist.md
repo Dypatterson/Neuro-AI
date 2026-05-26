@@ -19,7 +19,7 @@ controls. n=3 MQAR runs are diagnostic gates only.
 
 | # | Item | Status | Evidence |
 | -- | --- | :---: | --- |
-| B1 | Sweep cue noise over at least `{0.0, 0.05, 0.10, 0.15}` | partial | Report 079 covers fixed observed-prefix matched controls at `{0.0,0.10,0.15}`; `0.05` and full matrix still open |
+| B1 | Sweep cue noise over at least `{0.0, 0.05, 0.10, 0.15}` | partial | Report 079 covers fixed observed-prefix matched controls at `{0.0,0.10,0.15}`; Report 096 preflights the cleaned natural-source mini-matrix over `{0.0,0.05,0.10,0.15}` but does not run retrieval/top1 yet |
 | B2 | Report whether failures are scene-ID failures or content-cleanup failures | partial | Reports 075-079 show scene/context completion is the bottleneck; Report 079 candidate scene/content rates track top1 |
 
 ## C. Scene Token / Identity Robustness
@@ -74,7 +74,7 @@ are diagnostics, not a route selector.
 | G1 | n_seeds >= 10 for any verification claim | partial | Reports 075-093 pasted, attached, committed, or transcribed diagnostics are n=10 where applicable but not verification claims |
 | G2 | Confidence intervals reported on headline | partial | Reports 075-090 and 093 record Wilson CIs for diagnostic cells where candidate/control retrieval is run; Reports 087, 089, and 092 are preflight-only; Report 091 is analysis-only |
 | G3 | Leave-one-seed-out sensitivity reported | partial | Reports 082-083, 086, 088, 090, and 093 include candidate leave-one-seed-out sensitivity for context-source gates |
-| G4 | Controls E1-E6 run on the same test set | partial | Reports 075-090 controls are matched where available; Report 091 cross-checks residual analysis against the same Report 090 test set; Report 093 runs cleaned matched controls on the same selected query plan; Report 094 adds reusable selected-plan/control parity tests against Report 092; Report 095 proves reusable-path gate parity with byte-identical Report 093 JSON; full matrix still open |
+| G4 | Controls E1-E6 run on the same test set | partial | Reports 075-090 controls are matched where available; Report 091 cross-checks residual analysis against the same Report 090 test set; Report 093 runs cleaned matched controls on the same selected query plan; Report 094 adds reusable selected-plan/control parity tests against Report 092; Report 095 proves reusable-path gate parity with byte-identical Report 093 JSON; Report 096 preflights a same-query-plan mini-matrix with positive controls and no-scene-token baseline, but does not run the gate; full matrix still open |
 | G5 | Report explicitly says no graduation claim unless all gates pass | done | Reports 069-095 explicitly preserve no-graduation boundary |
 
 ## H. Anti-Homunculus Discipline
