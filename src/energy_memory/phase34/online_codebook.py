@@ -158,10 +158,15 @@ class OnlineCodebookUpdater:
             pushed += 1
 
         self._apply_anti_collapse(affected)
+        # C.2.3: per-atom cap-coverage error force added BEFORE the
+        # splitting-tension modulation so all additive forces are summed
+        # before being multiplicatively attenuated. Early-exit preserves
+        # κ=0 byte-identity when lambda_cc == 0.
+        self._apply_cap_coverage(affected)
         # C.2.2: multiplicatively attenuate the combined (pull/push +
-        # anti-collapse) per-atom update by 1/(1 + T_k / τ_T). H12 binding:
-        # modulation is multiplicative, applied to the NET update — not a
-        # new additive force, not a replacement of the update.
+        # anti-collapse + cap-coverage) per-atom update by 1/(1 + T_k / τ_T).
+        # H12 binding: modulation is multiplicative, applied to the NET
+        # update — not a new additive force, not a replacement of the update.
         self._apply_splitting_tension(pre_states)
 
         self._consolidation_count += 1
@@ -199,10 +204,25 @@ class OnlineCodebookUpdater:
                 continue
             self.codebook[atom_id] = self.substrate.normalize(current + force)
 
+    def _apply_cap_coverage(self, atom_ids) -> None:
+        # C.2.3: per-atom cap-coverage error force added additively.
+        # Early-exit when lambda_cc == 0 preserves the κ=0 baseline.
+        cs = self.consolidation_state
+        if cs is None or getattr(cs.config, "lambda_cc", 0.0) == 0.0:
+            return
+        for atom_id in atom_ids:
+            if atom_id < 0 or atom_id >= self.codebook.shape[0]:
+                continue
+            current = self.codebook[atom_id]
+            force = cs.cap_coverage_force(int(atom_id), current)
+            if force is None:
+                continue
+            self.codebook[atom_id] = self.substrate.normalize(current + force)
+
     def _snapshot_pre_states(self, atom_ids):
         # C.2.2: capture pre-update atom states so the multiplicative
         # modulation can attenuate the *net* delta after pull/push +
-        # anti-collapse run. Empty / no-op when actuator off.
+        # anti-collapse + cap-coverage run. Empty / no-op when actuator off.
         cs = self.consolidation_state
         if cs is None or getattr(cs.config, "mu_T", 0.0) == 0.0:
             return {}

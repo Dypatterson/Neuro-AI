@@ -151,6 +151,33 @@ class ConsolidationConfig:
     tau_T: float = 0.5
     epsilon_T: float = 1e-6
     min_basin_for_signal: int = 4
+    # C.2.3 cap-coverage error gradient as a substrate dynamic.
+    # See notes/notes/2026-05-26-c23-cap-coverage-gradient-precommit.md.
+    # Per-atom force: λ_cc · mean_i w_cc(q*_i) · (q*_i − atom_k), with
+    # w_cc(q*_i) = σ((θ_cc − sim(q*_i, atom_k)) / τ_cc), a continuous
+    # sigmoidal "uncovered weight." The actuator reads basin members from
+    # the C.2.1 substrate primitive _basin_covariance; per H14 it does
+    # NOT consume the Phase 2 cap_coverage_error function or any field of
+    # src/energy_memory/phase2/metrics.py. Stateless at the per-atom level
+    # (no slow per-atom buffer): atom_k(t) is the slow state, force_cc is
+    # the instantaneous gradient.
+    lambda_cc: float = 0.0
+    # θ_cc substrate-side justification (binding watch-edge H14): at β=10
+    # Hopfield retrieval the softmax landscape has a natural similarity-cap
+    # structure around sim ≈ 0.5; per the C.1.4 empirical θ′(β) calibration
+    # at notes/emergent-codebook/theta_prime_calibration.json the
+    # recoverable similarity boundary at β=10 falls within the cap-friendly
+    # range. The Phase 2 ``cap_t05`` operating point happens to coincide at
+    # 0.5, but the load-bearing justification is the substrate's retrieval
+    # geometry — NOT alignment with the Phase 2 metric.
+    theta_cc: float = 0.5
+    # τ_cc sigmoid sharpness. Default 0.1 means the sigmoid transitions
+    # smoothly across sim values in [θ - 0.3, θ + 0.3]; sharp enough that
+    # well-covered members get w_cc ≈ 0, soft enough that it does not
+    # collapse to a hard threshold (H15). Smaller τ_cc approaches a step
+    # — caught by A6's IQR check on the substrate's natural similarity-gap
+    # distribution.
+    tau_cc: float = 0.1
 
 
 class ConsolidationState:
@@ -457,12 +484,17 @@ class ConsolidationState:
         This is the substrate-side primitive for C.2.1. Called by the
         orchestrator after each retrieval at the consolidation timescale.
 
-        Short-circuits when lambda_ac == 0.0: the actuator is off and no
-        other consumer currently shares this buffer (C.1.1's
-        BasinDiagnostics owns its own BasinTraceBuffer), so recording is
-        a pure cost at the baseline.
+        Short-circuits when no substrate consumer of the buffer is active
+        (lambda_ac == 0 AND mu_T == 0 AND lambda_cc == 0): C.1.1's
+        BasinDiagnostics owns its own BasinTraceBuffer, so recording is a
+        pure cost when all three substrate dynamics (C.2.1, C.2.2, C.2.3)
+        are off.
         """
-        if self.config.lambda_ac == 0.0:
+        if (
+            self.config.lambda_ac == 0.0
+            and self.config.mu_T == 0.0
+            and self.config.lambda_cc == 0.0
+        ):
             return
         self._basin_buffer.append((settled_state.detach().clone(), int(top1_atom)))
 
@@ -517,6 +549,46 @@ class ConsolidationState:
         centroid = centroid.to(atom_state.device).to(atom_state.dtype)
         denom = tr_sigma + self.config.epsilon_ac
         return -self.config.lambda_ac * 2.0 * (centroid - atom_state) / denom
+
+    def cap_coverage_force(
+        self,
+        atom_idx: int,
+        atom_state: "torch.Tensor",
+    ) -> "torch.Tensor":
+        """C.2.3 per-atom cap-coverage error force.
+
+        Returns λ_cc · mean_i w_cc(q*_i) · (q*_i − atom_k), where
+        w_cc(q*_i) = σ((θ_cc − sim(q*_i, atom_k)) / τ_cc) is a continuous
+        sigmoid "uncovered weight" — q*_i contributes a full pull when
+        outside the cap and ≈ 0 when well-covered. Reads basin members
+        from the C.2.1 substrate primitive (_basin_covariance); per H14
+        the actuator NEVER reads ``src/energy_memory/phase2/metrics.py``.
+        """
+        if self.config.lambda_cc == 0.0:
+            return torch.zeros_like(atom_state)
+        _, members, _ = self._basin_covariance(atom_idx)
+        if members is None or members.shape[0] < self.config.min_basin_for_signal:
+            return torch.zeros_like(atom_state)
+        m = members.to(atom_state.device).to(atom_state.dtype)
+        # FHRR cosine similarity: real part of Hermitian inner product
+        # divided by norms. Real-valued by construction even for complex
+        # tensors.
+        inner = (m.conj() * atom_state.unsqueeze(0)).sum(dim=-1)
+        sim = inner.real if torch.is_complex(inner) else inner
+        m_norm = (m.conj() * m).real.sum(dim=-1).clamp_min(1e-12).sqrt()
+        a_norm = (
+            (atom_state.conj() * atom_state).real.sum().clamp_min(1e-12).sqrt()
+        )
+        sim = sim / (m_norm * a_norm)
+        # Sigmoid is computed in real space (sim is real).
+        w = torch.sigmoid((self.config.theta_cc - sim) / self.config.tau_cc)
+        diffs = m - atom_state.unsqueeze(0)
+        # weighted mean of diffs: (Σ_i w_i · diff_i) / N (mean over basin).
+        # For complex (FHRR) diffs, casting w to the complex dtype
+        # produces a real-valued imaginary part by definition.
+        w_b = w.to(diffs.dtype)
+        weighted = (w_b.unsqueeze(-1) * diffs).mean(dim=0)
+        return self.config.lambda_cc * weighted
 
     def _spatial_bimodality_signal(self, atom_idx: int) -> "torch.Tensor":
         """C.2.2 substrate signal: λ_2 / (λ_1 + ε_T) from per-basin Σ_k.
