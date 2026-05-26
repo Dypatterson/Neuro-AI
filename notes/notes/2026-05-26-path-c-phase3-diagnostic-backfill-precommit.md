@@ -503,6 +503,83 @@ All five C.1 deliverables landed:
 Plus D=4096 substrate fidelity tests (6/6) and existing FHRR tests
 (2/2). Full Path C C.1 + substrate suite: **42/42 pass**.
 
+### 2026-05-26 — C.3 smoke completed (PARTIAL — two methodology gaps surfaced)
+
+**Status:** C.3 scaffolding (driver, tests, smoke output) lands. n=3 smoke
+at the Phase 2 operating point (D=4096, β=10, L=64, W=8) surfaces two
+real methodology gaps that must close before any n≥10 graduation run.
+Path C C.3 is **partial**, not closed.
+
+**Files created:**
+- [`experiments/c3_phase3_exit_criterion.py`](../../experiments/c3_phase3_exit_criterion.py)
+- [`tests/test_c3_phase3_exit_criterion.py`](../../tests/test_c3_phase3_exit_criterion.py)
+  (5 tests pass; 15/15 with C.1.3 + C.1.4 regression)
+- [`reports/c3_smoke_2026-05-26/c3_summary.json`](../../reports/c3_smoke_2026-05-26/c3_summary.json) +
+  [`c3_summary.md`](../../reports/c3_smoke_2026-05-26/c3_summary.md)
+
+**Smoke result (n=3 seeds, β=10, D=4096):**
+- Only the `spread` regime stratum had any trials — `tight` and
+  `borderline` were empty. At D=4096 a fresh random codebook of 200
+  atoms has `d_bar_mean ≈ 0.9996`, well above the regime classifier's
+  θ' boundary. All 200 atoms classify as `spread`.
+- Recall@K (spread stratum): standard = `0.030 [0.019, 0.047]`, control = `0.032 [0.020, 0.049]`. Δ ≈ −0.002, CI-overlapping.
+- Default `1/β` and calibrated `theta_prime_fn` modes produce
+  numerically identical results at β=10.
+
+**Two methodology gaps (binding for any n≥10 re-run):**
+
+1. **Standard condition is shuffled-vs-shuffled.** The driver builds
+   BOTH the standard codebook AND the shuffled control as fresh random
+   codebooks (with different substrate seeds). The Phase 3 exit
+   criterion is meant to compare a *consolidated* codebook (Hebbian +
+   error-driven + Path C C.2.x dynamics) against the shuffled control.
+   The smoke at n=3 is therefore a *plumbing + null baseline* run, NOT
+   a meaningful Phase 3 graduation test. **Fix:** wire Phase 3
+   consolidation (the existing `OnlineCodebookUpdater` / `StableOnlineCodebookUpdaterV2`
+   path with the full Path C C.2 dynamics turned on at modest values)
+   into the standard condition before evaluation; leave the shuffled
+   control un-consolidated.
+
+2. **β=10 is outside the C.1.4 calibration grid.** The calibration
+   covers β ∈ {0.01, 0.1, 1.0}. The Phase 2 baseline operating point
+   is β=10. The loader correctly falls back to `1/β` for out-of-range
+   β and emits a stderr warning. The "both theta_prime variants"
+   binding constraint is therefore satisfied trivially at the
+   operating point — both modes degenerate to the same function. The
+   C.1.4 finding "1/β is wrong by 2-3 orders at low β" predicts the
+   regime labels could differ substantially at β=0.01 or β=0.1, but
+   THIS is untested at the operating point. **Fix:** extend
+   `experiments/calibrate_theta_prime.py` to cover β ∈ {3, 10, 30, 100}
+   (the Phase 2 baseline grid) before the C.3 graduation run, so the
+   dual-mode comparison has bite.
+
+**Partial-closure framing:** the C.3 driver, tests, JSON/MD outputs,
+Wilson CIs, regime stratification, and dual-θ' plumbing are all
+production-shaped. The experimental DESIGN has gaps. C.3's pre-graduation
+remainder:
+- Extend the C.1.4 calibration grid to β ∈ {3, 10, 30, 100} (small
+  follow-up experiment).
+- Wire Phase 3 consolidation into the standard condition (driver
+  modification).
+- Then run n≥10 graduation gate with regime stratification and dual
+  theta_prime modes.
+
+**Pre-existing C.2.5 A9 flake fixed in this commit:** identical pattern
+to the C.2.4 A4 flake. `substrate.random_vector()` consumes the global
+torch RNG; under full-discovery test ordering the prior tests left a
+different state, occasionally producing an outlier in the A9 composed-
+system smoothness statistic. Fix: explicit `torch.manual_seed(43)` at
+the start of A9 (matching the existing `gen = torch.Generator().manual_seed(43)`
+call inside the test). Verified stable across 2 consecutive
+full-discovery runs (515/515 each).
+
+**Path C closure status (2026-05-26 end-of-session):** C.1 ✓ (passive
+instrumentation) + C.2 ✓ (diagnostic-as-actuator) + C.3 PARTIAL
+(scaffolding done; experimental design needs two fixes before n≥10
+graduation). **Phase 5′ remains paused.**
+
+---
+
 **Cross-cutting binding findings for C.2 and C.3:**
 - N=5 rolling window is a binary collapse detector for NC1 and a
   power-limited dip test for bimodality; persistence-across-events is

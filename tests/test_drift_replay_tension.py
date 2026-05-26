@@ -678,6 +678,7 @@ class ConvergenceEquivalenceTests(unittest.TestCase):
         # A9 (binding): all five C.2.x mechanisms. Run 300 events. Apply
         # sliding-window + floor gating to mean(m), mean(T), Σ tr(Σ),
         # mean(Psi), plus replay sample-distribution entropy. Each smooth.
+        torch.manual_seed(43)
         (
             substrate, positions, codebook,
             memory, cons, unified, windows,

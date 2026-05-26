@@ -1,0 +1,855 @@
+{
+  "header": {
+    "diagnostic_not_graduation": true,
+    "n_seeds": 3,
+    "seeds": [
+      0,
+      1,
+      2
+    ],
+    "phase_3_exit_criterion_source": "notes/emergent-codebook/phase-3-deep-dive.md:180-189",
+    "path_c_precommit_source": "notes/notes/2026-05-26-path-c-phase3-diagnostic-backfill-precommit.md",
+    "headline_metric": "Regime-stratified Recall@K on masked-token contextual completion vs. genuine shuffled-token control",
+    "graduation_gate_n_seeds": 10,
+    "operating_point": {
+      "D": 4096,
+      "landscape_size": 64,
+      "window_size": 8,
+      "vocab_size": 200,
+      "n_train_windows": 1000,
+      "n_test_windows": 200,
+      "beta": 10.0,
+      "K": 5
+    },
+    "theta_prime_modes_run": [
+      "default",
+      "calibrated"
+    ],
+    "device": "cpu",
+    "wall_clock_seconds": 9.153865098953247
+  },
+  "per_cell_rows": [
+    {
+      "seed": 0,
+      "substrate_seed": 0,
+      "is_control": false,
+      "theta_prime_mode": "default",
+      "theta_prime_info": {
+        "mode": "default",
+        "fn": "1/beta",
+        "source": "spec_default"
+      },
+      "regime_counts": {
+        "tight": 0,
+        "spread": 200,
+        "borderline": 0
+      },
+      "regime_summary": {
+        "d_bar": {
+          "n": 200,
+          "mean": 0.9996053424477577,
+          "min": 0.9942504167556763,
+          "max": 1.0049445629119873,
+          "median": 0.9996193647384644
+        },
+        "d_eff": {
+          "n": 200,
+          "mean": 6.989450812339783,
+          "min": 6.981324672698975,
+          "max": 6.993960857391357,
+          "median": 6.98960542678833
+        },
+        "theta_prime": {
+          "n": 200,
+          "mean": 0.1,
+          "min": 0.1,
+          "max": 0.1,
+          "median": 0.1
+        }
+      },
+      "per_stratum": {
+        "tight": {
+          "successes": 0,
+          "trials": 0,
+          "recall_at_k": 0.0
+        },
+        "spread": {
+          "successes": 5,
+          "trials": 200,
+          "recall_at_k": 0.025
+        },
+        "borderline": {
+          "successes": 0,
+          "trials": 0,
+          "recall_at_k": 0.0
+        }
+      },
+      "n_outcomes": 200
+    },
+    {
+      "seed": 0,
+      "substrate_seed": 10000,
+      "is_control": true,
+      "theta_prime_mode": "default",
+      "theta_prime_info": {
+        "mode": "default",
+        "fn": "1/beta",
+        "source": "spec_default"
+      },
+      "regime_counts": {
+        "tight": 0,
+        "spread": 200,
+        "borderline": 0
+      },
+      "regime_summary": {
+        "d_bar": {
+          "n": 200,
+          "mean": 0.999438365995884,
+          "min": 0.9930810928344727,
+          "max": 1.0045971870422363,
+          "median": 0.9995412826538086
+        },
+        "d_eff": {
+          "n": 200,
+          "mean": 6.989548273086548,
+          "min": 6.983493328094482,
+          "max": 6.995272159576416,
+          "median": 6.989803791046143
+        },
+        "theta_prime": {
+          "n": 200,
+          "mean": 0.1,
+          "min": 0.1,
+          "max": 0.1,
+          "median": 0.1
+        }
+      },
+      "per_stratum": {
+        "tight": {
+          "successes": 0,
+          "trials": 0,
+          "recall_at_k": 0.0
+        },
+        "spread": {
+          "successes": 5,
+          "trials": 200,
+          "recall_at_k": 0.025
+        },
+        "borderline": {
+          "successes": 0,
+          "trials": 0,
+          "recall_at_k": 0.0
+        }
+      },
+      "n_outcomes": 200
+    },
+    {
+      "seed": 1,
+      "substrate_seed": 1,
+      "is_control": false,
+      "theta_prime_mode": "default",
+      "theta_prime_info": {
+        "mode": "default",
+        "fn": "1/beta",
+        "source": "spec_default"
+      },
+      "regime_counts": {
+        "tight": 0,
+        "spread": 200,
+        "borderline": 0
+      },
+      "regime_summary": {
+        "d_bar": {
+          "n": 200,
+          "mean": 0.9995181137323379,
+          "min": 0.9935773015022278,
+          "max": 1.0052865743637085,
+          "median": 0.9994038343429565
+        },
+        "d_eff": {
+          "n": 200,
+          "mean": 6.989696273803711,
+          "min": 6.982321262359619,
+          "max": 6.994455337524414,
+          "median": 6.9899725914001465
+        },
+        "theta_prime": {
+          "n": 200,
+          "mean": 0.1,
+          "min": 0.1,
+          "max": 0.1,
+          "median": 0.1
+        }
+      },
+      "per_stratum": {
+        "tight": {
+          "successes": 0,
+          "trials": 0,
+          "recall_at_k": 0.0
+        },
+        "spread": {
+          "successes": 5,
+          "trials": 200,
+          "recall_at_k": 0.025
+        },
+        "borderline": {
+          "successes": 0,
+          "trials": 0,
+          "recall_at_k": 0.0
+        }
+      },
+      "n_outcomes": 200
+    },
+    {
+      "seed": 1,
+      "substrate_seed": 10001,
+      "is_control": true,
+      "theta_prime_mode": "default",
+      "theta_prime_info": {
+        "mode": "default",
+        "fn": "1/beta",
+        "source": "spec_default"
+      },
+      "regime_counts": {
+        "tight": 0,
+        "spread": 200,
+        "borderline": 0
+      },
+      "regime_summary": {
+        "d_bar": {
+          "n": 200,
+          "mean": 0.999605016708374,
+          "min": 0.99526447057724,
+          "max": 1.0057179927825928,
+          "median": 0.9993554949760437
+        },
+        "d_eff": {
+          "n": 200,
+          "mean": 6.989570851325989,
+          "min": 6.983026027679443,
+          "max": 6.99567985534668,
+          "median": 6.989785194396973
+        },
+        "theta_prime": {
+          "n": 200,
+          "mean": 0.1,
+          "min": 0.1,
+          "max": 0.1,
+          "median": 0.1
+        }
+      },
+      "per_stratum": {
+        "tight": {
+          "successes": 0,
+          "trials": 0,
+          "recall_at_k": 0.0
+        },
+        "spread": {
+          "successes": 7,
+          "trials": 200,
+          "recall_at_k": 0.035
+        },
+        "borderline": {
+          "successes": 0,
+          "trials": 0,
+          "recall_at_k": 0.0
+        }
+      },
+      "n_outcomes": 200
+    },
+    {
+      "seed": 2,
+      "substrate_seed": 2,
+      "is_control": false,
+      "theta_prime_mode": "default",
+      "theta_prime_info": {
+        "mode": "default",
+        "fn": "1/beta",
+        "source": "spec_default"
+      },
+      "regime_counts": {
+        "tight": 0,
+        "spread": 200,
+        "borderline": 0
+      },
+      "regime_summary": {
+        "d_bar": {
+          "n": 200,
+          "mean": 0.9994736823439598,
+          "min": 0.9923802614212036,
+          "max": 1.0051071643829346,
+          "median": 0.9995579123497009
+        },
+        "d_eff": {
+          "n": 200,
+          "mean": 6.989502773284912,
+          "min": 6.9832282066345215,
+          "max": 6.993857383728027,
+          "median": 6.989553451538086
+        },
+        "theta_prime": {
+          "n": 200,
+          "mean": 0.1,
+          "min": 0.1,
+          "max": 0.1,
+          "median": 0.1
+        }
+      },
+      "per_stratum": {
+        "tight": {
+          "successes": 0,
+          "trials": 0,
+          "recall_at_k": 0.0
+        },
+        "spread": {
+          "successes": 8,
+          "trials": 200,
+          "recall_at_k": 0.04
+        },
+        "borderline": {
+          "successes": 0,
+          "trials": 0,
+          "recall_at_k": 0.0
+        }
+      },
+      "n_outcomes": 200
+    },
+    {
+      "seed": 2,
+      "substrate_seed": 10002,
+      "is_control": true,
+      "theta_prime_mode": "default",
+      "theta_prime_info": {
+        "mode": "default",
+        "fn": "1/beta",
+        "source": "spec_default"
+      },
+      "regime_counts": {
+        "tight": 0,
+        "spread": 200,
+        "borderline": 0
+      },
+      "regime_summary": {
+        "d_bar": {
+          "n": 200,
+          "mean": 0.9996843269467354,
+          "min": 0.9944226145744324,
+          "max": 1.0042146444320679,
+          "median": 0.9996182322502136
+        },
+        "d_eff": {
+          "n": 200,
+          "mean": 6.98973769903183,
+          "min": 6.982834815979004,
+          "max": 6.994570255279541,
+          "median": 6.98970365524292
+        },
+        "theta_prime": {
+          "n": 200,
+          "mean": 0.1,
+          "min": 0.1,
+          "max": 0.1,
+          "median": 0.1
+        }
+      },
+      "per_stratum": {
+        "tight": {
+          "successes": 0,
+          "trials": 0,
+          "recall_at_k": 0.0
+        },
+        "spread": {
+          "successes": 7,
+          "trials": 200,
+          "recall_at_k": 0.035
+        },
+        "borderline": {
+          "successes": 0,
+          "trials": 0,
+          "recall_at_k": 0.0
+        }
+      },
+      "n_outcomes": 200
+    },
+    {
+      "seed": 0,
+      "substrate_seed": 0,
+      "is_control": false,
+      "theta_prime_mode": "calibrated",
+      "theta_prime_info": {
+        "mode": "calibrated",
+        "fn": "JSON lookup with log-beta interpolation; out-of-range falls back to 1/beta",
+        "source": "calibration_loaded"
+      },
+      "regime_counts": {
+        "tight": 0,
+        "spread": 200,
+        "borderline": 0
+      },
+      "regime_summary": {
+        "d_bar": {
+          "n": 200,
+          "mean": 0.9996053424477577,
+          "min": 0.9942504167556763,
+          "max": 1.0049445629119873,
+          "median": 0.9996193647384644
+        },
+        "d_eff": {
+          "n": 200,
+          "mean": 6.989450812339783,
+          "min": 6.981324672698975,
+          "max": 6.993960857391357,
+          "median": 6.98960542678833
+        },
+        "theta_prime": {
+          "n": 200,
+          "mean": 0.1,
+          "min": 0.1,
+          "max": 0.1,
+          "median": 0.1
+        }
+      },
+      "per_stratum": {
+        "tight": {
+          "successes": 0,
+          "trials": 0,
+          "recall_at_k": 0.0
+        },
+        "spread": {
+          "successes": 5,
+          "trials": 200,
+          "recall_at_k": 0.025
+        },
+        "borderline": {
+          "successes": 0,
+          "trials": 0,
+          "recall_at_k": 0.0
+        }
+      },
+      "n_outcomes": 200
+    },
+    {
+      "seed": 0,
+      "substrate_seed": 10000,
+      "is_control": true,
+      "theta_prime_mode": "calibrated",
+      "theta_prime_info": {
+        "mode": "calibrated",
+        "fn": "JSON lookup with log-beta interpolation; out-of-range falls back to 1/beta",
+        "source": "calibration_loaded"
+      },
+      "regime_counts": {
+        "tight": 0,
+        "spread": 200,
+        "borderline": 0
+      },
+      "regime_summary": {
+        "d_bar": {
+          "n": 200,
+          "mean": 0.999438365995884,
+          "min": 0.9930810928344727,
+          "max": 1.0045971870422363,
+          "median": 0.9995412826538086
+        },
+        "d_eff": {
+          "n": 200,
+          "mean": 6.989548273086548,
+          "min": 6.983493328094482,
+          "max": 6.995272159576416,
+          "median": 6.989803791046143
+        },
+        "theta_prime": {
+          "n": 200,
+          "mean": 0.1,
+          "min": 0.1,
+          "max": 0.1,
+          "median": 0.1
+        }
+      },
+      "per_stratum": {
+        "tight": {
+          "successes": 0,
+          "trials": 0,
+          "recall_at_k": 0.0
+        },
+        "spread": {
+          "successes": 5,
+          "trials": 200,
+          "recall_at_k": 0.025
+        },
+        "borderline": {
+          "successes": 0,
+          "trials": 0,
+          "recall_at_k": 0.0
+        }
+      },
+      "n_outcomes": 200
+    },
+    {
+      "seed": 1,
+      "substrate_seed": 1,
+      "is_control": false,
+      "theta_prime_mode": "calibrated",
+      "theta_prime_info": {
+        "mode": "calibrated",
+        "fn": "JSON lookup with log-beta interpolation; out-of-range falls back to 1/beta",
+        "source": "calibration_loaded"
+      },
+      "regime_counts": {
+        "tight": 0,
+        "spread": 200,
+        "borderline": 0
+      },
+      "regime_summary": {
+        "d_bar": {
+          "n": 200,
+          "mean": 0.9995181137323379,
+          "min": 0.9935773015022278,
+          "max": 1.0052865743637085,
+          "median": 0.9994038343429565
+        },
+        "d_eff": {
+          "n": 200,
+          "mean": 6.989696273803711,
+          "min": 6.982321262359619,
+          "max": 6.994455337524414,
+          "median": 6.9899725914001465
+        },
+        "theta_prime": {
+          "n": 200,
+          "mean": 0.1,
+          "min": 0.1,
+          "max": 0.1,
+          "median": 0.1
+        }
+      },
+      "per_stratum": {
+        "tight": {
+          "successes": 0,
+          "trials": 0,
+          "recall_at_k": 0.0
+        },
+        "spread": {
+          "successes": 5,
+          "trials": 200,
+          "recall_at_k": 0.025
+        },
+        "borderline": {
+          "successes": 0,
+          "trials": 0,
+          "recall_at_k": 0.0
+        }
+      },
+      "n_outcomes": 200
+    },
+    {
+      "seed": 1,
+      "substrate_seed": 10001,
+      "is_control": true,
+      "theta_prime_mode": "calibrated",
+      "theta_prime_info": {
+        "mode": "calibrated",
+        "fn": "JSON lookup with log-beta interpolation; out-of-range falls back to 1/beta",
+        "source": "calibration_loaded"
+      },
+      "regime_counts": {
+        "tight": 0,
+        "spread": 200,
+        "borderline": 0
+      },
+      "regime_summary": {
+        "d_bar": {
+          "n": 200,
+          "mean": 0.999605016708374,
+          "min": 0.99526447057724,
+          "max": 1.0057179927825928,
+          "median": 0.9993554949760437
+        },
+        "d_eff": {
+          "n": 200,
+          "mean": 6.989570851325989,
+          "min": 6.983026027679443,
+          "max": 6.99567985534668,
+          "median": 6.989785194396973
+        },
+        "theta_prime": {
+          "n": 200,
+          "mean": 0.1,
+          "min": 0.1,
+          "max": 0.1,
+          "median": 0.1
+        }
+      },
+      "per_stratum": {
+        "tight": {
+          "successes": 0,
+          "trials": 0,
+          "recall_at_k": 0.0
+        },
+        "spread": {
+          "successes": 7,
+          "trials": 200,
+          "recall_at_k": 0.035
+        },
+        "borderline": {
+          "successes": 0,
+          "trials": 0,
+          "recall_at_k": 0.0
+        }
+      },
+      "n_outcomes": 200
+    },
+    {
+      "seed": 2,
+      "substrate_seed": 2,
+      "is_control": false,
+      "theta_prime_mode": "calibrated",
+      "theta_prime_info": {
+        "mode": "calibrated",
+        "fn": "JSON lookup with log-beta interpolation; out-of-range falls back to 1/beta",
+        "source": "calibration_loaded"
+      },
+      "regime_counts": {
+        "tight": 0,
+        "spread": 200,
+        "borderline": 0
+      },
+      "regime_summary": {
+        "d_bar": {
+          "n": 200,
+          "mean": 0.9994736823439598,
+          "min": 0.9923802614212036,
+          "max": 1.0051071643829346,
+          "median": 0.9995579123497009
+        },
+        "d_eff": {
+          "n": 200,
+          "mean": 6.989502773284912,
+          "min": 6.9832282066345215,
+          "max": 6.993857383728027,
+          "median": 6.989553451538086
+        },
+        "theta_prime": {
+          "n": 200,
+          "mean": 0.1,
+          "min": 0.1,
+          "max": 0.1,
+          "median": 0.1
+        }
+      },
+      "per_stratum": {
+        "tight": {
+          "successes": 0,
+          "trials": 0,
+          "recall_at_k": 0.0
+        },
+        "spread": {
+          "successes": 8,
+          "trials": 200,
+          "recall_at_k": 0.04
+        },
+        "borderline": {
+          "successes": 0,
+          "trials": 0,
+          "recall_at_k": 0.0
+        }
+      },
+      "n_outcomes": 200
+    },
+    {
+      "seed": 2,
+      "substrate_seed": 10002,
+      "is_control": true,
+      "theta_prime_mode": "calibrated",
+      "theta_prime_info": {
+        "mode": "calibrated",
+        "fn": "JSON lookup with log-beta interpolation; out-of-range falls back to 1/beta",
+        "source": "calibration_loaded"
+      },
+      "regime_counts": {
+        "tight": 0,
+        "spread": 200,
+        "borderline": 0
+      },
+      "regime_summary": {
+        "d_bar": {
+          "n": 200,
+          "mean": 0.9996843269467354,
+          "min": 0.9944226145744324,
+          "max": 1.0042146444320679,
+          "median": 0.9996182322502136
+        },
+        "d_eff": {
+          "n": 200,
+          "mean": 6.98973769903183,
+          "min": 6.982834815979004,
+          "max": 6.994570255279541,
+          "median": 6.98970365524292
+        },
+        "theta_prime": {
+          "n": 200,
+          "mean": 0.1,
+          "min": 0.1,
+          "max": 0.1,
+          "median": 0.1
+        }
+      },
+      "per_stratum": {
+        "tight": {
+          "successes": 0,
+          "trials": 0,
+          "recall_at_k": 0.0
+        },
+        "spread": {
+          "successes": 7,
+          "trials": 200,
+          "recall_at_k": 0.035
+        },
+        "borderline": {
+          "successes": 0,
+          "trials": 0,
+          "recall_at_k": 0.0
+        }
+      },
+      "n_outcomes": 200
+    }
+  ],
+  "aggregated": {
+    "default": {
+      "standard": {
+        "tight": {
+          "successes": 0,
+          "trials": 0,
+          "recall_at_k": 0.0,
+          "wilson_lower": 0.0,
+          "wilson_upper": 0.0
+        },
+        "spread": {
+          "successes": 18,
+          "trials": 600,
+          "recall_at_k": 0.03,
+          "wilson_lower": 0.019059099739023,
+          "wilson_upper": 0.04692111758949495
+        },
+        "borderline": {
+          "successes": 0,
+          "trials": 0,
+          "recall_at_k": 0.0,
+          "wilson_lower": 0.0,
+          "wilson_upper": 0.0
+        }
+      },
+      "shuffled_control": {
+        "tight": {
+          "successes": 0,
+          "trials": 0,
+          "recall_at_k": 0.0,
+          "wilson_lower": 0.0,
+          "wilson_upper": 0.0
+        },
+        "spread": {
+          "successes": 19,
+          "trials": 600,
+          "recall_at_k": 0.03166666666666667,
+          "wilson_lower": 0.020364748182018035,
+          "wilson_upper": 0.04892759603540589
+        },
+        "borderline": {
+          "successes": 0,
+          "trials": 0,
+          "recall_at_k": 0.0,
+          "wilson_lower": 0.0,
+          "wilson_upper": 0.0
+        }
+      },
+      "delta_standard_minus_control": {
+        "tight": {
+          "delta_recall_at_k": 0.0,
+          "standard_trials": 0,
+          "control_trials": 0,
+          "ci_disjoint_standard_beats_control": false
+        },
+        "spread": {
+          "delta_recall_at_k": -0.0016666666666666705,
+          "standard_trials": 600,
+          "control_trials": 600,
+          "ci_disjoint_standard_beats_control": false
+        },
+        "borderline": {
+          "delta_recall_at_k": 0.0,
+          "standard_trials": 0,
+          "control_trials": 0,
+          "ci_disjoint_standard_beats_control": false
+        }
+      }
+    },
+    "calibrated": {
+      "standard": {
+        "tight": {
+          "successes": 0,
+          "trials": 0,
+          "recall_at_k": 0.0,
+          "wilson_lower": 0.0,
+          "wilson_upper": 0.0
+        },
+        "spread": {
+          "successes": 18,
+          "trials": 600,
+          "recall_at_k": 0.03,
+          "wilson_lower": 0.019059099739023,
+          "wilson_upper": 0.04692111758949495
+        },
+        "borderline": {
+          "successes": 0,
+          "trials": 0,
+          "recall_at_k": 0.0,
+          "wilson_lower": 0.0,
+          "wilson_upper": 0.0
+        }
+      },
+      "shuffled_control": {
+        "tight": {
+          "successes": 0,
+          "trials": 0,
+          "recall_at_k": 0.0,
+          "wilson_lower": 0.0,
+          "wilson_upper": 0.0
+        },
+        "spread": {
+          "successes": 19,
+          "trials": 600,
+          "recall_at_k": 0.03166666666666667,
+          "wilson_lower": 0.020364748182018035,
+          "wilson_upper": 0.04892759603540589
+        },
+        "borderline": {
+          "successes": 0,
+          "trials": 0,
+          "recall_at_k": 0.0,
+          "wilson_lower": 0.0,
+          "wilson_upper": 0.0
+        }
+      },
+      "delta_standard_minus_control": {
+        "tight": {
+          "delta_recall_at_k": 0.0,
+          "standard_trials": 0,
+          "control_trials": 0,
+          "ci_disjoint_standard_beats_control": false
+        },
+        "spread": {
+          "delta_recall_at_k": -0.0016666666666666705,
+          "standard_trials": 600,
+          "control_trials": 600,
+          "ci_disjoint_standard_beats_control": false
+        },
+        "borderline": {
+          "delta_recall_at_k": 0.0,
+          "standard_trials": 0,
+          "control_trials": 0,
+          "ci_disjoint_standard_beats_control": false
+        }
+      }
+    }
+  }
+}
