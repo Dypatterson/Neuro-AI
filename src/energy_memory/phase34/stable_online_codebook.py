@@ -226,11 +226,16 @@ class StableOnlineCodebookUpdaterV2(StableOnlineCodebookUpdater):
             if entry.predicted_id != entry.target_id:
                 push_targets[entry.predicted_id].append(entry.slot_query)
 
+        # C.2.5: snapshot codebook at the start of the event so the drift
+        # tension EMA captures the full per-atom delta over this event.
+        cs = self.consolidation_state
+        if cs is not None:
+            cs.snapshot_previous_codebook(self.codebook)
+
         # C.2.2: capture pre-update states and refresh T_k before any
         # consolidation force fires this event (parallels the base class).
         affected = pull_targets.keys() | push_targets.keys()
         pre_states = self._snapshot_pre_states(affected)
-        cs = self.consolidation_state
         if cs is not None:
             cs.update_splitting_tension()
 
@@ -269,6 +274,10 @@ class StableOnlineCodebookUpdaterV2(StableOnlineCodebookUpdater):
         self._apply_anti_collapse(affected)
         # C.2.2: attenuate the net per-atom update by 1/(1 + T_k/τ_T).
         self._apply_splitting_tension(pre_states)
+
+        # C.2.5: drift-tension EMA after all forces have settled this event.
+        if cs is not None:
+            cs.update_drift_tension(self.codebook)
 
         self._consolidation_count += 1
         mean_q = sum(e.quality for e in self._buffer) / len(self._buffer)

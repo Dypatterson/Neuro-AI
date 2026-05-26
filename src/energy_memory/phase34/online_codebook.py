@@ -117,6 +117,13 @@ class OnlineCodebookUpdater:
         return self._consolidate()
 
     def _consolidate(self) -> dict:
+        # C.2.5: snapshot the codebook BEFORE any forces fire so end-of-event
+        # update_drift_tension can compute ||current - previous|| per atom.
+        # Early-exits when drift_ema_rate == 0 (κ=0 baseline).
+        cs = self.consolidation_state
+        if cs is not None:
+            cs.snapshot_previous_codebook(self.codebook)
+
         pull_targets: dict[int, List["torch.Tensor"]] = defaultdict(list)
         push_targets: dict[int, List["torch.Tensor"]] = defaultdict(list)
 
@@ -131,7 +138,6 @@ class OnlineCodebookUpdater:
         # when mu_T == 0 (κ=0 baseline byte-identical).
         affected = pull_targets.keys() | push_targets.keys()
         pre_states = self._snapshot_pre_states(affected)
-        cs = self.consolidation_state
         if cs is not None:
             cs.update_splitting_tension()
 
@@ -168,6 +174,11 @@ class OnlineCodebookUpdater:
         # H12 binding: modulation is multiplicative, applied to the NET
         # update — not a new additive force, not a replacement of the update.
         self._apply_splitting_tension(pre_states)
+
+        # C.2.5: EMA-update drift tension AFTER all forces (incl. C.2.1, C.2.2,
+        # C.2.3 modulation) have settled the codebook for this event.
+        if cs is not None:
+            cs.update_drift_tension(self.codebook)
 
         self._consolidation_count += 1
         mean_q = (

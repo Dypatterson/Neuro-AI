@@ -178,6 +178,20 @@ class ConsolidationConfig:
     # — caught by A6's IQR check on the substrate's natural similarity-gap
     # distribution.
     tau_cc: float = 0.1
+    # C.2.5 drift -> replay-tension energy.
+    # See notes/notes/2026-05-26-c25-drift-replay-tension-precommit.md.
+    # drift_ema_rate (μ_drift): EMA blending coefficient on the per-atom
+    # finite-difference drift signal ||atom_k(t) - atom_k(t-1)|| at each
+    # consolidation event. drift_replay_gain (κ_drift): multiplicative
+    # gain on the per-trace drift factor in the replay-store priority
+    # composition: priority *= (1 + κ_drift · Ψ[primary]). Both are
+    # FIXED substrate constants — never adaptive on any observable
+    # (binding H20). Defaults of 0.0 preserve the κ=0 baseline byte-
+    # identically: Ψ stays at 0 and the multiplier is exactly 1.0. Per
+    # H23 there is NO clamp on Ψ — if A8 stability fails, defaults are
+    # revised, never bounded post-hoc.
+    drift_ema_rate: float = 0.0
+    drift_replay_gain: float = 0.0
 
 
 class ConsolidationState:
@@ -236,6 +250,14 @@ class ConsolidationState:
         # consolidation update via 1/(1 + T_k / τ_T). Stays at zero when
         # mu_T == 0 (κ=0 baseline; modulation is exactly 1.0).
         self.splitting_tension = torch.zeros(0, dtype=torch.float32, device=self.device)
+        # C.2.5 per-atom drift tension Ψ_k ≥ 0 (it's a magnitude). EMA of
+        # ||atom_k(t) − atom_k(t−1)||; modulates replay priority via
+        # (1 + κ_drift · Ψ_k). Stays at zero when drift_ema_rate == 0
+        # (κ=0 baseline; multiplier exactly 1.0). _previous_codebook is
+        # snapshotted at the start of each consolidation event by the
+        # orchestrator and consumed at the end via update_drift_tension.
+        self.drift_tension = torch.zeros(0, dtype=torch.float32, device=self.device)
+        self._previous_codebook: Optional["torch.Tensor"] = None
         self._step_count = 0
 
         if config.strength_weights is not None:
@@ -309,6 +331,14 @@ class ConsolidationState:
             self.splitting_tension,
             torch.zeros(1, dtype=torch.float32, device=self.device),
         ])
+        # C.2.5: new atoms enter with zero drift tension; the previous-
+        # codebook snapshot is invalidated to drop any stale shape — the
+        # next snapshot_previous_codebook() call will re-capture.
+        self.drift_tension = torch.cat([
+            self.drift_tension,
+            torch.zeros(1, dtype=torch.float32, device=self.device),
+        ])
+        self._previous_codebook = None
         return self.n_patterns - 1
 
     def initialize_existing(self, idx: int, novelty_strength: Optional[float] = None) -> None:
@@ -657,6 +687,35 @@ class ConsolidationState:
         t_k = float(self.splitting_tension[atom_idx].detach().cpu())
         return 1.0 / (1.0 + t_k / self.config.tau_T)
 
+    def snapshot_previous_codebook(self, codebook: "torch.Tensor") -> None:
+        # C.2.5: capture current codebook so update_drift_tension can compute
+        # ||current − previous|| per atom at the end of the consolidation event.
+        if self.config.drift_ema_rate == 0.0:
+            return
+        self._previous_codebook = codebook.detach().clone()
+
+    def update_drift_tension(self, codebook: "torch.Tensor") -> None:
+        # C.2.5: EMA-update Ψ_k from ||codebook[k] − _previous_codebook[k]||.
+        # Skip on shape mismatch (post-add/prune transient) — next event recovers.
+        mu = self.config.drift_ema_rate
+        if mu == 0.0:
+            return
+        prev = self._previous_codebook
+        if prev is None:
+            return
+        if prev.shape != codebook.shape:
+            return
+        if codebook.shape[0] != self.n_patterns:
+            return
+        diff = codebook - prev
+        # FHRR codebooks are complex; .abs() yields per-coord magnitude and
+        # the L2 norm of |z| equals the Hermitian norm of z. Stay on-device.
+        per_coord_mag_sq = (diff.conj() * diff).real
+        drift_signal = per_coord_mag_sq.sum(dim=-1).clamp_min(0.0).sqrt().to(
+            self.drift_tension.dtype
+        )
+        self.drift_tension = (1.0 - mu) * self.drift_tension + mu * drift_signal
+
     def step_dynamics(
         self,
         input_vector: Optional["torch.Tensor"] = None,
@@ -786,6 +845,9 @@ class ConsolidationState:
         self.r_ema = self.r_ema[keep]
         self.metastability_ema = self.metastability_ema[keep]
         self.splitting_tension = self.splitting_tension[keep]
+        self.drift_tension = self.drift_tension[keep]
+        if self._previous_codebook is not None:
+            self._previous_codebook = self._previous_codebook[keep]
 
     def stats(self) -> dict:
         if self.n_patterns == 0:
@@ -808,6 +870,8 @@ class ConsolidationState:
                 "metastability_ema_max": 0.0,
                 "splitting_tension_mean": 0.0,
                 "splitting_tension_max": 0.0,
+                "drift_tension_mean": 0.0,
+                "drift_tension_max": 0.0,
             }
         strength = self.effective_strength().abs()
         rc = self.retrieval_count
@@ -833,6 +897,8 @@ class ConsolidationState:
             "metastability_ema_max": float(self.metastability_ema.max().detach().cpu()),
             "splitting_tension_mean": float(self.splitting_tension.mean().detach().cpu()),
             "splitting_tension_max": float(self.splitting_tension.max().detach().cpu()),
+            "drift_tension_mean": float(self.drift_tension.mean().detach().cpu()),
+            "drift_tension_max": float(self.drift_tension.max().detach().cpu()),
         }
 
 

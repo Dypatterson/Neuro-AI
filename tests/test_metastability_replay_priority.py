@@ -249,6 +249,7 @@ class ConvergenceEquivalenceTests(unittest.TestCase):
             ReplayConfig, UnifiedReplayMemory,
         )
 
+        torch.manual_seed(3)
         substrate = TorchFHRR(dim=128, seed=3, device="cpu")
         positions = build_position_vectors(substrate, 3)
         codebook = substrate.random_vectors(8)

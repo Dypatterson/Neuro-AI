@@ -112,6 +112,19 @@ class ReplayConfig:
     # See notes/notes/2026-05-20-metastability-replay-prioritization-dynamic-form.md.
     metastability_gain: float = 0.0
     metastability_replay_decay: float = 0.0
+    # C.2.5 (drift -> replay-tension energy).
+    # κ_drift — multiplicative gain on per-trace drift tension Ψ in the
+    # replay-store priority composition. Composes with the C.2.4 metastability
+    # multiplier:
+    #     priority(t) = gate · tag · suppression
+    #                 · (1 + κ_meta · m[primary])
+    #                 · (1 + κ_drift · Ψ[primary])
+    # μ_drift is the EMA rate on the per-event drift signal; it lives on
+    # ConsolidationConfig (not here) because Ψ_k is substrate state. Both
+    # default off — at κ_drift = 0 OR μ_drift = 0 the multiplier is exactly
+    # 1.0 and the composition is byte-identical to the pre-C.2.5 baseline.
+    # See notes/notes/2026-05-26-c25-drift-replay-tension-precommit.md.
+    drift_replay_gain: float = 0.0
     # Static sampler selection. ``standard`` preserves legacy ReplayStore
     # sampling; ``range_shaped`` samples from the product of encoder-term role
     # and atom marginals. This is fixed config, never metric-triggered routing.
@@ -169,6 +182,7 @@ class ReplayStore:
         consolidation: Optional[ConsolidationState] = None,
         metastability_gain: float = 0.0,
         metastability_replay_decay: float = 0.0,
+        drift_replay_gain: float = 0.0,
     ):
         self.capacity = capacity
         self.traces: List[TrajectoryTrace] = []
@@ -189,6 +203,7 @@ class ReplayStore:
         self._consolidation = consolidation
         self._metastability_gain = float(metastability_gain)
         self._metastability_replay_decay = float(metastability_replay_decay)
+        self._drift_replay_gain = float(drift_replay_gain)
 
     def add(
         self,
@@ -271,8 +286,27 @@ class ReplayStore:
                     m_factors.append(1.0)
         else:
             m_factors = [1.0] * len(self.traces)
+        # C.2.5: per-trace drift factor (1 + κ_drift · Ψ[primary]). Same
+        # primary-atom keying as C.2.4, multiplied into priority. At
+        # κ_drift = 0 d_factors are all 1.0 (byte-identical to pre-C.2.5).
+        kappa_drift = self._drift_replay_gain
+        if kappa_drift > 0.0 and cons is not None and cons.n_patterns > 0:
+            psi_tensor = cons.drift_tension
+            n = cons.n_patterns
+            d_factors: List[float] = []
+            for i in range(len(self.traces)):
+                idx = self.primary_atom[i]
+                if 0 <= idx < n:
+                    d_factors.append(
+                        1.0 + kappa_drift * float(psi_tensor[idx].detach().cpu())
+                    )
+                else:
+                    d_factors.append(1.0)
+        else:
+            d_factors = [1.0] * len(self.traces)
         return [
-            self.gate_signals[i] * self.tag_counts[i] * self.suppression[i] * m_factors[i]
+            self.gate_signals[i] * self.tag_counts[i] * self.suppression[i]
+            * m_factors[i] * d_factors[i]
             for i in range(len(self.traces))
         ]
 
@@ -395,6 +429,7 @@ class UnifiedReplayMemory(Generic[T]):
             consolidation=consolidation,
             metastability_gain=config.metastability_gain,
             metastability_replay_decay=config.metastability_replay_decay,
+            drift_replay_gain=config.drift_replay_gain,
         )
         self._retrieval_count = 0
         self._candidate_count = 0
