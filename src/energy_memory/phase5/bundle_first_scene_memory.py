@@ -84,6 +84,19 @@ class BundleFirstResult:
         return self.n_correct / self.n_queries if self.n_queries else 0.0
 
 
+@dataclass(frozen=True)
+class BundleFirstSeedState:
+    seed: int
+    fhrr: TorchFHRR
+    roles: torch.Tensor
+    content: torch.Tensor
+    rows: torch.Tensor
+    query_plan: List[dict]
+    query_context_tokens: torch.Tensor
+    scene_matrix: torch.Tensor
+    scene_token_weight: float
+
+
 def wilson_ci(n_success: int, n_total: int, z: float = 1.96) -> dict:
     if n_total == 0:
         return {"mean": 0.0, "lo": 0.0, "hi": 0.0, "n": 0}
@@ -143,6 +156,63 @@ def build_query_context_tokens(
         ]
         tokens.append(fhrr.bundle(terms))
     return torch.stack(tokens, dim=0)
+
+
+def build_bundle_first_seed_state(
+    *,
+    seed: int,
+    source: dict,
+    config: BundleFirstConfig,
+    scene_token_weight: float | None = None,
+    device: str,
+) -> BundleFirstSeedState:
+    """Build the fixed scene-memory tensors for one source seed.
+
+    This is construction-only: no candidate/control condition is run and no
+    diagnostic result is interpreted here.
+    """
+    token_weight = (
+        config.scene_token_weight
+        if scene_token_weight is None
+        else float(scene_token_weight)
+    )
+    if token_weight < 0.0:
+        raise ValueError("scene_token_weight must be non-negative")
+    rows_raw, query_plan = _source_rows_and_plan(
+        source=source,
+        seed=seed,
+        n_rows=config.N,
+        n_queries=config.n_queries,
+    )
+    fhrr = TorchFHRR(dim=config.D, seed=seed, device=device)
+    roles = build_native_roles(fhrr, config.K_roles)
+    content = fhrr.random_vectors(config.C_codebook)
+    rows = torch.tensor(rows_raw, dtype=torch.long, device=fhrr.device)
+    scene_matrix = build_scene_matrix(
+        fhrr,
+        roles,
+        content,
+        rows,
+        scene_token_weight=token_weight,
+    )
+    query_context_tokens = build_query_context_tokens(
+        fhrr,
+        roles,
+        content,
+        rows,
+        query_plan,
+    )
+    return BundleFirstSeedState(
+        seed=seed,
+        fhrr=fhrr,
+        roles=roles,
+        content=content,
+        rows=rows,
+        query_plan=[dict(item) for item in query_plan],
+        query_context_tokens=query_context_tokens,
+        scene_matrix=scene_matrix,
+        scene_token_weight=token_weight,
+    )
 
 
 def _role_tensor(indices: Sequence[int], device: torch.device) -> torch.Tensor:

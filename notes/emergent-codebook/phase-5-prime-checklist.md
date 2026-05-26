@@ -72,10 +72,10 @@ are diagnostics, not a route selector.
 | # | Item | Status | Evidence |
 | -- | --- | :---: | --- |
 | G1 | n_seeds >= 10 for any verification claim | partial | Reports 075-097 pasted, attached, committed, or transcribed diagnostics are n=10 where applicable but not verification claims |
-| G2 | Confidence intervals reported on headline | partial | Reports 075-090 and 093 record Wilson CIs for diagnostic cells where candidate/control retrieval is run; Reports 087, 089, 092, 096, 098, and 099 are preflight/precommit/extraction-only; Report 091 is analysis-only; Report 097 is a diagnostic gate, not a headline run |
+| G2 | Confidence intervals reported on headline | partial | Reports 075-090 and 093 record Wilson CIs for diagnostic cells where candidate/control retrieval is run; Reports 087, 089, 092, 096, 098, 099, and 100 are preflight/precommit/extraction/bridge-only; Report 091 is analysis-only; Report 097 is a diagnostic gate, not a headline run |
 | G3 | Leave-one-seed-out sensitivity reported | partial | Reports 082-083, 086, 088, 090, and 093 include candidate leave-one-seed-out sensitivity for context-source gates |
 | G4 | Controls E1-E6 run on the same test set | partial | Reports 075-090 controls are matched where available; Report 091 cross-checks residual analysis against the same Report 090 test set; Report 093 runs cleaned matched controls on the same selected query plan; Report 094 adds reusable selected-plan/control parity tests against Report 092; Report 095 proves reusable-path gate parity with byte-identical Report 093 JSON; Report 096 preflights a same-query-plan mini-matrix with positive controls and no-scene-token baseline; Report 097 runs that fixed mini-matrix gate; Report 099 preserves cleaned-gate parity after module extraction; full matrix still open |
-| G5 | Report explicitly says no graduation claim unless all gates pass | done | Reports 069-099 explicitly preserve no-graduation boundary |
+| G5 | Report explicitly says no graduation claim unless all gates pass | done | Reports 069-100 explicitly preserve no-graduation boundary |
 
 ## H. Anti-Homunculus Discipline
 
@@ -85,3 +85,11 @@ are diagnostics, not a route selector.
 | H2 | No metric-triggered replay sampler switching | binding |
 | H3 | No best-of-N condition selection as graduation evidence | binding |
 | H4 | Diagnostics are passive logs, not execution gates | binding |
+
+## I. Delta E Bridge
+
+| # | Item | Status | Evidence |
+| -- | --- | :---: | --- |
+| I1 | Fixed bundle-first scene states can enter existing content/role/random prior branching without changing the headline metric | partial | Report 100 passes an interface preflight only: seed 17 / four probes, finite branches, paired probe `Delta E` computable |
+| I2 | Scene-level Step-3 `score_bias` / energy-landscape mapping specified before any production headline run | open | Report 100 identifies this as the production blocker; current preflight uses `score_bias=None`, so Step-3 energy equals raw scene-MHN energy |
+| I3 | Required Phase 5 controls run against the bridge path | open | Report 100 does not run K=1, no-prior, no-schema-store, or headline-scale controls |

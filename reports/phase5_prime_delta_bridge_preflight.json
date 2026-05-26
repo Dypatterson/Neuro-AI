@@ -1,0 +1,411 @@
+{
+  "anti_homunculus_check": {
+    "pass": true,
+    "reason": "Fixed scene states, fixed priors, and passive diagnostics only; no metric-triggered route choice or best-of-N condition selection is introduced."
+  },
+  "config": {
+    "C_codebook": 2048,
+    "D": 4096,
+    "K_roles": 16,
+    "N": 512,
+    "beta": 30.0,
+    "conditions": [
+      "content",
+      "role",
+      "random"
+    ],
+    "context_roles": 4,
+    "cooccurrence": "repo_sample_natural",
+    "delta_energy": 0.1,
+    "delta_redundant": 0.95,
+    "delta_state": 0.3,
+    "device": "cpu",
+    "gamma": 0.5,
+    "include_surprise_branch": false,
+    "k_main": 4,
+    "max_settling_iter": 10,
+    "n_probe_cues": 4,
+    "n_queries_available": 512,
+    "run_combiners": false,
+    "scene_token_weight": 0.25,
+    "score_bias": null,
+    "seed": 17,
+    "source_name": "trajectory_native_provenance_context_trace",
+    "temperature": 1.0
+  },
+  "diagnostic_summary": {
+    "condition_branch_ok": {
+      "content": true,
+      "random": true,
+      "role": true
+    },
+    "condition_energy_ok": {
+      "content": true,
+      "random": true,
+      "role": true
+    },
+    "delta_e_values": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "mean_probe_delta_e": 0.0,
+    "probe_only_non_headline": true,
+    "step3_energy_equals_raw_because_score_bias_none": true
+  },
+  "framing": {
+    "delta_e_probe_only": true,
+    "headline_metric": "Delta E = E_content-prior - E_role-prior",
+    "no_full_matrix": true,
+    "no_headline_claim": true,
+    "no_m1_escalation": true,
+    "no_m2": true,
+    "no_new_headline": true,
+    "not_a_gate": true,
+    "not_graduation": true,
+    "phase": "Phase 5 prime bundle-first Delta E bridge preflight",
+    "preflight_only": true
+  },
+  "interface_shapes": {
+    "memory_stored_count": 512,
+    "scene_matrix": [
+      512,
+      4096
+    ],
+    "schema_atom_idx": [
+      512
+    ],
+    "schema_bindings": [
+      512,
+      16,
+      4096
+    ]
+  },
+  "pass_criteria": {
+    "content_prior_finite_energy": true,
+    "content_prior_returned_branches": true,
+    "cue_bindings_present_all_probes": true,
+    "delta_e_computable_all_probes": true,
+    "headline_metric_unchanged": true,
+    "memory_scene_count_matches": true,
+    "preflight_fences_present": true,
+    "random_prior_finite_energy": true,
+    "random_prior_returned_branches": true,
+    "role_prior_finite_energy": true,
+    "role_prior_returned_branches": true,
+    "scene_matrix_shape_ok": true,
+    "schema_atom_idx_shape_ok": true,
+    "schema_bindings_shape_ok": true
+  },
+  "passes_all_criteria": true,
+  "probes": [
+    {
+      "conditions": {
+        "content": {
+          "all_branch_energies_finite": true,
+          "branch_count": 4,
+          "max_state_distance_in_low_energy_set": 1.1920928955078125e-07,
+          "min_energy_raw": -1.0,
+          "min_energy_step3": -1.0,
+          "n_in_low_energy_set": 4,
+          "schema_indices": [
+            0,
+            353,
+            299,
+            369
+          ],
+          "softmax_entropy": 1.3862943649291992,
+          "split_eligible": false,
+          "step3_energy_equals_raw": true
+        },
+        "random": {
+          "all_branch_energies_finite": true,
+          "branch_count": 4,
+          "max_state_distance_in_low_energy_set": 1.1920928955078125e-07,
+          "min_energy_raw": -1.0,
+          "min_energy_step3": -1.0,
+          "n_in_low_energy_set": 4,
+          "schema_indices": [
+            30,
+            511,
+            356,
+            262
+          ],
+          "softmax_entropy": 1.3862943649291992,
+          "split_eligible": false,
+          "step3_energy_equals_raw": true
+        },
+        "role": {
+          "all_branch_energies_finite": true,
+          "branch_count": 4,
+          "max_state_distance_in_low_energy_set": 1.1920928955078125e-07,
+          "min_energy_raw": -1.0,
+          "min_energy_step3": -1.0,
+          "n_in_low_energy_set": 4,
+          "schema_indices": [
+            0,
+            322,
+            98,
+            366
+          ],
+          "softmax_entropy": 1.3862943649291992,
+          "split_eligible": false,
+          "step3_energy_equals_raw": true
+        }
+      },
+      "cue_bindings_shape": [
+        4,
+        4096
+      ],
+      "delta_e_computable": true,
+      "delta_e_probe_content_minus_role_step3": 0.0,
+      "known_atom": 1996,
+      "known_role": 0,
+      "observed_roles": [
+        0,
+        5,
+        14,
+        15
+      ],
+      "probe_index": 0,
+      "query_role": 11,
+      "scene": 0,
+      "target_atom": 289
+    },
+    {
+      "conditions": {
+        "content": {
+          "all_branch_energies_finite": true,
+          "branch_count": 4,
+          "max_state_distance_in_low_energy_set": 0.0,
+          "min_energy_raw": -1.0,
+          "min_energy_step3": -1.0,
+          "n_in_low_energy_set": 4,
+          "schema_indices": [
+            1,
+            200,
+            217,
+            457
+          ],
+          "softmax_entropy": 1.3862943649291992,
+          "split_eligible": false,
+          "step3_energy_equals_raw": true
+        },
+        "random": {
+          "all_branch_energies_finite": true,
+          "branch_count": 4,
+          "max_state_distance_in_low_energy_set": 0.0,
+          "min_energy_raw": -1.0,
+          "min_energy_step3": -1.0,
+          "n_in_low_energy_set": 4,
+          "schema_indices": [
+            158,
+            161,
+            392,
+            328
+          ],
+          "softmax_entropy": 1.3862943649291992,
+          "split_eligible": false,
+          "step3_energy_equals_raw": true
+        },
+        "role": {
+          "all_branch_energies_finite": true,
+          "branch_count": 4,
+          "max_state_distance_in_low_energy_set": 0.0,
+          "min_energy_raw": -1.0,
+          "min_energy_step3": -1.0,
+          "n_in_low_energy_set": 4,
+          "schema_indices": [
+            1,
+            193,
+            54,
+            185
+          ],
+          "softmax_entropy": 1.3862943649291992,
+          "split_eligible": false,
+          "step3_energy_equals_raw": true
+        }
+      },
+      "cue_bindings_shape": [
+        4,
+        4096
+      ],
+      "delta_e_computable": true,
+      "delta_e_probe_content_minus_role_step3": 0.0,
+      "known_atom": 4,
+      "known_role": 7,
+      "observed_roles": [
+        3,
+        4,
+        7,
+        9
+      ],
+      "probe_index": 1,
+      "query_role": 12,
+      "scene": 1,
+      "target_atom": 1245
+    },
+    {
+      "conditions": {
+        "content": {
+          "all_branch_energies_finite": true,
+          "branch_count": 4,
+          "max_state_distance_in_low_energy_set": 0.9564728401601315,
+          "min_energy_raw": -1.0,
+          "min_energy_step3": -1.0,
+          "n_in_low_energy_set": 4,
+          "schema_indices": [
+            1,
+            394,
+            310,
+            457
+          ],
+          "softmax_entropy": 1.3862943649291992,
+          "split_eligible": true,
+          "step3_energy_equals_raw": true
+        },
+        "random": {
+          "all_branch_energies_finite": true,
+          "branch_count": 4,
+          "max_state_distance_in_low_energy_set": 0.0,
+          "min_energy_raw": -1.0,
+          "min_energy_step3": -1.0,
+          "n_in_low_energy_set": 4,
+          "schema_indices": [
+            361,
+            0,
+            167,
+            110
+          ],
+          "softmax_entropy": 1.3862943649291992,
+          "split_eligible": false,
+          "step3_energy_equals_raw": true
+        },
+        "role": {
+          "all_branch_energies_finite": true,
+          "branch_count": 4,
+          "max_state_distance_in_low_energy_set": 0.0,
+          "min_energy_raw": -1.0,
+          "min_energy_step3": -1.0,
+          "n_in_low_energy_set": 4,
+          "schema_indices": [
+            1,
+            193,
+            54,
+            185
+          ],
+          "softmax_entropy": 1.3862943649291992,
+          "split_eligible": false,
+          "step3_energy_equals_raw": true
+        }
+      },
+      "cue_bindings_shape": [
+        4,
+        4096
+      ],
+      "delta_e_computable": true,
+      "delta_e_probe_content_minus_role_step3": 0.0,
+      "known_atom": 36,
+      "known_role": 3,
+      "observed_roles": [
+        3,
+        4,
+        7,
+        9
+      ],
+      "probe_index": 2,
+      "query_role": 14,
+      "scene": 1,
+      "target_atom": 1346
+    },
+    {
+      "conditions": {
+        "content": {
+          "all_branch_energies_finite": true,
+          "branch_count": 4,
+          "max_state_distance_in_low_energy_set": 0.9564728401601315,
+          "min_energy_raw": -1.0,
+          "min_energy_step3": -1.0,
+          "n_in_low_energy_set": 4,
+          "schema_indices": [
+            1,
+            394,
+            310,
+            457
+          ],
+          "softmax_entropy": 1.3862943649291992,
+          "split_eligible": true,
+          "step3_energy_equals_raw": true
+        },
+        "random": {
+          "all_branch_energies_finite": true,
+          "branch_count": 4,
+          "max_state_distance_in_low_energy_set": 0.0,
+          "min_energy_raw": -1.0,
+          "min_energy_step3": -1.0,
+          "n_in_low_energy_set": 4,
+          "schema_indices": [
+            180,
+            470,
+            179,
+            160
+          ],
+          "softmax_entropy": 1.3862943649291992,
+          "split_eligible": false,
+          "step3_energy_equals_raw": true
+        },
+        "role": {
+          "all_branch_energies_finite": true,
+          "branch_count": 4,
+          "max_state_distance_in_low_energy_set": 0.0,
+          "min_energy_raw": -1.0,
+          "min_energy_step3": -1.0,
+          "n_in_low_energy_set": 4,
+          "schema_indices": [
+            1,
+            193,
+            54,
+            185
+          ],
+          "softmax_entropy": 1.3862943649291992,
+          "split_eligible": false,
+          "step3_energy_equals_raw": true
+        }
+      },
+      "cue_bindings_shape": [
+        4,
+        4096
+      ],
+      "delta_e_computable": true,
+      "delta_e_probe_content_minus_role_step3": 0.0,
+      "known_atom": 36,
+      "known_role": 3,
+      "observed_roles": [
+        3,
+        4,
+        7,
+        9
+      ],
+      "probe_index": 3,
+      "query_role": 15,
+      "scene": 1,
+      "target_atom": 389
+    }
+  ],
+  "production_blockers": [
+    "No scene-level score_bias mapping has been specified for the Step-3 weighted Phase 5 landscape; this preflight uses score_bias=None, so Step-3 energy equals raw scene-MHN energy.",
+    "The required Phase 5 controls (random-schema branches, K=1, no-prior, and no-schema-store) were not run here.",
+    "Only one pilot seed and a small probe subset are exercised; seed 17 is a pilot/reference seed, not representative evidence."
+  ],
+  "production_headline_ready": false,
+  "source_manifest": {
+    "cleanup_preflight_path": "reports/phase5_prime_natural_source_control_cleanup_preflight.json",
+    "cleanup_preflight_sha256": "3c3a5c9781c7cb2f2a052923703ad8d4d60a84fcae5a590e82a1c8f29cf40aaf",
+    "prior_gate_path": "reports/phase5_prime_nonsynthetic_native_gate.json",
+    "prior_gate_sha256": "8ada5e4c01104f79545e9da156c3b870279fdff0da214d54d969f1d85a2ef280",
+    "protocol_name": "non_special_unique_target_freq_le_32",
+    "source_artifact_path": "reports/phase5_prime_nonsynthetic_native_context_source.json",
+    "source_artifact_sha256": "2200f3c1b1599c478ce6ecc6a3cb1e783c3bfd51ceda3f335642bb9158989398"
+  }
+}
