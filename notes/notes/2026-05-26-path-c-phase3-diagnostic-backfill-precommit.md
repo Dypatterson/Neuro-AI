@@ -766,6 +766,30 @@ point**, because:
 This is a falsification ladder: synthetic null → real-corpus null →
 mechanism redesign required.
 
+### 2026-05-27 — Path C closes as INCONCLUSIVE; Phase 3 NOT graduated; Path γ pivot
+
+After the 2026-05-26 Path α stronger null, the precommit's "Recommended next path (post-Path-α)" enumerated two candidate explanations and named WikiText-2 (Path β) as the cleanest next probe. A four-stage Colab chain on A100 (per-seed fan-out + parallel CUDA) explored that path:
+
+**The chain (see [Report 112](../../reports/112_phase3_c3_wikitext_graduation_walkback.md) for full data):**
+
+- **v3** (n=10, seeds 0..9, lr_pull=0.1, n_events=1000, β=10, D=4096, wikitext): produced CI-disjoint Δ in two primary strata — calibrated/tight Δ +0.083, default/spread Δ +0.055. By the literal text of [phase-3-deep-dive.md:180-189](../emergent-codebook/phase-3-deep-dive.md) this was graduation. **No STATUS.md update was made** — the result was flagged for robustness verification before committing.
+- **v4** (3 probes × 10 seeds = 30 procs): replicate at seeds 10..19 produced Δ ≈ 1/3 of v3 magnitude, not disjoint. β=30 also positive but smaller and not disjoint. D=2048 with seeds 0..9 reversed direction (Δ −0.011). First signal that v3's magnitude was inflated by lucky seeds.
+- **v5** (4 D × 10 fresh seeds 30..39 = 40 procs + pooled aggregation reading v3 + v4 from Drive): D=4096 with seeds 30..39 was Δ = −0.017 (reversed direction). Three independent n=10 groups at D=4096 gave Δ ∈ {+0.055, +0.023, −0.017} — wide variance centered near zero. But D=8192 with seeds 30..39 produced v3-magnitude effects (default/spread Δ +0.057, calibrated/tight Δ +0.081, both disjoint). This suggested a substrate-capacity story.
+- **v6** (D=8192 seeds 0..19 = 20 procs + D=16384 seeds 30..39 = 10 procs): designed to test the substrate-capacity hypothesis with paired D=4096 vs D=8192 comparison on identical seeds. **Falsified the hypothesis.** At n=30 pooled (v5 seeds 30..39 + v6 seeds 0..19), D=8192 is CI-disjoint in both primary strata (default/spread Δ +0.041, calibrated/tight Δ +0.060). But the per-seed paired comparison shows only 8/20 seeds (40%) have Δ_8192 > Δ_4096; per-seed means at seeds 0..19 are essentially identical (D=4096: +0.039, D=8192: +0.033). The pooled D=8192 > D=4096 difference in v5 was regression-to-the-mean across resampling. D=16384 reversed (default/spread Δ −0.025) — D-dependence is non-monotonic with a narrow positive envelope at D ∈ {4096, 8192}.
+
+**Decision: not graduate.** The strict reading of the C.3 spec is satisfied multiple ways (v3 n=10, v5 D=8192 n=10, pooled n=30 at D=4096 and D=8192 in primary strata). The spirit is not: per-seed σ ≈ 0.13 swamps the typical Δ ≈ +0.03 (σ/μ ≈ 3.3); D-dependence is non-monotonic with reversals at D=1024, 2048, 16384; the pooled-n=30 disjoint margin at D=4096 calibrated/tight is 0.003 (one different seed flips it); the v3 magnitude (+0.083) is a ≈ 1.4σ tail draw from the per-seed distribution. A Phase 5′ ΔE bridge built on this Phase 3 mechanism inherits the operating-point fragility — the 2026-05-26 audit's mandate that bridge attempts be "diagnosable per-atom and per-stratum" requires the underlying Phase 3 signal to be real and stable; here diagnostics would localize noise.
+
+**Path C exit criteria final status:** C.1 ✅, C.2 ✅, C.3 ❌ inconclusive (criterion met as tail draws but spirit not). **Path C closes; Phase 3 NOT graduated; Phase 5′ remains paused.**
+
+**Three load-bearing local patches** embedded in Colab notebooks during the chain; not pushed to remote as of report-filing:
+1. `experiments/c3_phase3_exit_criterion.py`: `--lr-pull` / `--lr-push` CLI flags (needed for v3 consolidation-strength sweep; the existing driver hardcoded these).
+2. `src/energy_memory/phase4/consolidation.py`: kernel-trick eigvalsh fix in `_spatial_bimodality_signal`. On Colab CUDA, cuSOLVER raised `LinAlgError 4095` ("ill-conditioned ... too many repeated eigenvalues") on the D×D σ matrix; on CPU LAPACK raised `LinAlgError 5/12` similarly. Root cause: `rank(σ) ≤ basin_trace_buffer_size = 64 ≪ D = 4096` so σ has ~4032 trivial-zero eigenvalues that neither solver handles. Fix: compute eigenvalues of the n×n Gram matrix `diffs @ diffs.conj().T / n` instead (kernel-trick identity — same non-zero spectrum, well-conditioned). Byte-identical at λ_1 / λ_2 layer (relative error ≈ 1.4e-6 at D=4096 float32). 26/26 splitting-tension tests + 76/76 phase4 tests pass post-patch. Defensive CPU fallback preserved.
+3. `src/energy_memory/phase2/corpus.py`: `load_dataset("wikitext", name)` → `load_dataset("Salesforce/wikitext", name)`. `huggingface_hub ≥ 0.30` requires `namespace/name`; bare `wikitext` raises `HfUriError`.
+
+**Path γ kickoff:** the next session reads [literature-and-principles.md](../emergent-codebook/literature-and-principles.md) + 2026-05-24 unconsidered-paths brainstorm and produces a mechanism-family survey identifying 3-5 candidate mechanism shapes. Candidates currently on the table: predictive-coding consolidation updates (Dorrell-Whittington), bundle-first scene memory as structural memory primitive (Report 067), energy-based codebook training (M2-adjacent), Hyperseed-style content-addressable updates, Self-Organizing Language. The Path C exit criterion at [phase-3-deep-dive.md:180-189](../emergent-codebook/phase-3-deep-dive.md) should be revised before any Path γ candidate runs — proposed revision: "CI-disjoint at n ≥ 10 AND per-seed paired robustness ≥ 70%" (rules out the v3 failure mode of lucky-seed-set tail draws on a noisy mechanism).
+
+**Anti-homunculus check for the chain:** kernel-trick eigvalsh fix is byte-identical at the C.2.2 measurement layer (no semantic change); CLI flags expose existing knobs (no new arbitration); Salesforce/wikitext namespace fix is loader correctness. The v6 aggregation cell's verdict logic (CONFIRMED / PARTIAL / FALSIFIED branching) is offline reporting prose, not runtime mechanism — no CP7 risk.
+
 ---
 
 **Cross-cutting binding findings for C.2 and C.3:**
