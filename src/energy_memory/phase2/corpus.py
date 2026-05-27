@@ -113,7 +113,13 @@ def load_repo_sample_splits(repo_root: Path) -> Dict[str, List[str]]:
 def load_wikitext_splits(name: str = "wikitext-2-raw-v1") -> Dict[str, List[str]]:
     if load_dataset is None:  # pragma: no cover - exercised only when dependency missing
         raise ModuleNotFoundError("datasets is required to load WikiText-2")
-    dataset = load_dataset("wikitext", name)
+    # Use the canonical Salesforce/wikitext namespace. The bare "wikitext"
+    # form worked with older HF stacks but recent huggingface_hub versions
+    # (~0.30+) ship a stricter HF URI parser that rejects any repo id
+    # without an explicit namespace, raising HfUriError. The Salesforce
+    # mirror is the current canonical home of the dataset; config names
+    # ("wikitext-2-raw-v1", "wikitext-103-raw-v1", ...) are unchanged.
+    dataset = load_dataset("Salesforce/wikitext", name)
     return {
         "train": [row["text"] for row in dataset["train"]],
         "validation": [row["text"] for row in dataset["validation"]],

@@ -576,6 +576,8 @@ def _run_single_seed_condition(
     k: int,
     alpha_anti: float,
     repulsion_step_size: float,
+    lr_pull: float,
+    lr_push: float,
     device: str,
     repo_root: Path,
     wikitext_corpus: Optional[_WikiTextCorpus] = None,
@@ -756,6 +758,8 @@ def _run_single_seed_condition(
             vocab_size=vocab_size,
             n_events=n_consolidation_events,
             device=device,
+            lr_pull=lr_pull,
+            lr_push=lr_push,
             repulsion_step_size=repulsion_step_size,
         )
 
@@ -838,6 +842,8 @@ def run(
     n_consolidation_events: int = 1000,
     alpha_anti: float = 0.0,
     repulsion_step_size: float = 0.0,
+    lr_pull: float = 0.1,
+    lr_push: float = 0.05,
     device: str,
     output_dir: Path,
     repo_root: Path,
@@ -919,6 +925,8 @@ def run(
                     k=k,
                     alpha_anti=alpha_anti,
                     repulsion_step_size=repulsion_step_size,
+                    lr_pull=lr_pull,
+                    lr_push=lr_push,
                     device=device,
                     repo_root=repo_root,
                     wikitext_corpus=wikitext_corpus,
@@ -1010,6 +1018,8 @@ def run(
             "substrate_repulsion_active": bool(
                 alpha_anti > 0.0 and repulsion_step_size > 0.0
             ),
+            "lr_pull": float(lr_pull),
+            "lr_push": float(lr_push),
             "operating_point": {
                 "D": D,
                 "landscape_size": landscape_size,
@@ -1371,6 +1381,27 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         ),
     )
     parser.add_argument(
+        "--lr-pull",
+        type=float,
+        default=0.1,
+        help=(
+            "Per-event consolidation pull learning rate (OnlineCodebookUpdater "
+            "lr_pull). Default 0.1 matches the existing Path α smoke. Sweep "
+            "above this to test whether consolidation strength is too weak "
+            "to express corpus-specific learning at the synthetic operating "
+            "point."
+        ),
+    )
+    parser.add_argument(
+        "--lr-push",
+        type=float,
+        default=0.05,
+        help=(
+            "Per-event consolidation push learning rate (OnlineCodebookUpdater "
+            "lr_push). Default 0.05 matches the existing Path α smoke."
+        ),
+    )
+    parser.add_argument(
         "--repulsion-step-size",
         type=float,
         default=0.05,
@@ -1468,6 +1499,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         n_consolidation_events=args.n_consolidation_events,
         alpha_anti=args.alpha_anti,
         repulsion_step_size=args.repulsion_step_size,
+        lr_pull=args.lr_pull,
+        lr_push=args.lr_push,
         device=args.device,
         output_dir=output_dir,
         repo_root=repo_root,

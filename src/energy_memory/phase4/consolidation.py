@@ -639,10 +639,29 @@ class ConsolidationState:
         # Hermitian Gram of centered basin members. For complex (FHRR)
         # tensors, diffs.conj().T @ diffs is Hermitian → real eigenvalues
         # via torch.linalg.eigh.
-        sigma = (diffs.conj().transpose(-1, -2) @ diffs) / float(n)
+        # Compute the eigenvalues of σ = diffs.conj().T @ diffs / n via the
+        # n×n Gram matrix gram = diffs @ diffs.conj().T / n instead of the
+        # D×D scatter matrix. The two matrices share exactly the same set
+        # of non-zero eigenvalues (standard "kernel trick" identity); the
+        # D×D form additionally carries (D - n) trivial zero eigenvalues
+        # because rank(σ) ≤ n_members ≤ basin_trace_buffer_size (64) ≪ D
+        # (4096 by default in this project). That (D - n) zero subspace
+        # makes σ numerically ill-conditioned at the precision available
+        # to torch.linalg.eigvalsh — observed on Colab CUDA at 2026-05-27
+        # as LinAlgError 4095 and even on CPU LAPACK as LinAlgError 5/12.
+        # The n×n Gram path is full-rank for non-degenerate samples and
+        # an order of magnitude smaller (4 KB vs 16 MB at D=4096, n=8).
+        # Mathematically byte-identical at the λ_1 / λ_2 layer used below;
+        # the C.2.2 dynamic's behavior is unchanged.
+        gram = (diffs @ diffs.conj().transpose(-1, -2)) / float(n)
         # Eigh returns ascending eigenvalues. Take top two: λ_1 (last),
         # λ_2 (second-to-last). All ops stay on-device.
-        eigvals = torch.linalg.eigvalsh(sigma)
+        try:
+            eigvals = torch.linalg.eigvalsh(gram)
+        except torch._C._LinAlgError:
+            # Defensive: keep the CPU fallback in case some pathological
+            # input still trips cuSOLVER (e.g. identical basin members).
+            eigvals = torch.linalg.eigvalsh(gram.cpu()).to(gram.device)
         lam_1 = eigvals[-1]
         lam_2 = eigvals[-2] if eigvals.shape[0] >= 2 else torch.zeros_like(lam_1)
         # Clamp at 0 — eigh may return tiny negatives for near-singular Σ.
