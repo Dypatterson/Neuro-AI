@@ -554,8 +554,40 @@ named in §"Required pre-code gates". The n=10 headline gate on
 wikitext-2 at the operating point in §"Operating point" is now
 authorized to run.
 
-*(Subsequent log entries: headline-gate results, follow-up precommits
-F1–F6 as they land.)*
+### 2026-05-27 — Headline gate FAIL at lr_cr=0.1; F1 lr_cr sweep is next
+
+- **Verdict:** ❌ FAIL on both clauses of the revised C.3 criterion per
+  [Report 113](../../reports/113_path_gamma_gamma1_headline_gate.md).
+- **Clause 1 (CI-disjoint at n=10):** failed. Γ1.c's largest Δ is
+  +0.012 (default/spread), with CIs heavily overlapping. Same shape
+  across all three populated strata.
+- **Clause 2 (per-seed paired robustness ≥ 70%):** failed. 5/10 seeds
+  with Δ > 0 = 50%.
+- **Test-harness sanity** ✅: matched-seed PathC baseline (defaults,
+  pull/push on) reproduces [Report 112](../../reports/112_phase3_c3_wikitext_graduation_walkback.md)
+  v3 byte-identically (Δ_default/spread=+0.055 CI [0.241,0.280] vs
+  [0.188,0.223] disjoint; Δ_calibrated/tight=+0.083 CI [0.350,0.401]
+  vs [0.268,0.316] disjoint). Confirms the Γ1 refactor preserves
+  experiment-output byte-identity on real wikitext-2.
+- **Γ1.c is attenuated AND shape-different from pull/push.** Per-seed
+  mean Δ +0.0115 ≈ 1/5 of PathC's +0.055. Per-seed σ ≈ 0.038 vs
+  PathC's ≈ 0.169 — Γ1.c is 4.4× less seed-variance.
+- **experiment-result-auditor 2026-05-27:** ✅ 5/5 done-gates PASS
+  (headline+CI, control on same test set, drill-downs explain
+  anomalies, markdown report, STATUS update landed this session).
+- **Next move (per precommit's F1):** `lr_cr` sweep at {0.01, 0.05,
+  0.1, 0.2, 0.5} at smoke scale n=3. Designed to distinguish
+  effective-learning-rate-mismatch (atom-pair distances are typically
+  smaller than cue magnitudes, so lr_cr=0.1 is effectively smaller
+  than lr_pull=0.1) from atom-vs-atom-geometry-carries-less-signal
+  (the corpus signal lives in cue geometry, not atom-pair geometry).
+  F1 will be its own precommit document.
+- **If F1 nulls at all magnitudes,** the Γ1 family closes and the
+  next-candidate precommit (Γ2 bundle-first per the survey, or Γ3
+  SFA-head) becomes the next deliverable.
+
+*(Subsequent log entries: F1 precommit + results, follow-up precommits
+F2–F6 as they land.)*
 
 ---
 
