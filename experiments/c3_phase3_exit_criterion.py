@@ -431,6 +431,9 @@ def _consolidate_codebook(
     lr_pull: float = 0.1,
     lr_push: float = 0.05,
     repulsion_step_size: float = 0.0,
+    use_context_residual: bool = False,
+    lr_cr: float = 0.1,
+    use_pull_push: bool = True,
 ) -> Tuple[torch.Tensor, ConsolidationState, OnlineCodebookUpdater, dict]:
     """Run ``n_events`` consolidation observations over training windows.
 
@@ -462,6 +465,9 @@ def _consolidate_codebook(
         consolidation_k=consolidation_k,
         quality_threshold=quality_threshold,
         consolidation_state=state,
+        use_pull_push=use_pull_push,
+        use_context_residual=use_context_residual,
+        lr_cr=lr_cr,
     )
 
     masked_idx = window_size - 1
@@ -581,6 +587,9 @@ def _run_single_seed_condition(
     device: str,
     repo_root: Path,
     wikitext_corpus: Optional[_WikiTextCorpus] = None,
+    use_context_residual: bool = False,
+    lr_cr: float = 0.1,
+    use_pull_push: bool = True,
 ) -> Dict[str, object]:
     """Run one (seed, mode, condition) cell.
 
@@ -761,6 +770,9 @@ def _run_single_seed_condition(
             lr_pull=lr_pull,
             lr_push=lr_push,
             repulsion_step_size=repulsion_step_size,
+            use_context_residual=use_context_residual,
+            lr_cr=lr_cr,
+            use_pull_push=use_pull_push,
         )
 
     # Recompute regime diagnostics on the (possibly consolidated) codebook
@@ -844,6 +856,9 @@ def run(
     repulsion_step_size: float = 0.0,
     lr_pull: float = 0.1,
     lr_push: float = 0.05,
+    use_context_residual: bool = False,
+    lr_cr: float = 0.1,
+    use_pull_push: bool = True,
     device: str,
     output_dir: Path,
     repo_root: Path,
@@ -927,6 +942,9 @@ def run(
                     repulsion_step_size=repulsion_step_size,
                     lr_pull=lr_pull,
                     lr_push=lr_push,
+                    use_context_residual=use_context_residual,
+                    lr_cr=lr_cr,
+                    use_pull_push=use_pull_push,
                     device=device,
                     repo_root=repo_root,
                     wikitext_corpus=wikitext_corpus,
@@ -1020,6 +1038,9 @@ def run(
             ),
             "lr_pull": float(lr_pull),
             "lr_push": float(lr_push),
+            "use_context_residual": bool(use_context_residual),
+            "lr_cr": float(lr_cr),
+            "use_pull_push": bool(use_pull_push),
             "operating_point": {
                 "D": D,
                 "landscape_size": landscape_size,
@@ -1402,6 +1423,40 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         ),
     )
     parser.add_argument(
+        "--use-context-residual",
+        action="store_true",
+        help=(
+            "Activate Γ1.c context-residual consolidation as the base "
+            "update (Path γ leader candidate). Per the precommit at "
+            "notes/notes/2026-05-27-path-gamma-gamma1-context-residual-"
+            "precommit.md: gradient descent on the per-event repulsion "
+            "energy E_cr over confused atom pairs. Default off preserves "
+            "Path C reproducibility byte-identically. The Γ1 headline "
+            "condition sets this flag AND --no-pull-push."
+        ),
+    )
+    parser.add_argument(
+        "--lr-cr",
+        type=float,
+        default=0.1,
+        help=(
+            "Γ1.c context-residual learning rate. Default 0.1 matches "
+            "Path C's lr_pull and is the single value pre-committed for "
+            "the Γ1 headline gate (no sweep at headline scale per H3 in "
+            "the precommit)."
+        ),
+    )
+    parser.add_argument(
+        "--no-pull-push",
+        action="store_true",
+        help=(
+            "Disable the pull/push base update at the OnlineCodebookUpdater "
+            "level. The Γ1 headline condition sets this flag together "
+            "with --use-context-residual. Default off (pull/push active) "
+            "preserves Path C reproducibility."
+        ),
+    )
+    parser.add_argument(
         "--repulsion-step-size",
         type=float,
         default=0.05,
@@ -1501,6 +1556,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         repulsion_step_size=args.repulsion_step_size,
         lr_pull=args.lr_pull,
         lr_push=args.lr_push,
+        use_context_residual=args.use_context_residual,
+        lr_cr=args.lr_cr,
+        use_pull_push=not args.no_pull_push,
         device=args.device,
         output_dir=output_dir,
         repo_root=repo_root,

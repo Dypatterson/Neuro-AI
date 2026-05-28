@@ -185,8 +185,22 @@ One number, one stratification axis, one controlled comparison. Aligns directly 
 - **Recall@K on masked-token completion** — the primary measurement. Pattern completion is the operation Modern Hopfield networks do natively; this metric is the most architecturally appropriate scoring.
 - **Stratified by regime classification** — uses the consolidation-geometry diagnostic (`consolidation-geometry-diagnostic.md`) to split atoms into tight-regime and spread-regime sets. Strong performance only in tight-regime atoms is a different story from strong performance across both regimes — the stratification is what lets the headline distinguish them.
 - **Vs. shuffled-token control** — the standard run vs. the run with token-to-initial-hypervector assignments randomly permuted. If the structure appears in both, it's a corpus-statistical artefact rather than learned representation. Real signal in the standard run should be absent or substantially attenuated under shuffled assignments.
+- **Shuffled-token control runs the same consolidation pipeline** (revised 2026-05-26 per Path α). The control is *not* a no-consolidation baseline and *not* a fresh random codebook; it executes the identical C.2 consolidation chain on byte-identical training data with the only difference being a random token-to-hypervector permutation. This isolates corpus-specific learning from generic consolidation-induced structural change. The pre-Path-α "fresh random codebook" framing is retired.
 
 The phase's viability decision is made on this number. Drill-downs explain the number; they do not replace it.
+
+### Graduation criterion (revised 2026-05-27 per Report 112)
+
+A mechanism graduates Phase 3 only if **both** clauses hold simultaneously:
+
+1. **CI-disjoint in at least one regime stratum at n ≥ 10 seeds.** Wilson CIs on standard vs. shuffled-token control. (This is the original criterion, retained.)
+2. **Per-seed paired robustness ≥ 70%.** For each seed, compute per-seed Δ = standard Recall@K − control Recall@K, stratum-pooled across `default/spread` and `calibrated/tight`. At least 70% of seeds must show Δ > 0.
+
+**Why both clauses are needed (Report 112 walk-back).** The original criterion was met multiple ways during the v3 → v6 wikitext chain — at n=10 (v3), at n=10 with fresh seeds at D=8192 (v5), and at pooled n=30 in two strata at both D=4096 and D=8192 (v6 aggregation). But the per-seed paired comparison D=4096 vs D=8192 (n=20, seeds 0..19) showed only 40% of seeds improved with larger D, per-seed σ ≈ 0.13 swamped the typical Δ ≈ +0.03 (σ/μ ≈ 3.3), and the D-curve reversed at D ∈ {1024, 2048, 16384}. A signal that meets the CI-disjoint clause only as a tail-of-distribution draw from a noisy seed distribution is not a foundation for Phase 5′ — a ΔE bridge built on it inherits the operating-point fragility. The 70% paired-robustness clause directly rules out this failure mode.
+
+**Why not a tighter threshold (e.g., 90%).** The architecture's design tolerates seed-to-seed variability in basin assignment and atom-to-token mapping; a non-trivial fraction of seeds *should* land in unlucky configurations even for a real mechanism. The 70% threshold is calibrated so that the v3 mechanism would have failed (per-seed Δ > 0 at D=4096 seeds 0..19: 11/20 = 55%) but a mechanism that genuinely shifts the per-seed distribution mean above the noise floor would pass.
+
+**Operating-point robustness is a secondary requirement** not yet codified here. The v3 → v6 chain showed effects can be present in a narrow D-envelope (D ∈ {4096, 8192}) and reversed outside it. Path γ precommits should specify the operating-point envelope they expect to robustness-test, but a single-envelope graduation is acceptable provided the per-seed clause holds and the envelope is documented.
 
 ### Drill-down: Tier 1 — Sanity checks
 

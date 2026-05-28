@@ -4,15 +4,31 @@ Exposes a per-observation API for codebook learning so it can be called
 inline during a streaming cue loop, rather than as a batch trainer that
 builds its own memory.
 
-The consolidation logic is identical to ErrorDrivenLearner._consolidate:
-contrastive pull (codebook[correct] toward avg slot_query) and push
-(codebook[wrong] away from avg slot_query). The difference is API
-shape: observe() is called once per retrieval, consolidate_if_ready()
-runs the update when the buffer fills.
+Two base update mechanisms are gated by config flags, set independently
+at construction:
 
-Anti-homunculus check: consolidation triggers on buffer fill, not on a
-controller decision. The buffer-fill condition is a passive geometric
-property (failure count crossed K), not a rule.
+- **Pull/push (default, use_pull_push=True):** the original error-driven
+  contrastive update — pull codebook[correct] toward avg slot_query;
+  push codebook[wrong] away from avg slot_query. The
+  predicted_id != target_id gate at L132-133 enqueues into push_targets
+  by the energy-support of ½‖codebook[predicted] − slot_query‖² over
+  misclassified events.
+- **Context-residual (Γ1.c, use_context_residual=True):** the Path γ
+  leader candidate per the precommit at
+  notes/notes/2026-05-27-path-gamma-gamma1-context-residual-precommit.md.
+  Asymmetric gradient descent on a per-event repulsion energy
+  E_cr = −Σ_j 1[predicted_j ≠ target_j] · ½‖codebook[target_j] −
+  codebook[predicted_j]‖² with respect to codebook[target_j] only
+  (stop-gradient on codebook[predicted_j]). The indicator is realized
+  as a property of ε's support (ε = 0 when predicted == target) — no
+  if/branch in the runtime path (reviewer watch item W1).
+
+Anti-homunculus check (binding per CLAUDE.md and the Γ1 precommit
+anti-homunculus reviewer PASS, 2026-05-27): consolidation triggers on
+buffer fill, not on a controller decision. The buffer-fill condition is
+a passive geometric property (failure count crossed K), not a rule.
+Both base updates compose additively with C.2.1–C.2.5 dynamics; the
+composition order is preserved across mechanism swaps.
 """
 
 from __future__ import annotations
@@ -60,6 +76,10 @@ class OnlineCodebookUpdater:
         consolidation_k: int = 100,
         quality_threshold: float = 0.15,
         consolidation_state: Optional["object"] = None,
+        *,
+        use_pull_push: bool = True,
+        use_context_residual: bool = False,
+        lr_cr: float = 0.1,
     ):
         if torch is None:  # pragma: no cover
             raise ModuleNotFoundError("OnlineCodebookUpdater requires torch") from _IMPORT_ERROR
@@ -78,6 +98,15 @@ class OnlineCodebookUpdater:
         # collapse force to each updated atom. None / lambda_ac == 0
         # leaves consolidation byte-identical to the pre-C.2.1 baseline.
         self.consolidation_state = consolidation_state
+        # Γ1 base-update flags (Path γ precommit, 2026-05-27). Defaults
+        # (use_pull_push=True, use_context_residual=False) preserve Path C
+        # byte-identity exactly. Both flags can be True simultaneously;
+        # composition is additive (anti-homunculus reviewer PASS
+        # 2026-05-27). The Γ1 headline condition sets
+        # use_pull_push=False, use_context_residual=True.
+        self.use_pull_push = use_pull_push
+        self.use_context_residual = use_context_residual
+        self.lr_cr = lr_cr
 
     def observe(
         self,
@@ -132,36 +161,49 @@ class OnlineCodebookUpdater:
             if entry.predicted_id != entry.target_id:
                 push_targets[entry.predicted_id].append(entry.slot_query)
 
+        # Affected set = atoms moved by the active BASE update(s). Pull/push
+        # moves both target_ids (pull) and predicted_ids on confusion (push).
+        # Context-residual is asymmetric — moves only target_ids. The union
+        # is used when both base updates are active simultaneously.
+        affected: set = set()
+        if self.use_pull_push:
+            affected |= set(pull_targets.keys()) | set(push_targets.keys())
+        if self.use_context_residual:
+            affected |= set(pull_targets.keys())  # i.e., unique target_ids
         # C.2.2: update splitting tension BEFORE any consolidation force this
         # event so T_k reflects basin state pre-anti-collapse; modulation
         # then acts on the next event with that tension value. Early-exits
         # when mu_T == 0 (κ=0 baseline byte-identical).
-        affected = pull_targets.keys() | push_targets.keys()
         pre_states = self._snapshot_pre_states(affected)
         if cs is not None:
             cs.update_splitting_tension()
 
         pulled = 0
-        for tid, queries in pull_targets.items():
-            avg_dir = self.substrate.normalize(
-                torch.stack(queries).sum(dim=0),
-            )
-            self.codebook[tid] = self.substrate.normalize(
-                (1.0 - self.lr_pull) * self.codebook[tid]
-                + self.lr_pull * avg_dir
-            )
-            pulled += 1
-
         pushed = 0
-        for wid, queries in push_targets.items():
-            avg_dir = self.substrate.normalize(
-                torch.stack(queries).sum(dim=0),
-            )
-            self.codebook[wid] = self.substrate.normalize(
-                (1.0 + self.lr_push) * self.codebook[wid]
-                - self.lr_push * avg_dir
-            )
-            pushed += 1
+        if self.use_pull_push:
+            for tid, queries in pull_targets.items():
+                avg_dir = self.substrate.normalize(
+                    torch.stack(queries).sum(dim=0),
+                )
+                self.codebook[tid] = self.substrate.normalize(
+                    (1.0 - self.lr_pull) * self.codebook[tid]
+                    + self.lr_pull * avg_dir
+                )
+                pulled += 1
+
+            for wid, queries in push_targets.items():
+                avg_dir = self.substrate.normalize(
+                    torch.stack(queries).sum(dim=0),
+                )
+                self.codebook[wid] = self.substrate.normalize(
+                    (1.0 + self.lr_push) * self.codebook[wid]
+                    - self.lr_push * avg_dir
+                )
+                pushed += 1
+
+        cr_updated = 0
+        if self.use_context_residual:
+            cr_updated = self._apply_context_residual()
 
         self._apply_anti_collapse(affected)
         # C.2.3: per-atom cap-coverage error force added BEFORE the
@@ -169,8 +211,8 @@ class OnlineCodebookUpdater:
         # before being multiplicatively attenuated. Early-exit preserves
         # κ=0 byte-identity when lambda_cc == 0.
         self._apply_cap_coverage(affected)
-        # C.2.2: multiplicatively attenuate the combined (pull/push +
-        # anti-collapse + cap-coverage) per-atom update by 1/(1 + T_k / τ_T).
+        # C.2.2: multiplicatively attenuate the combined (base + anti-
+        # collapse + cap-coverage) per-atom update by 1/(1 + T_k / τ_T).
         # H12 binding: modulation is multiplicative, applied to the NET
         # update — not a new additive force, not a replacement of the update.
         self._apply_splitting_tension(pre_states)
@@ -190,6 +232,7 @@ class OnlineCodebookUpdater:
             "buffer_size": len(self._buffer),
             "pulled": pulled,
             "pushed": pushed,
+            "context_residual_updated": cr_updated,
             "mean_quality": mean_q,
             "total_observations": self._total_observations,
             "total_failures": self._total_failures,
@@ -199,6 +242,56 @@ class OnlineCodebookUpdater:
         }
         self._buffer.clear()
         return diagnostics
+
+    def _apply_context_residual(self) -> int:
+        """Γ1.c — asymmetric gradient descent on per-event repulsion energy.
+
+        Per the precommit at
+        notes/notes/2026-05-27-path-gamma-gamma1-context-residual-precommit.md:
+        E_cr = −Σ_j 1[predicted_j ≠ target_j] · ½‖codebook[target_j] −
+        codebook[predicted_j]‖². Gradient w.r.t. codebook[target_j] gives the
+        update direction ε_j = codebook[target_j] − codebook[predicted_j];
+        descent step is codebook[target_j] ← codebook[target_j] + lr_cr · ε_j.
+
+        Asymmetric: codebook[predicted_j] is stop-gradient; not updated by
+        this term.
+
+        The indicator 1[predicted ≠ target] appears as a property of ε's
+        support (ε = 0 when predicted == target) — no if/branch is needed
+        in the runtime code path (reviewer watch item W1).
+
+        Snapshot semantics: ε computations use the codebook state BEFORE
+        any Γ1.c update fires this consolidation event. Avoids coupled
+        fixed-point ambiguity when target_id of one entry overlaps with
+        predicted_id of another in the same buffer.
+        """
+        if not self._buffer:
+            return 0
+        # Snapshot: all ε computed from pre-Γ1.c codebook state.
+        codebook_snapshot = self.codebook.detach().clone()
+        sums: dict[int, "torch.Tensor"] = {}
+        counts: dict[int, int] = defaultdict(int)
+        for entry in self._buffer:
+            # ε = snapshot[target] − snapshot[predicted].
+            # ε is the zero vector when target == predicted (energy-support
+            # property of E_cr); W1 indicator-as-mask form (no if/branch).
+            eps = (
+                codebook_snapshot[entry.target_id]
+                - codebook_snapshot[entry.predicted_id]
+            )
+            if entry.target_id in sums:
+                sums[entry.target_id] = sums[entry.target_id] + eps
+            else:
+                sums[entry.target_id] = eps.clone()
+            counts[entry.target_id] += 1
+        updated = 0
+        for tid, sum_eps in sums.items():
+            mean_eps = sum_eps / counts[tid]
+            self.codebook[tid] = self.substrate.normalize(
+                self.codebook[tid] + self.lr_cr * mean_eps
+            )
+            updated += 1
+        return updated
 
     def _apply_anti_collapse(self, atom_ids) -> None:
         # C.2.1: per-atom anti-collapse force added to the existing update.
