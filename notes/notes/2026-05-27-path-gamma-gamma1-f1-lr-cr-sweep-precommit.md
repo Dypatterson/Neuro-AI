@@ -215,7 +215,16 @@ Files this precommit touches:
 
 ## Implementation findings (running log)
 
-*(Empty until F1 runs.)*
+### 2026-05-27 — F1 result: hypothesis (b) confirmed; Γ1 family closes
+
+- **Verdict:** ✅ Hypothesis (b) per [Report 114](../../reports/114_path_gamma_gamma1_family_closure.md). Max per-seed mean Δ across all 5 lr_cr values = +0.0117 at lr_cr=0.10, well below the 0.02 threshold. The shape — atom-vs-atom geometry — does not carry corpus signal regardless of magnitude.
+- **Additional finding (Report 114 §"Finding 2"):** lr_cr ∈ {0.20, 0.50} produce *negative* mean Δ (−0.010, −0.017). Stronger atom-vs-atom repulsion actively *degrades* the codebook below the shuffled-token-control baseline. This is a real curve shape (peak at 0.10, negative at higher magnitudes), not noise.
+- **Constraint on future mechanisms (Report 114 §"Finding 3"):** any candidate that compositionally includes atom-vs-atom repulsion at non-trivial magnitude inherits this negative-Δ regime. Relevant for Γ4 EqProp's negative-phase term, Γ5 Hyperseed's competition-with-decay, and parent precommit F2 (symmetric Γ1.c). **F2 is retired by this finding.**
+- **Test-harness reproducibility:** lr_cr=0.10 cell at seeds 0,1,2 reproduces Report 113 per-seed Δ values (+0.030, +0.005, +0.000) to three decimal places across separate Colab sessions. Determinism confirmed.
+- **experiment-result-auditor 2026-05-27:** 5/6 done-gates PASS (gate 5 = STATUS update, landed this session).
+- **Pre-committed escalation invoked:** F1→b path. **Γ2 (bundle-first scene memory) precommit is the next deliverable**, with full mp-grill-with-docs + anti-homunculus reviewer + experiment-result-auditor cycle, per [Path γ survey](../emergent-codebook/path-gamma-mechanism-family-survey.md) §"Γ2".
+
+**Status:** Γ1 family closed. F1 precommit complete. Next session-step: Γ2 precommit drafting.
 
 ---
 
