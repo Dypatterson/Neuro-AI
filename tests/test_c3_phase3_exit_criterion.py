@@ -509,5 +509,133 @@ class TestWikiTextCorpusPathArgs(unittest.TestCase):
         self.assertEqual(summary["header"]["operating_point"]["vocab_size"], 16)
 
 
+class TestPerSeedCIFix(unittest.TestCase):
+    """T8 — the per-seed CI statistic replaces the pseudo-replicated
+    pooled-per-trial Wilson disjoint gate.
+
+    Regression for the 2026-05-27 Report 112 walk-back: pooling per-trial
+    successes/trials across seeds and running a Wilson interval treats
+    every test window as independent, but all windows in one seed share a
+    single codebook draw. The corrected gate infers over the per-seed Δ
+    (atom seed = unit), which these tests pin.
+    """
+
+    def setUp(self):
+        self.mod = importlib.import_module("c3_phase3_exit_criterion")
+
+    def test_t_critical_table(self):
+        # df=9 (the n=10 graduation case) is the exact two-sided 95% value.
+        self.assertAlmostEqual(self.mod._t_critical_95(9), 2.262, places=3)
+        # Beyond the table → asymptotic 1.96.
+        self.assertEqual(self.mod._t_critical_95(40), 1.96)
+        # df<=0 is undefined → +inf (cannot form a CI from <2 seeds).
+        self.assertEqual(self.mod._t_critical_95(0), float("inf"))
+
+    def test_delta_ci_stats_clear_positive(self):
+        # Tight, consistently-positive deltas → CI strictly above 0,
+        # 100% per-seed robust.
+        stats = self.mod._delta_ci_stats([0.10, 0.12, 0.11, 0.09, 0.13])
+        self.assertEqual(stats["n_seeds_used"], 5)
+        self.assertAlmostEqual(stats["mean_delta"], 0.11, places=6)
+        self.assertTrue(stats["ci95_above_zero"])
+        self.assertGreater(stats["ci95_lower"], 0.0)
+        self.assertEqual(stats["per_seed_positive_fraction"], 1.0)
+        self.assertTrue(stats["per_seed_robust_ge_threshold"])
+
+    def test_delta_ci_stats_noisy_sign_flipping(self):
+        # Sign-flipping deltas centered near 0 (the gauge-control
+        # signature) → CI straddles 0, fails robustness.
+        stats = self.mod._delta_ci_stats([0.30, -0.20])
+        self.assertEqual(stats["n_seeds_used"], 2)
+        self.assertAlmostEqual(stats["mean_delta"], 0.05, places=6)
+        self.assertFalse(stats["ci95_above_zero"])
+        self.assertEqual(stats["per_seed_positive_fraction"], 0.5)
+        self.assertFalse(stats["per_seed_robust_ge_threshold"])
+
+    def test_delta_ci_stats_degenerate(self):
+        # Zero or one usable seed cannot form a CI.
+        empty = self.mod._delta_ci_stats([])
+        self.assertEqual(empty["n_seeds_used"], 0)
+        self.assertFalse(empty["ci95_above_zero"])
+        self.assertIsNone(empty["ci95_lower"])
+        one = self.mod._delta_ci_stats([0.5])
+        self.assertEqual(one["n_seeds_used"], 1)
+        self.assertFalse(one["ci95_above_zero"])
+        self.assertIsNone(one["ci95_lower"])
+
+    def test_collect_per_seed_deltas_skips_empty_strata(self):
+        def _row(seed, is_control, spread):
+            s, t = spread
+            return {
+                "seed": seed,
+                "is_control": is_control,
+                "theta_prime_mode": "default",
+                "per_stratum": {
+                    "tight": {"successes": 0, "trials": 0, "recall_at_k": 0.0},
+                    "spread": {"successes": s, "trials": t,
+                               "recall_at_k": (s / t) if t else 0.0},
+                    "borderline": {"successes": 0, "trials": 0,
+                                   "recall_at_k": 0.0},
+                },
+            }
+
+        rows = [
+            _row(0, False, (8, 10)), _row(0, True, (5, 10)),   # Δ=+0.3
+            _row(1, False, (4, 10)), _row(1, True, (6, 10)),   # Δ=-0.2
+            _row(2, False, (0, 0)), _row(2, True, (5, 10)),    # skipped (std n=0)
+        ]
+        deltas = self.mod._collect_per_seed_deltas(
+            rows, [0, 1, 2], [("default", "spread")]
+        )
+        self.assertEqual(len(deltas), 2)  # seed 2 dropped
+        self.assertAlmostEqual(deltas[0], 0.3, places=6)
+        self.assertAlmostEqual(deltas[1], -0.2, places=6)
+
+    def test_run_summary_carries_per_seed_and_graduation_block(self):
+        import tempfile
+        from pathlib import Path as _Path
+
+        with tempfile.TemporaryDirectory() as tmp:
+            summary = self.mod.run(
+                seeds=[0, 1],
+                D=128,
+                landscape_size=4,
+                window_size=4,
+                n_test_windows=12,
+                n_train_windows=32,
+                vocab_size=16,
+                k=3,
+                beta=10.0,
+                theta_prime_mode="both",
+                standard_mode="consolidated",
+                control_mode="shuffled-token",
+                n_consolidation_events=10,
+                alpha_anti=0.0,
+                repulsion_step_size=0.0,
+                device="cpu",
+                output_dir=_Path(tmp),
+                repo_root=REPO_ROOT,
+            )
+        agg = summary["aggregated"]
+        # Per-stratum delta now carries the corrected per-seed block and
+        # flags the pooled disjoint as descriptive.
+        for mode in ("default", "calibrated"):
+            for stratum in ("tight", "spread", "borderline"):
+                d = agg[mode]["delta_standard_minus_control"][stratum]
+                self.assertTrue(d["pooled_disjoint_is_pseudo_replicated"])
+                self.assertIn("per_seed", d)
+                self.assertIn("ci95_above_zero", d["per_seed"])
+                self.assertIn("per_seed_positive_fraction", d["per_seed"])
+        # Graduation block present, correctly realized, and NOT graduating
+        # at n=2 < 10.
+        grad = agg["graduation_per_seed"]
+        self.assertEqual(grad["n_seeds"], 2)
+        self.assertFalse(grad["graduates"])
+        self.assertTrue(grad["clause2_pooled_complete"])
+        self.assertIn(
+            "clause2_pooled_default_spread_calibrated_tight", grad
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

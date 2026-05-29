@@ -87,8 +87,10 @@ there is no mismatched regime.
 | **E** | real | real | Path C stack, **codebook row-permuted** | real held-out | gauge confirmation |
 
 A, B, C, D: atom seeds 0..9 (paired — at seed *s*, A/C share the real corpus
-and atom set; B/D share `shuffle(s)` and the atom set). E: atom seed 0 ×
-permutation seeds 0..9, plus an identity-permutation unit test.
+and atom set; B/D share `shuffle(s)` and the atom set). E: the shuffled-token
+control run **per atom seed** (paired with A[s]), plus an identity-permutation
+unit test — see the **4b amendment** below (the original "atom seed 0 ×
+permutation seeds" design was mis-specified).
 
 **Mechanism (A, B, E):** the existing **Path C consolidation stack** —
 pull/push (`lr_pull=0.1`, `lr_push=0.05`, `use_pull_push=True`,
@@ -134,9 +136,27 @@ the shuffled world). Pass requires **both**:
 **Gauge-confirmation (E):**
 - **4a (mandatory local unit test, not a Colab run):** gauge control with the
   *identity* permutation must be **byte-identical** to condition A — proves
-  the control's only effect is the permutation.
-- **4b:** across the 10 permutation seeds at fixed atom seed 0, mean Δ vs. A
-  within ~1 SEM of 0 (predict ≈0; per-seed spread expected).
+  the control's only effect is the permutation. *(Implemented:
+  [tests/test_gate0_frame_a.py](../../tests/test_gate0_frame_a.py)
+  `test_identity_gauge_is_byte_identical_to_A`; also re-checked inside
+  every Gate 0 run.)*
+- **4b — AMENDED 2026-05-28 (implementation).** *Original spec:* "across the
+  10 permutation seeds at fixed atom seed 0, mean Δ vs. A within ~1 SEM of
+  0." **This was mis-specified.** Exchangeability gives `E[Δ]=0` only over
+  the **joint** (atoms, π) draw; at a *fixed* atom set `X_0`,
+  `E_π[Recall(P_π X_0)]` is the mean recall over all *relabelings* of `X_0`,
+  which is generally **≠** the identity labeling's recall (= A[0]). So a
+  nonzero fixed-atom Δ is *expected*, not a confound — and empirically a
+  fixed-atom×perm probe gives a systematic, CI-excluding-0 offset (≈ −0.13
+  on a smoke), which would spuriously trigger G0→confound. **Replaced by:**
+  the *per-seed* gauge — run the old shuffled-token control at each atom
+  seed (fresh `X_s` + `π_s`) and difference against A[s]; predict the
+  **mean per-seed Δ 95% CI contains 0** (fail to reject Δ=0). This is also
+  literally "run the old gauge control as one of its conditions," and is
+  the comparison the exchangeability proof actually guarantees. The pass
+  test is CI-contains-0, not `|mean| ≤ 1·SEM` (a t<1 test that spuriously
+  fails ~39% of the time at small n under a true mean of 0). Arm E in the
+  driver is therefore the per-seed gauge, not fixed-atom×perm.
 
 | Outcome | Signature | Pre-committed next step (all route to Frame B) |
 |---|---|---|

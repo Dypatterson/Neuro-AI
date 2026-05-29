@@ -1,5 +1,23 @@
 # Report 114 — Γ1 family closes via F1 lr_cr sweep; Γ2 (bundle-first) is next
 
+> **⚠️ CORRECTION (2026-05-28) — read [2026-05-28-phase3-frame-b-continual-learning-and-gauge-control-finding.md](../notes/notes/2026-05-28-phase3-frame-b-continual-learning-and-gauge-control-finding.md) first.**
+> This report's Δ values are measured against the **shuffled-token control**,
+> which was subsequently proven **gauge-vacuous** (a row-permutation of an
+> i.i.d. codebook → `E[Δ]=0` by exchangeability, independently verified
+> 2026-05-28). The Γ1-vs-control deltas here are therefore **non-diagnostic
+> for corpus-specific learning**, and the family-closure *interpretation*
+> ("Γ1 shape carries less corpus signal") is **not established** by this
+> control. Two specific over-readings to retract: (1) the **lr_cr 0.20/0.50
+> "atom-vs-atom repulsion actively degrades the codebook below baseline"**
+> claim (Findings 2-3, the negative-Δ regime) was an **n=3 noise artifact** —
+> at high power (n=60) it collapses to mean Δ ≈ +0.005, t ≈ 1.2, consistent
+> with 0; (2) the derived "constraint on future mechanisms with atom-vs-atom
+> repulsion" rests on (1) and is likewise not established. What **stands**:
+> Γ1's per-seed σ is ~4× tighter than pull/push (a real *shape* change, just
+> not a corpus-signal one), and the test-harness byte-identity reproducibility
+> (Finding 4). The Γ2 mandate built on "two per-atom mechanisms failed" is
+> superseded by the Frame B reframe; next work is **Gate 0**, not Γ2.
+
 **Status:** complete. **Γ1 family (context-residual consolidation) closes.** F1 lr_cr sweep confirms hypothesis (b): atom-vs-atom geometry carries fundamentally less corpus signal than pull/push, regardless of magnitude. Per the F1 precommit's pre-committed escalation, **Γ2 (bundle-first scene memory) is the next-candidate precommit**.
 
 **Date:** 2026-05-27.

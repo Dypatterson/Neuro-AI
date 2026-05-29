@@ -58,20 +58,38 @@ per-condition regime, eval). Standard vs. control therefore has expected
 
 ### Proof sketch (exchangeability)
 
-Let `X = (A_1, …, A_V)` be the codebook atoms. They are **i.i.d.**
-random-phase FHRR vectors, and the permutation `π` is seeded independently
-of `X`. The whole experiment is a deterministic function `F(X, corpus)` →
-per-stratum recall (everything — consolidation, the post-consolidation
-per-condition regime stratification, eval — touches atoms *only* through the
-codebook). The control is `F(P_π X, corpus)`. Because the `A_i` are i.i.d.,
-`P_π X =d X` (equal in distribution), hence `F(P_π X, corpus) =d F(X, corpus)`.
-Therefore `E[Δ_stratum] = 0` for every stratum.
+Let `X = (A_1, …, A_V)` be the codebook atoms and `W` the (un-permuted)
+token-id corpus. `E[Δ_stratum] = 0` holds under **two** conditions, both of
+which the code satisfies (verified line-by-line 2026-05-28; see
+§Confidence):
+
+- **(C1) Equivariance.** `F` reads atoms *only* through codebook rows — no
+  fixed token-id-indexed external reference. Equivalently, jointly
+  relabeling token-ids by `π` and permuting codebook rows by `π` leaves `F`
+  invariant: **`F(P_π X, W) = F(X, π(W))`** per realization. (Verified:
+  consolidation, regime stratification, and eval all index *into* the
+  codebook; eval scores against the control's *own* codebook; positions and
+  the mask vector are slot-indexed, not token-id-indexed.)
+- **(C2) Exchangeability.** The `A_i` are **i.i.d.** random-phase FHRR
+  vectors ([torch_fhrr.py:65](../../src/energy_memory/substrate/torch_fhrr.py))
+  and `π` is seeded independently of `X`, so `P_ρ X =d X` for every fixed
+  bijection `ρ`, giving `E_X[F(X, ρ(W))] = E_X[F(X, W)]`.
+
+Combining C1 + C2 over the random `π`:
+`E[F(P_π X, W)] = E_π E_X[F(X, π(W))] = E_X[F(X, W)]`, i.e.
+`E[Δ_stratum] = 0` **exactly**, per stratum. (The note's earlier one-liner
+"`P_π X =d X` hence `F(P_π X) =d F(X)`" was too quick — it glossed that the
+permuted codebook is fed *un-permuted* token-ids, coupling the relabel to
+the corpus; C1 is the lemma that closes that gap. The single falsifier to
+check on any future code change: *is there any object read by the pipeline
+that is indexed by raw, un-permuted token-id and NOT itself permuted by `π`?*
+If yes anywhere, C1 fails and `E[Δ]` need not be 0.)
 
 The *realized* Δ is nonzero only because, for a **fixed** draw `X`, the
 permutation is not a symmetry of that realization — it is a symmetry of the
 distribution. That realized difference is per-seed noise; it averages to zero.
 
-### Retrodiction (the strongest evidence — it explains the walk-back's own numbers)
+### Retrodiction (corroboration, *consistent-with* — not the load-bearing argument)
 
 | Prediction from `E[Δ]=0` | Observed in committed reports |
 |---|---|
@@ -82,8 +100,27 @@ distribution. That realized difference is per-seed noise; it averages to zero.
 | mechanism **strength** is irrelevant | "stronger pull doesn't help; weaker doesn't help; signal floor is intrinsic" ([112:187](../../reports/112_phase3_c3_wikitext_graduation_walkback.md)) |
 | pooled n=30 "margin 0.003" is a pooling fallacy | true SEM ≈ 0.13/√30 ≈ 0.024 → +0.020 is **<1 SEM from 0** |
 
-Every anomaly the v3→v6 chain chased is the signature of differencing two
+Every anomaly the v3→v6 chain chased is *consistent with* differencing two
 identically-distributed conditions.
+
+> **Diagnosticity caveat (added 2026-05-28 after adversarial verification).**
+> Retrodiction is weaker than prediction: a *small real signal*
+> (+0.02–0.04 with per-seed σ≈0.13) reproduces **every** row of this table
+> equally well, so the table does **not** distinguish `E[Δ]=0` from a weak
+> real effect. The headline is carried by the **exchangeability proof**
+> (C1+C2 above) and confirmed empirically by **Gate 0**, *not* by this
+> table. Two row-level caveats: (a) the "≈50% positive" row cites Γ1's
+> 5/10 (a *mechanism*, [113:81](../../reports/113_path_gamma_gamma1_headline_gate.md)),
+> whereas the gauge control's own rate is PathC 6/10 ([113:82](../../reports/113_path_gamma_gamma1_headline_gate.md)) —
+> both non-diagnostic; (b) the "+0.020 / margin 0.003" row conflates two
+> D=4096 cells (default/spread vs calibrated/tight). The *sharper* knife
+> than the "pooling-fallacy / SEM" framing is **pseudo-replication**: the
+> committed disjoint-CI gate ran per-*trial* Wilson intervals on counts
+> pooled across seeds, but all trials in a seed share one codebook, so it
+> under-states variance and would manufacture "disjoint" cells even under
+> `E[Δ]=0`. That harness bug is now **fixed** (per-seed inference; the atom
+> seed is the unit) at [c3_phase3_exit_criterion.py](../../experiments/c3_phase3_exit_criterion.py)
+> `_delta_ci_stats` / `graduation_per_seed`, with regression tests.
 
 ### What it does NOT mean
 
@@ -101,12 +138,36 @@ because it is symmetric across the two arms.
 - The [Path γ mechanism-family survey](../emergent-codebook/path-gamma-mechanism-family-survey.md)
   Γ2-vs-Γ3 framing is superseded (it was downstream of the broken control).
 
+What it does **not** invalidate (scope, sharpened 2026-05-28): the
+**graduation *decisions*** of Reports 112/113/114 still stand — "does not
+graduate" holds under *either* `E[Δ]=0` or a small-real-signal hypothesis,
+because σ/μ ≈ 3.3 fails the per-seed robustness clause regardless — as do
+the **absolute-recall** and basin-tightening measurements. What is
+overturned is narrower: the *corpus-specificity interpretation* of those
+nulls, and the Γ2 mandate built on it. (One concrete over-interpretation
+the gauge lens correctly flags: Report 114's lr_cr 0.20/0.50 "atom-vs-atom
+repulsion actively degrades the codebook" was an n=3 noise artifact — it
+collapses to t≈1.2 at n=60.)
+
 ### Confidence + confirmation
 
-High: the proof is a clean exchangeability argument and the retrodiction is
-tight. It contradicts committed reports, so **Gate 0 confirms it empirically
-as a side-effect** by running the old gauge control as one of its conditions
-(predicts Δ≈0) alongside the valid control.
+High — carried by the **exchangeability proof** (C1+C2), not the
+retrodiction. The proof was independently verified 2026-05-28 by adversarial
+review (4 analytical lenses + 1 empirical probe + synthesis): atoms are
+i.i.d. ([torch_fhrr.py:65-67](../../src/energy_memory/substrate/torch_fhrr.py)),
+`π` uses a disjoint RNG (`random.Random(seed+70000)`) that never advances
+the substrate generator, and the permuted codebook is threaded consistently
+through encode → landscape → consolidate → stratify → eval with **no**
+token-id-indexed object escaping the relabel (C1 holds). The empirical probe
+reproduced both Gate 0 predictions at smoke scale: identity-permutation →
+**byte-identical** per-stratum outcomes (4a), and across seeds Δ scatters
+around 0 with sign flips and no consistent offset (4b). Verdict:
+**sound-with-caveats** (the caveats are the editorial ones above — the
+retrodiction is corroborative, not diagnostic). Because the proof contradicts
+the committed-report *interpretation*, **Gate 0 confirms it empirically as a
+side-effect** by running the old gauge control as one of its conditions
+(predicts Δ≈0, with a pre-committed STOP-and-re-derive branch if not)
+alongside the valid control.
 
 ## Part 2 — Reframe: Phase 3 is continual learning
 

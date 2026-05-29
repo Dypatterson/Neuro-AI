@@ -374,6 +374,118 @@ def _wilson(successes: int, trials: int) -> Tuple[float, float, float]:
     return (successes / trials, lo, hi)
 
 
+# Per-seed inference --------------------------------------------------------
+#
+# The pooled-per-trial Wilson disjoint test below (``_wilson`` over trial
+# counts summed across seeds) PSEUDO-REPLICATES: every test window inside
+# one seed shares a single codebook draw, so the windows are not
+# independent Bernoulli samples. Pooling their counts and running a Wilson
+# interval ignores the dominant between-seed (between-codebook) variance
+# (per-seed σ ≈ 0.13 on this task) and manufactures artificially tight
+# intervals — the mechanism that produced the spurious "CI-disjoint" cells
+# in the 2026-05-27 Report 112 walk-back. The correct unit of replication
+# is the **atom seed**: form one Recall@K per seed per arm, take the
+# per-seed Δ, and infer over the (≤ n_seeds) independent deltas. These
+# helpers implement that and are reused by the Gate 0 DiD read.
+
+# Two-sided 95% Student-t critical values (no scipy dependency). Exact for
+# df ≤ 30; asymptotic 1.96 beyond. df = n_seeds_used − 1.
+_T_CRIT_95 = {
+    1: 12.706, 2: 4.303, 3: 3.182, 4: 2.776, 5: 2.571,
+    6: 2.447, 7: 2.365, 8: 2.306, 9: 2.262, 10: 2.228,
+    11: 2.201, 12: 2.179, 13: 2.160, 14: 2.145, 15: 2.131,
+    16: 2.120, 17: 2.110, 18: 2.101, 19: 2.093, 20: 2.086,
+    21: 2.080, 22: 2.074, 23: 2.069, 24: 2.064, 25: 2.060,
+    26: 2.056, 27: 2.052, 28: 2.048, 29: 2.045, 30: 2.042,
+}
+
+
+def _t_critical_95(df: int) -> float:
+    """Two-sided 95% Student-t critical value (no scipy dependency)."""
+    if df <= 0:
+        return float("inf")
+    return _T_CRIT_95.get(df, 1.96)
+
+
+def _collect_per_seed_deltas(
+    per_cell_rows: List[Dict[str, object]],
+    seeds: Sequence[int],
+    cell_specs: Sequence[Tuple[str, str]],
+) -> List[float]:
+    """Per-seed Δ = Recall@K(standard) − Recall@K(shuffled-control).
+
+    For each seed, pools ``(successes, trials)`` across the requested
+    ``(theta_prime_mode, stratum)`` cells SEPARATELY for the standard and
+    the shuffled-control arm, forms one Recall@K per arm, and returns the
+    per-seed Δ. Seeds where either arm has zero pooled trials are skipped
+    (Δ is undefined). The within-seed pooling is fine — it is the
+    ACROSS-seed pooling that the old gate got wrong.
+    """
+    deltas: List[float] = []
+    spec_set = set(cell_specs)
+    for seed in seeds:
+        s_std = t_std = s_ctrl = t_ctrl = 0
+        for row in per_cell_rows:
+            if row["seed"] != seed:
+                continue
+            mode = row["theta_prime_mode"]
+            for stratum in STRATA:
+                if (mode, stratum) not in spec_set:
+                    continue
+                cell = row["per_stratum"][stratum]
+                if row["is_control"]:
+                    s_ctrl += int(cell["successes"])
+                    t_ctrl += int(cell["trials"])
+                else:
+                    s_std += int(cell["successes"])
+                    t_std += int(cell["trials"])
+        if t_std > 0 and t_ctrl > 0:
+            deltas.append(s_std / t_std - s_ctrl / t_ctrl)
+    return deltas
+
+
+def _delta_ci_stats(
+    deltas: Sequence[float], robustness_threshold: float = 0.7
+) -> Dict[str, object]:
+    """Per-seed Δ summary: mean, Student-t 95% CI, and per-seed robustness.
+
+    ``ci95_above_zero`` is the corrected CI-disjoint clause (mean Δ CI
+    strictly above 0 over the independent per-seed deltas).
+    ``per_seed_robust_ge_threshold`` is the revised-criterion clause-2
+    (≥ 70% of seeds with Δ > 0).
+    """
+    n = len(deltas)
+    n_pos = sum(1 for d in deltas if d > 0.0)
+    pos_frac = (n_pos / n) if n else 0.0
+    mean = (sum(deltas) / n) if n else 0.0
+    sd = sem = 0.0
+    lo: Optional[float] = None
+    hi: Optional[float] = None
+    ci_above = False
+    if n >= 2:
+        var = sum((d - mean) ** 2 for d in deltas) / (n - 1)
+        sd = math.sqrt(var)
+        sem = sd / math.sqrt(n)
+        t = _t_critical_95(n - 1)
+        lo = mean - t * sem
+        hi = mean + t * sem
+        ci_above = bool(lo > 0.0)
+    return {
+        "n_seeds_used": n,
+        "per_seed_deltas": [float(d) for d in deltas],
+        "mean_delta": float(mean),
+        "sd_delta": float(sd),
+        "sem_delta": float(sem),
+        "ci95_lower": (float(lo) if lo is not None else None),
+        "ci95_upper": (float(hi) if hi is not None else None),
+        "ci95_above_zero": ci_above,
+        "n_seeds_positive": int(n_pos),
+        "per_seed_positive_fraction": float(pos_frac),
+        "per_seed_robust_ge_threshold": bool(pos_frac >= robustness_threshold),
+        "robustness_threshold": float(robustness_threshold),
+    }
+
+
 # Consolidation orchestrator wiring (C.2 dynamics) ----------------------------
 
 def _build_consolidation_state(
@@ -590,8 +702,31 @@ def _run_single_seed_condition(
     use_context_residual: bool = False,
     lr_cr: float = 0.1,
     use_pull_push: bool = True,
+    world: str = "real",
+    perm_seed_override: Optional[int] = None,
+    identity_permutation: bool = False,
 ) -> Dict[str, object]:
     """Run one (seed, mode, condition) cell.
+
+    Gate 0 (Frame B reframe, 2026-05-28) parameters — all default to the
+    pre-Gate-0 behaviour so the standard C.3 ``run()`` is byte-unchanged:
+
+      ``world`` ∈ {"real", "shuffled"}: the "shuffled" world applies a
+      GLOBAL token-stream shuffle (seeded ``seed + 80000`` — by atom seed,
+      NOT by arm, so two arms at the same seed share the identical shuffled
+      world) to the flat corpus stream *before* windowing. This preserves
+      unigram marginals and destroys co-occurrence; landscape +
+      consolidation + held-out test are all windowed from the shuffled
+      stream, so the shuffled world is self-consistent (no mismatched
+      regime). See the Gate 0 precommit
+      ``notes/notes/2026-05-28-gate0-frame-a-valid-control-precommit.md``.
+
+      ``perm_seed_override`` / ``identity_permutation``: for the
+      shuffled-token gauge arm (E), override the codebook row-permutation
+      seed (default ``seed + 70000``) so a fixed atom seed can be paired
+      against many permutation seeds (4b), and force the identity
+      permutation (4a) — which must reproduce condition A byte-for-byte.
+
 
     Two control-mode operationalizations are supported:
 
@@ -617,7 +752,12 @@ def _run_single_seed_condition(
     """
     # Substrate / corpus seeds. Main and control share the corpus draws
     # (so identical windows are evaluated).
-    corpus_rng = random.Random(seed)  # shared by main + control
+    # Shared by main + control. For Gate 0, the "shuffled" world uses a
+    # disjoint corpus seed so the synthetic-corpus path produces a
+    # self-consistent shuffled world (the wikitext path shuffles the token
+    # streams directly below). world == "real" keeps the exact pre-Gate-0
+    # seeding, so standard C.3 runs are byte-unchanged.
+    corpus_rng = random.Random(seed if world == "real" else seed + 80000)
 
     if is_control and control_mode == "random":
         substrate_seed = seed + 10000
@@ -639,9 +779,17 @@ def _run_single_seed_condition(
     # for the lifetime of this cell, so memorize / consolidate / eval
     # all see the same shuffled assignment.
     if is_control and control_mode == "shuffled-token":
-        perm_rng = random.Random(seed + 70000)
+        perm_seed = (
+            perm_seed_override if perm_seed_override is not None else seed + 70000
+        )
         perm_indices = list(range(vocab_size))
-        perm_rng.shuffle(perm_indices)
+        if not identity_permutation:
+            # identity_permutation (Gate 0 test 4a) leaves the row order
+            # untouched, so the gauge control reduces to condition A
+            # byte-for-byte — proving the control's ONLY effect is the
+            # permutation.
+            perm_rng = random.Random(perm_seed)
+            perm_rng.shuffle(perm_indices)
         idx_tensor = torch.tensor(perm_indices, dtype=torch.long, device=codebook.device)
         codebook = codebook.index_select(0, idx_tensor).contiguous()
     positions = build_position_vectors(substrate, window_size)
@@ -678,12 +826,22 @@ def _run_single_seed_condition(
         # encoded streams, then per-seed subsample. Use
         # ``sample_windows`` from the Phase 2 corpus module — same
         # primitive Phase 2 uses (deterministic given a seed).
-        all_train_windows = make_windows(
-            wikitext_corpus.train_ids, window_size,
-        )
+        train_ids = list(wikitext_corpus.train_ids)
         held_out_ids = list(wikitext_corpus.val_ids) + list(
             wikitext_corpus.test_ids
         )
+        if world == "shuffled":
+            # Gate 0 GLOBAL token-stream shuffle: permute each flat stream
+            # in place BEFORE windowing. Seeded by the atom seed (NOT the
+            # arm), so arms B and D at the same seed see the identical
+            # shuffled world. Preserves unigram marginals exactly (a
+            # permutation), destroys co-occurrence. Both the landscape /
+            # consolidation pool (train) and the held-out test pool are
+            # shuffled, so the shuffled world is fully self-consistent.
+            ws_rng = random.Random(seed + 80000)
+            ws_rng.shuffle(train_ids)
+            ws_rng.shuffle(held_out_ids)
+        all_train_windows = make_windows(train_ids, window_size)
         all_test_windows = make_windows(held_out_ids, window_size)
         if not all_train_windows or not all_test_windows:
             raise RuntimeError(
@@ -805,8 +963,15 @@ def _run_single_seed_condition(
         "substrate_seed": substrate_seed,
         "is_control": is_control,
         "control_mode": control_mode if is_control else None,
+        "world": world,
         "shuffled_token_permutation_seed": (
-            (seed + 70000) if (is_control and control_mode == "shuffled-token") else None
+            (
+                (perm_seed_override if perm_seed_override is not None else seed + 70000)
+                if not identity_permutation
+                else "identity"
+            )
+            if (is_control and control_mode == "shuffled-token")
+            else None
         ),
         "alpha_anti": float(alpha_anti),
         "repulsion_step_size": float(repulsion_step_size),
@@ -980,13 +1145,13 @@ def run(
                     "wilson_upper": hi,
                 }
 
-        # Per-stratum delta and CI: delta is standard - shuffled_control.
-        # CI for the delta is the standard's CI shifted by the control's
-        # point estimate — *not* a paired test (different test windows
-        # under each codebook draw share the same indices but evaluate
-        # under different codebooks, which makes a clean paired analysis
-        # subtle). For the smoke we report both CIs honestly and the
-        # point-estimate delta.
+        # Per-stratum delta. The pooled point-estimate delta and the
+        # ``ci_disjoint_standard_beats_control`` flag (standard's pooled
+        # Wilson lower > control's pooled Wilson upper) are retained as a
+        # DESCRIPTIVE pooled summary ONLY — they pseudo-replicate within a
+        # seed and must NOT be read as a significance gate (see the
+        # _collect_per_seed_deltas docstring). The load-bearing inference
+        # is ``per_seed`` below, where the atom seed is the unit.
         aggregated[mode]["delta_standard_minus_control"] = {}
         for stratum in STRATA:
             std_cell = aggregated[mode]["standard"][stratum]
@@ -996,11 +1161,69 @@ def run(
                 "delta_recall_at_k": delta,
                 "standard_trials": std_cell["trials"],
                 "control_trials": ctrl_cell["trials"],
-                # Disjoint-CI gate: standard's lower > control's upper.
+                # Pooled-per-trial Wilson disjoint — DESCRIPTIVE ONLY,
+                # pseudo-replicated, NOT a significance gate.
                 "ci_disjoint_standard_beats_control": (
                     std_cell["wilson_lower"] > ctrl_cell["wilson_upper"]
                 ),
+                "pooled_disjoint_is_pseudo_replicated": True,
+                # Corrected inference: per-seed Δ over the independent
+                # atom seeds (Student-t 95% CI + per-seed robustness).
+                "per_seed": _delta_ci_stats(
+                    _collect_per_seed_deltas(
+                        per_cell_rows, seeds, [(mode, stratum)]
+                    )
+                ),
             }
+
+    # Revised C.3 graduation criterion, realized per-seed (the corrected
+    # statistic). Clause 1: per-seed CI strictly above 0 in ≥ 1 regime
+    # stratum. Clause 2: per-seed paired robustness ≥ 70% on the
+    # stratum-pooled (default/spread + calibrated/tight) per-seed Δ.
+    # phase-3-deep-dive.md:205-216 (revised 2026-05-27 per Report 112).
+    clause1_passing = [
+        f"{mode}/{stratum}"
+        for mode in modes
+        for stratum in STRATA
+        if aggregated[mode]["delta_standard_minus_control"][stratum][
+            "per_seed"
+        ]["ci95_above_zero"]
+    ]
+    pooled_specs = [
+        (m, s)
+        for (m, s) in (("default", "spread"), ("calibrated", "tight"))
+        if m in modes
+    ]
+    clause2_pooled = _delta_ci_stats(
+        _collect_per_seed_deltas(per_cell_rows, seeds, pooled_specs)
+    )
+    clause1_any = bool(clause1_passing)
+    aggregated["graduation_per_seed"] = {
+        "criterion_source": (
+            "notes/emergent-codebook/phase-3-deep-dive.md:205-216 "
+            "(revised 2026-05-27 per Report 112)"
+        ),
+        "method": (
+            "Per-seed Δ (independent unit = atom seed), Student-t 95% CI; "
+            "replaces the pooled-per-trial Wilson disjoint test, which "
+            "pseudo-replicates within a seed and under-estimates "
+            "between-seed variance."
+        ),
+        "clause1_ci_disjoint_any_stratum": clause1_any,
+        "clause1_strata_passing": clause1_passing,
+        "clause2_pooled_default_spread_calibrated_tight": clause2_pooled,
+        "clause2_strata_pooled": [f"{m}/{s}" for (m, s) in pooled_specs],
+        "clause2_pooled_complete": (
+            ("default", "spread") in pooled_specs
+            and ("calibrated", "tight") in pooled_specs
+        ),
+        "n_seeds": len(seeds),
+        "graduates": bool(
+            clause1_any
+            and clause2_pooled["per_seed_robust_ge_threshold"]
+            and len(seeds) >= 10
+        ),
+    }
 
     summary = {
         "header": {
@@ -1139,16 +1362,18 @@ def _format_markdown(summary: dict) -> str:
     lines.append(
         "| Mode | Stratum | Standard Recall@K [Wilson CI] | "
         "Shuffled-control Recall@K [Wilson CI] | Δ (std − ctrl) | "
-        "CI-disjoint (std lower > ctrl upper)? | n_std | n_ctrl |"
+        "**per-seed Δ [t-CI] (n)** | **per-seed CI>0?** | **+frac** | "
+        "pooled disjoint (descriptive†) |"
     )
     lines.append(
-        "|---|---|---|---|---:|:--:|---:|---:|"
+        "|---|---|---|---|---:|---|:--:|---:|:--:|"
     )
     for mode in header["theta_prime_modes_run"]:
         for stratum in STRATA:
             std = aggregated[mode]["standard"][stratum]
             ctrl = aggregated[mode]["shuffled_control"][stratum]
             dlt = aggregated[mode]["delta_standard_minus_control"][stratum]
+            ps = dlt["per_seed"]
             std_cell = (
                 f"{std['recall_at_k']:.3f} "
                 f"[{std['wilson_lower']:.3f}, {std['wilson_upper']:.3f}]"
@@ -1157,13 +1382,67 @@ def _format_markdown(summary: dict) -> str:
                 f"{ctrl['recall_at_k']:.3f} "
                 f"[{ctrl['wilson_lower']:.3f}, {ctrl['wilson_upper']:.3f}]"
             )
+            if ps["ci95_lower"] is not None:
+                ps_cell = (
+                    f"{ps['mean_delta']:+.3f} "
+                    f"[{ps['ci95_lower']:+.3f}, {ps['ci95_upper']:+.3f}] "
+                    f"({ps['n_seeds_used']})"
+                )
+            else:
+                ps_cell = f"{ps['mean_delta']:+.3f} [n<2] ({ps['n_seeds_used']})"
             lines.append(
                 f"| {mode} | {stratum} | {std_cell} | {ctrl_cell} | "
                 f"{dlt['delta_recall_at_k']:+.3f} | "
-                f"{'YES' if dlt['ci_disjoint_standard_beats_control'] else 'no'} | "
-                f"{std['trials']} | {ctrl['trials']} |"
+                f"{ps_cell} | "
+                f"{'YES' if ps['ci95_above_zero'] else 'no'} | "
+                f"{ps['per_seed_positive_fraction']:.2f} | "
+                f"{'YES' if dlt['ci_disjoint_standard_beats_control'] else 'no'} |"
             )
     lines.append("")
+    lines.append(
+        "† **pooled disjoint** (pooled-per-trial Wilson, std lower > ctrl "
+        "upper) is DESCRIPTIVE ONLY — it pseudo-replicates within a seed "
+        "(all test windows share one codebook) and under-states variance. "
+        "The graduation gate is the **per-seed** columns (atom seed = unit)."
+    )
+    lines.append("")
+
+    # Corrected graduation gate (revised C.3 criterion, per-seed).
+    grad = aggregated.get("graduation_per_seed")
+    if grad is not None:
+        c2 = grad["clause2_pooled_default_spread_calibrated_tight"]
+        lines.append("## Graduation gate (per-seed — corrected)")
+        lines.append("")
+        lines.append(f"- criterion: `{grad['criterion_source']}`")
+        lines.append(
+            f"- **clause 1** (per-seed CI > 0 in ≥1 stratum): "
+            f"`{grad['clause1_ci_disjoint_any_stratum']}` "
+            f"(strata: {grad['clause1_strata_passing'] or '—'})"
+        )
+        if c2["ci95_lower"] is not None:
+            c2_ci = f"[{c2['ci95_lower']:+.3f}, {c2['ci95_upper']:+.3f}]"
+        else:
+            c2_ci = "[n<2]"
+        lines.append(
+            f"- **clause 2** (per-seed robustness ≥ "
+            f"{c2['robustness_threshold']:.0%} on pooled "
+            f"{grad['clause2_strata_pooled']}): "
+            f"`{c2['per_seed_robust_ge_threshold']}` "
+            f"({c2['n_seeds_positive']}/{c2['n_seeds_used']} positive; "
+            f"mean Δ {c2['mean_delta']:+.3f} {c2_ci})"
+        )
+        if not grad["clause2_pooled_complete"]:
+            lines.append(
+                "  - ⚠️ pooled clause incomplete: this run did not include "
+                "both `default` and `calibrated` modes; run "
+                "`--theta-prime-mode both` for the full criterion."
+            )
+        lines.append(
+            f"- n_seeds = {grad['n_seeds']} "
+            f"(graduation requires ≥ 10) → **graduates: "
+            f"`{grad['graduates']}`**"
+        )
+        lines.append("")
     lines.append("## Regime classifier agreement diagnostic")
     lines.append("")
     lines.append(
@@ -1278,21 +1557,42 @@ def _format_stdout_table(summary: dict) -> str:
     for mode in header["theta_prime_modes_run"]:
         lines.append(f"\n  theta_prime_mode = {mode}")
         lines.append(
-            f"    {'stratum':<12} {'std R@K':>9}  {'std CI':>16}  "
-            f"{'ctrl R@K':>9}  {'ctrl CI':>16}  {'Δ':>7}  disjoint?"
+            f"    {'stratum':<12} {'std R@K':>9}  {'ctrl R@K':>9}  "
+            f"{'per-seed Δ':>11}  {'per-seed CI':>18}  {'CI>0':>5}  "
+            f"{'+frac':>6}  pooled-disj(desc)"
         )
         for stratum in STRATA:
             std = aggregated[mode]["standard"][stratum]
             ctrl = aggregated[mode]["shuffled_control"][stratum]
             dlt = aggregated[mode]["delta_standard_minus_control"][stratum]
-            std_ci = f"[{std['wilson_lower']:.3f},{std['wilson_upper']:.3f}]"
-            ctrl_ci = f"[{ctrl['wilson_lower']:.3f},{ctrl['wilson_upper']:.3f}]"
+            ps = dlt["per_seed"]
+            if ps["ci95_lower"] is not None:
+                ps_ci = f"[{ps['ci95_lower']:+.3f},{ps['ci95_upper']:+.3f}]"
+            else:
+                ps_ci = "[n<2]"
             lines.append(
-                f"    {stratum:<12} {std['recall_at_k']:>9.3f}  {std_ci:>16}  "
-                f"{ctrl['recall_at_k']:>9.3f}  {ctrl_ci:>16}  "
-                f"{dlt['delta_recall_at_k']:>+7.3f}  "
+                f"    {stratum:<12} {std['recall_at_k']:>9.3f}  "
+                f"{ctrl['recall_at_k']:>9.3f}  "
+                f"{ps['mean_delta']:>+11.3f}  {ps_ci:>18}  "
+                f"{('YES' if ps['ci95_above_zero'] else 'no'):>5}  "
+                f"{ps['per_seed_positive_fraction']:>6.2f}  "
                 f"{'YES' if dlt['ci_disjoint_standard_beats_control'] else 'no'}"
             )
+    grad = aggregated.get("graduation_per_seed")
+    if grad is not None:
+        c2 = grad["clause2_pooled_default_spread_calibrated_tight"]
+        lines.append(
+            f"\n  GRADUATION GATE (per-seed, corrected): "
+            f"clause1(CI>0 any stratum)={grad['clause1_ci_disjoint_any_stratum']}  "
+            f"clause2(≥{c2['robustness_threshold']:.0%} per-seed)="
+            f"{c2['per_seed_robust_ge_threshold']} "
+            f"({c2['n_seeds_positive']}/{c2['n_seeds_used']})  "
+            f"n_seeds={grad['n_seeds']}  →  graduates={grad['graduates']}"
+        )
+        lines.append(
+            "  [pooled-disj is DESCRIPTIVE only — pseudo-replicated, "
+            "not a significance gate]"
+        )
     return "\n".join(lines)
 
 
