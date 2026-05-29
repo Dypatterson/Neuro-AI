@@ -97,33 +97,43 @@ def _classify_verdict(
     a_minus_b: Dict[str, object],
     gauge: Dict[str, object],
     n_seeds: int,
+    meaningful_effect: float = 0.02,
 ) -> str:
     """Map the stats onto the precommit's pre-committed branch table.
 
-    Order matters: confound (E fails) dominates; then the DiD ladder.
-    Thresholds are deliberately simple and the raw stats are reported
-    alongside so a human can confirm the routing.
+    Order: confound (E fails) → pass → the DiD ladder.
+
+    The precommit's "weak" vs "null-cons"/"dead" boundary turns on whether
+    the data can CONFIDENTLY rule out a meaningful effect, which requires an
+    effect-size floor the precommit left implicit. We make it explicit:
+    ``meaningful_effect`` (default 0.02 — the ~Δ magnitude the Report 112
+    walk-back chased, i.e. what Frame B would care about). A verdict of
+    null-cons/dead is only reached when the relevant 95% CI sits *below* that
+    floor (we can rule out a real effect). Otherwise a non-passing,
+    not-confidently-zero DiD is **weak** — "real-but-underpowered, NOT a
+    redesign trigger → escalate n" — which is the correct call whenever the
+    per-seed variance leaves the CI wide (the usual case at n=10).
     """
     if not gauge["passes_4a_and_4b"]:
         return "G0->confound"
-    did_mean = did["mean_delta"]
-    did_pass = did["ci95_above_zero"] and did["per_seed_robust_ge_threshold"]
-    if did_pass:
+    if did["ci95_above_zero"] and did["per_seed_robust_ge_threshold"]:
         return "G0->pass"
-    # "≈ 0" band for the DiD mean: within one per-seed SEM of zero.
-    did_near_zero = (did["sem_delta"] == 0.0) or (
-        abs(did_mean) <= did["sem_delta"]
+    # Can we CONFIDENTLY rule out a meaningful positive DiD? Only if the 95%
+    # CI upper bound is below the meaningful-effect floor.
+    did_hi = did["ci95_upper"]
+    did_confidently_below_floor = (did_hi is not None) and (
+        did_hi < meaningful_effect
     )
-    if did_mean > 0 and not did_pass and not did_near_zero:
-        return "G0->weak"
-    # DiD ≈ 0 → consolidation carries no corpus-specific structure.
+    if not did_confidently_below_floor:
+        return "G0->weak"  # underpowered / positive-but-not-conclusive
+    # DiD confidently below the meaningful floor → consolidation carries no
+    # corpus-specific signal worth chasing. Landscape, or nothing?
     if a_minus_b["ci95_above_zero"]:
         return "G0->null-cons"  # landscape carries structure, cons does not
-    if (a_minus_b["sem_delta"] == 0.0) or (
-        abs(a_minus_b["mean_delta"]) <= a_minus_b["sem_delta"]
-    ):
-        return "G0->dead"  # whole pipeline captures no corpus structure
-    return "G0->weak"  # mean>0 but underpowered, or A-B positive-but-not-disjoint
+    ab_hi = a_minus_b["ci95_upper"]
+    if (ab_hi is not None) and (ab_hi < meaningful_effect):
+        return "G0->dead"  # whole pipeline confidently captures no structure
+    return "G0->weak"  # (A)−(B) also underpowered → escalate before concluding
 
 
 def run_gate0(
@@ -150,6 +160,7 @@ def run_gate0(
     wikitext_name: str = "wikitext-2-raw-v1",
     vocab_cap: int = 1000,
     wikitext_corpus: Optional["c3._WikiTextCorpus"] = None,
+    meaningful_effect_floor: float = 0.02,
 ) -> dict:
     """Run all five Gate 0 arms and assemble the DiD summary."""
     start = time.time()
@@ -296,7 +307,10 @@ def run_gate0(
         "per_seed": gauge_4b,
     }
 
-    verdict = _classify_verdict(did, a_minus_b, gauge, len(seeds))
+    verdict = _classify_verdict(
+        did, a_minus_b, gauge, len(seeds),
+        meaningful_effect=meaningful_effect_floor,
+    )
 
     summary = {
         "header": {
@@ -334,6 +348,7 @@ def run_gate0(
                 "use_context_residual": False,
             },
             "corpus": corpus_info,
+            "meaningful_effect_floor": meaningful_effect_floor,
             "device": device,
             "wall_clock_seconds": None,
         },
@@ -488,6 +503,27 @@ def format_gate0_markdown(summary: dict) -> str:
     return "\n".join(lines)
 
 
+def reclassify_summary(summary: dict, meaningful_effect: float = 0.02) -> dict:
+    """Re-derive the verdict from an already-computed summary (no re-run).
+
+    The verdict is a pure function of the stored DiD / (A)−(B) / gauge
+    stats, so a run whose verdict was produced by an older classifier can
+    be corrected in place without re-running the (expensive) arms.
+    """
+    did = summary["primary_did"]["stats"]
+    a_minus_b = summary["secondary"]["a_minus_b_whole_pipeline"]
+    gauge = summary["gauge_confirmation_E"]
+    old = summary.get("verdict")
+    new = _classify_verdict(
+        did, a_minus_b, gauge, summary["header"]["n_seeds"],
+        meaningful_effect=meaningful_effect,
+    )
+    summary["verdict"] = new
+    summary["verdict_reclassified_from"] = old
+    summary["header"]["meaningful_effect_floor"] = meaningful_effect
+    return summary
+
+
 def write_gate0_outputs(summary: dict, output_dir: Path):
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -526,8 +562,27 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                    choices=("synthetic", "wikitext"))
     p.add_argument("--wikitext-name", default="wikitext-2-raw-v1")
     p.add_argument("--vocab-cap", type=int, default=1000)
+    p.add_argument("--meaningful-effect-floor", type=float, default=0.02,
+                   help="DiD effect-size floor for null-cons/dead vs weak.")
+    p.add_argument("--reclassify", default=None,
+                   help="Path to an existing gate0_summary.json: re-derive "
+                        "the verdict (no re-run) and rewrite outputs.")
     p.add_argument("--output-dir", default="reports/gate0")
     args = p.parse_args(argv)
+
+    # Re-label an existing run's verdict without re-running the arms.
+    if args.reclassify:
+        in_path = Path(args.reclassify)
+        summary = json.loads(in_path.read_text())
+        summary = reclassify_summary(summary, args.meaningful_effect_floor)
+        out_dir = Path(args.output_dir) if args.output_dir != "reports/gate0" \
+            else in_path.parent
+        json_path, md_path = write_gate0_outputs(summary, out_dir)
+        print(f"reclassified: {summary.get('verdict_reclassified_from')} "
+              f"-> {summary['verdict']} "
+              f"(meaningful_effect_floor={args.meaningful_effect_floor})")
+        print(f"wrote {json_path}\nwrote {md_path}")
+        return 0
 
     repo_root = _HERE.parent
     summary = run_gate0(
@@ -552,6 +607,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         corpus_source=args.corpus_source,
         wikitext_name=args.wikitext_name,
         vocab_cap=args.vocab_cap,
+        meaningful_effect_floor=args.meaningful_effect_floor,
     )
     json_path, md_path = write_gate0_outputs(summary, Path(args.output_dir))
     print(format_gate0_markdown(summary))

@@ -166,6 +166,78 @@ class TestGate0WorldShuffle(unittest.TestCase):
         self.assertNotEqual(shuf_train, shuf_train_s1)
 
 
+class TestGate0VerdictLadder(unittest.TestCase):
+    """Verdict classifier — pins the precommit branch table, esp. the
+    underpowered-positive → weak case the first implementation mis-routed
+    to dead."""
+
+    def setUp(self):
+        self.g = importlib.import_module("gate0_frame_a")
+
+    @staticmethod
+    def _stat(mean, lo, hi, robust):
+        return {
+            "mean_delta": mean, "ci95_lower": lo, "ci95_upper": hi,
+            "ci95_above_zero": (lo is not None and lo > 0.0),
+            "per_seed_robust_ge_threshold": robust,
+        }
+
+    GAUGE_OK = {"passes_4a_and_4b": True}
+    GAUGE_BAD = {"passes_4a_and_4b": False}
+
+    def test_confound_dominates(self):
+        did = self._stat(0.5, 0.4, 0.6, True)  # would be "pass" but gauge bad
+        v = self.g._classify_verdict(did, did, self.GAUGE_BAD, 10)
+        self.assertEqual(v, "G0->confound")
+
+    def test_pass(self):
+        did = self._stat(0.10, 0.04, 0.16, True)
+        ab = self._stat(0.10, 0.04, 0.16, True)
+        self.assertEqual(self.g._classify_verdict(did, ab, self.GAUGE_OK, 10),
+                         "G0->pass")
+
+    def test_underpowered_positive_is_weak_not_dead(self):
+        # The actual 2026-05-28 n=10 wikitext run: DiD +0.019, CI [-0.121,
+        # +0.159], 6/10 positive. Wide CI (hi >> 0.02) => cannot rule out a
+        # real effect => weak (escalate n), NOT dead.
+        did = self._stat(0.0191, -0.1207, 0.1590, False)
+        ab = self._stat(0.0068, -0.1298, 0.1435, False)
+        self.assertEqual(self.g._classify_verdict(did, ab, self.GAUGE_OK, 10),
+                         "G0->weak")
+
+    def test_null_cons_requires_tight_did_and_positive_landscape(self):
+        # DiD confidently below floor (hi < 0.02) AND (A)-(B) CI > 0.
+        did = self._stat(0.001, -0.004, 0.006, False)
+        ab = self._stat(0.10, 0.04, 0.16, True)
+        self.assertEqual(self.g._classify_verdict(did, ab, self.GAUGE_OK, 10),
+                         "G0->null-cons")
+
+    def test_dead_requires_both_tight_and_flat(self):
+        did = self._stat(0.001, -0.004, 0.006, False)
+        ab = self._stat(0.001, -0.004, 0.006, False)
+        self.assertEqual(self.g._classify_verdict(did, ab, self.GAUGE_OK, 10),
+                         "G0->dead")
+
+    def test_tight_did_but_underpowered_landscape_is_weak(self):
+        did = self._stat(0.001, -0.004, 0.006, False)  # tight, below floor
+        ab = self._stat(0.05, -0.05, 0.20, False)       # wide, can't conclude
+        self.assertEqual(self.g._classify_verdict(did, ab, self.GAUGE_OK, 10),
+                         "G0->weak")
+
+    def test_reclassify_summary_corrects_verdict(self):
+        summary = {
+            "header": {"n_seeds": 10},
+            "verdict": "G0->dead",  # old (buggy) label
+            "primary_did": {"stats": self._stat(0.0191, -0.1207, 0.1590, False)},
+            "secondary": {"a_minus_b_whole_pipeline":
+                          self._stat(0.0068, -0.1298, 0.1435, False)},
+            "gauge_confirmation_E": {"passes_4a_and_4b": True},
+        }
+        out = self.g.reclassify_summary(summary, meaningful_effect=0.02)
+        self.assertEqual(out["verdict"], "G0->weak")
+        self.assertEqual(out["verdict_reclassified_from"], "G0->dead")
+
+
 class TestGate0EndToEnd(unittest.TestCase):
     """G3 — run_gate0 assembles arms/DiD/gauge and never graduates."""
 
