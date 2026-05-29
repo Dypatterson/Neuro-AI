@@ -280,3 +280,29 @@ A phase result is not "done" until:
   query is always *"which numbered report exercises this knob?"*, never
   *"what's the default in the dataclass?"* This is the grep-by-default
   failure mode that caused the 2026-05-24 walk-back chain.
+
+## Agent skills
+
+The Matt Pocock engineering skills (`triage`, `to-issues`, `to-prd`, `diagnose`,
+`tdd`, `improve-codebase-architecture`, `grill-with-docs`, etc.) read three
+per-repo config files to align with this project's actual conventions.
+
+### Issue tracker
+
+Units of work are numbered markdown reports under `reports/<NNN>_*.md`, with
+blockers and active phase state tracked in `STATUS.md` and per-phase
+checklists under `notes/emergent-codebook/`. See
+[docs/agents/issue-tracker.md](docs/agents/issue-tracker.md).
+
+### Triage labels
+
+Triage state is recorded as a `Status:` line in the report file, mapped to
+this repo's existing `STATUS.md` blocker vocabulary. See
+[docs/agents/triage-labels.md](docs/agents/triage-labels.md).
+
+### Domain docs
+
+Single-context layout. The canonical "domain doc" surface is
+`docs/PROJECT_PLAN.md` + `notes/emergent-codebook/<phase>-*.md` +
+`notes/notes/<dated>.md`, not `CONTEXT.md` / `docs/adr/`. See
+[docs/agents/domain.md](docs/agents/domain.md).

@@ -178,7 +178,20 @@ Phase 3 has one headline metric that defines whether the phase crossed its viabi
 
 ### Headline metric
 
-**Recall@K on masked-token contextual completion, stratified by regime classification, evaluated against the shuffled-token control.**
+> **⚠️ SUPERSEDED 2026-05-28 — read [2026-05-28-phase3-frame-b-continual-learning-and-gauge-control-finding.md](../notes/2026-05-28-phase3-frame-b-continual-learning-and-gauge-control-finding.md) first.**
+> The headline below and its **shuffled-token control are RETIRED.** The
+> implemented shuffled-token control is a *gauge transformation* on i.i.d.
+> random atoms (it permutes which random atom each token-id wears), so
+> `E[Δ] = 0` by construction — it cannot test corpus-specificity, and the
+> Path C / Path α / Γ1 nulls measured against it are uninterpretable. Phase 3
+> is reframed around its actual title (continual learning / "Growing
+> Codebook") with a **corpus-stream-shuffle** control. The Frame B headline +
+> graduation criterion in that note are PROPOSED pending sign-off; the
+> criterion below is **not binding**. Next deliverable: **Gate 0** (plain
+> pull/push vs. a valid control, both outcomes pre-committed to route into
+> Frame B).
+
+**[RETIRED] Recall@K on masked-token contextual completion, stratified by regime classification, evaluated against the shuffled-token control.**
 
 One number, one stratification axis, one controlled comparison. Aligns directly with the architecture's core claim: retrieval quality emerges from geometry-conditioned consolidation.
 

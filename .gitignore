@@ -17,3 +17,8 @@ research/
 .env
 .env.*
 
+
+# reports/ = generated experiment output. Keep only narrative NNN_*.md notes.
+reports/**/*.json
+reports/**/*.csv
+reports/**/*.log
