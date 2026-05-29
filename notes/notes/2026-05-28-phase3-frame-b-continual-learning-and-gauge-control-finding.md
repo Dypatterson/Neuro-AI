@@ -198,6 +198,13 @@ untouched. (This is also why SFA / Γ3 was set aside: it needed ordered
 
 ## Part 3 — Frame B headline metric + graduation criterion (PROPOSED — needs sign-off)
 
+> **REFINED 2026-05-28 → see [2026-05-28-frame-b-exposure-slope-headline-design.md](2026-05-28-frame-b-exposure-slope-headline-design.md).**
+> The "slope (and asymptote)" sketch below is superseded by the precise
+> **within-seed slope-DiD** design (the *asymptote* = the endpoint, which is
+> exactly the high-variance Gate 0 DiD, so it is demoted to a drill-down; the
+> *slope* differences out the per-seed codebook intercept that made the
+> endpoint underpowered). The sketch is retained below for history.
+
 > **PROPOSED headline:** *Masked-token contextual-completion quality improves
 > with cumulative exposure to the corpus stream, and the improvement depends
 > on real corpus co-occurrence.*

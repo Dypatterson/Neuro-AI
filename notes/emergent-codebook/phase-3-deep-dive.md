@@ -185,11 +185,21 @@ Phase 3 has one headline metric that defines whether the phase crossed its viabi
 > `E[Δ] = 0` by construction — it cannot test corpus-specificity, and the
 > Path C / Path α / Γ1 nulls measured against it are uninterpretable. Phase 3
 > is reframed around its actual title (continual learning / "Growing
-> Codebook") with a **corpus-stream-shuffle** control. The Frame B headline +
-> graduation criterion in that note are PROPOSED pending sign-off; the
-> criterion below is **not binding**. Next deliverable: **Gate 0** (plain
-> pull/push vs. a valid control, both outcomes pre-committed to route into
-> Frame B).
+> Codebook") with a **corpus-stream-shuffle** control. The criterion below is
+> **not binding**.
+>
+> **PROPOSED replacement headline (2026-05-28, pending sign-off):** the
+> **within-seed exposure–recall slope-DiD** — full spec at
+> [2026-05-28-frame-b-exposure-slope-headline-design.md](../notes/2026-05-28-frame-b-exposure-slope-headline-design.md).
+> `Δβ(s) = β_real(s) − β_shuffle(s)`, the per-seed OLS slope of Recall@K on
+> log cumulative exposure (real world − stream-shuffle world). The within-seed
+> slope removes the per-seed codebook intercept that made the Gate 0 endpoint
+> DiD structurally underpowered (σ=0.196, ~590 seeds for power). Graduation =
+> two clauses (slope CI > 0 with a per-e-fold floor, AND ≥70% per-seed) + a
+> realized-σ falsifiability gate, n ≥ 10. **Gate 0 already ran** (gauge
+> confirmed; verdict `G0->weak` — the single-point estimand is underpowered,
+> which is *why* the headline moved to the slope). These numbers are PROPOSED
+> pending user sign-off before they enter this spec as binding.
 
 **[RETIRED] Recall@K on masked-token contextual completion, stratified by regime classification, evaluated against the shuffled-token control.**
 
