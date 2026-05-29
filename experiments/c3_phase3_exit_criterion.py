@@ -705,6 +705,7 @@ def _run_single_seed_condition(
     world: str = "real",
     perm_seed_override: Optional[int] = None,
     identity_permutation: bool = False,
+    window_seed_override: Optional[int] = None,
 ) -> Dict[str, object]:
     """Run one (seed, mode, condition) cell.
 
@@ -850,15 +851,20 @@ def _run_single_seed_condition(
             )
         # Per-seed window sampling. Subsample seeds are disjoint from
         # the substrate / shuffle / control RNG streams used above.
+        # window_seed_override (variance-decomposition diagnostic) lets a
+        # FIXED atom seed draw DIFFERENT corpus-window subsamples, so the
+        # corpus-draw component of per-seed variance can be separated from
+        # the atom-draw component. Defaults to the atom seed (unchanged).
+        ws = window_seed_override if window_seed_override is not None else seed
         train_windows = sample_windows(
             all_train_windows,
             min(n_train_windows, len(all_train_windows)),
-            seed=seed + 50000,
+            seed=ws + 50000,
         )
         test_windows = sample_windows(
             all_test_windows,
             min(n_test_windows, len(all_test_windows)),
-            seed=seed + 60000,
+            seed=ws + 60000,
         )
     if landscape_size > len(train_windows):
         landscape_size = len(train_windows)

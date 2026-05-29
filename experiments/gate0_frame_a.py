@@ -524,6 +524,311 @@ def reclassify_summary(summary: dict, meaningful_effect: float = 0.02) -> dict:
     return summary
 
 
+# Variance investigation -------------------------------------------------------
+#
+# Gate 0 returned G0->weak because the per-seed DiD σ (~0.19 on the n=10
+# wikitext run) dwarfs the ~+0.02–0.03 effect. These two tools attack that
+# bottleneck: (1) decompose the variance of an existing run with NO new
+# compute, and (2) a nested atom×window run that separates the codebook-draw
+# component from the corpus-window-draw component (which fix applies depends
+# on which dominates).
+
+
+def _mean(xs: Sequence[float]) -> float:
+    return (sum(xs) / len(xs)) if xs else 0.0
+
+
+def _variance(xs: Sequence[float]) -> float:
+    n = len(xs)
+    if n < 2:
+        return 0.0
+    m = _mean(xs)
+    return sum((x - m) ** 2 for x in xs) / (n - 1)
+
+
+def _std(xs: Sequence[float]) -> float:
+    return _variance(xs) ** 0.5
+
+
+def _corr(xs: Sequence[float], ys: Sequence[float]) -> Optional[float]:
+    n = len(xs)
+    if n < 2:
+        return None
+    mx, my = _mean(xs), _mean(ys)
+    sxy = sum((x - mx) * (y - my) for x, y in zip(xs, ys))
+    sxx = sum((x - mx) ** 2 for x in xs)
+    syy = sum((y - my) ** 2 for y in ys)
+    if sxx <= 0 or syy <= 0:
+        return None
+    return sxy / (sxx * syy) ** 0.5
+
+
+def variance_report_from_summary(
+    summary: dict, effect: float = 0.02
+) -> dict:
+    """Decompose the per-seed DiD variance of an EXISTING run (no re-run).
+
+    Splits σ(DiD) into its contrasts and compares each to the single-arm
+    binomial floor, so we can tell binomial sampling noise from real
+    seed-level (codebook×corpus) variance, and which contrast carries it.
+    """
+    psr = summary["per_seed_recall"]
+    op = summary["header"]["operating_point"]
+    n_test = op.get("n_test_windows")
+    seeds = list(psr["A"].keys())
+
+    def _get(arm, s):
+        v = psr[arm].get(s)
+        return None if v is None else float(v)
+
+    ac, bd, did, ab = [], [], [], []
+    a_vals, b_vals, c_vals, d_vals = [], [], [], []
+    for s in seeds:
+        A, B, C, D = (_get(x, s) for x in ("A", "B", "C", "D"))
+        if None in (A, B, C, D):
+            continue
+        a_vals.append(A); b_vals.append(B); c_vals.append(C); d_vals.append(D)
+        ac.append(A - C); bd.append(B - D); ab.append(A - B)
+        did.append((A - C) - (B - D))
+
+    p_bar = _mean(a_vals + b_vals + c_vals + d_vals)
+    binom_floor = ((p_bar * (1 - p_bar) / n_test) ** 0.5) if n_test else None
+
+    n = len(did)
+    sd_did = _std(did)
+    sem_did = sd_did / (n ** 0.5) if n else 0.0
+    # Honest n for ~80% power (z≈2.8 combining 1.96+0.84) at the effect size.
+    n_for_power = (
+        int(((2.8 * sd_did / effect) ** 2) + 0.999) if sd_did > 0 else None
+    )
+
+    report = {
+        "n_seeds_used": n,
+        "did_mean": _mean(did),
+        "did_sd": sd_did,
+        "did_sem": sem_did,
+        "contrast_sd": {
+            "A_minus_C_cons_on_real": _std(ac),
+            "B_minus_D_cons_on_shuffled": _std(bd),
+            "A_minus_B_whole_pipeline": _std(ab),
+            "DiD": sd_did,
+        },
+        "arm_recall_sd": {
+            "A": _std(a_vals), "B": _std(b_vals),
+            "C": _std(c_vals), "D": _std(d_vals),
+        },
+        "corr_AC_BD": _corr(ac, bd),
+        "mean_recall": p_bar,
+        "single_arm_binomial_floor": binom_floor,
+        "did_sd_over_binomial_floor": (
+            (sd_did / binom_floor) if binom_floor else None
+        ),
+        "effect_size_floor": effect,
+        "n_for_80pct_power_at_effect": n_for_power,
+        "diagnosis": _variance_diagnosis(ac, bd, did, binom_floor, effect),
+    }
+    return report
+
+
+def _variance_diagnosis(ac, bd, did, binom_floor, effect) -> str:
+    sd_did = _std(did)
+    if binom_floor and sd_did <= 2.5 * binom_floor:
+        return (
+            "DiD σ is near the binomial floor — more TEST WINDOWS reduce it. "
+            "Effect may simply be ~0."
+        )
+    parts = []
+    if _std(ac) > 0 and _std(bd) > 0:
+        parts.append(
+            f"consolidation-lift varies strongly by seed in BOTH worlds "
+            f"(σ(A−C)={_std(ac):.3f}, σ(B−D)={_std(bd):.3f})"
+        )
+    c = _corr(ac, bd)
+    if c is not None:
+        parts.append(
+            f"corr(A−C, B−D)={c:+.2f} — "
+            + ("the worlds' lifts move together, so the DiD CANCELS much of "
+               "the seed variance (good); residual is the real-vs-shuffled "
+               "interaction." if c > 0.3 else
+               "the worlds' lifts are weakly/anti correlated, so the DiD "
+               "does NOT cancel seed variance — pairing on the codebook is "
+               "not buying much.")
+        )
+    parts.append(
+        "σ(DiD) ≫ binomial floor → the variance is structural (codebook×corpus "
+        "draw), NOT sampling noise; more test windows won't help. The nested "
+        "atom×window decomposition (run_variance_decomposition) tells you "
+        "whether it's the ATOM draw (→ control-variate on C, or change the "
+        "estimand to a slope) or the WINDOW draw (→ average K window draws "
+        "per seed)."
+    )
+    return " ".join(parts)
+
+
+def run_variance_decomposition(
+    *,
+    atom_seeds: Sequence[int],
+    window_seeds: Sequence[int],
+    D: int,
+    landscape_size: int,
+    window_size: int,
+    n_test_windows: int,
+    n_train_windows: int,
+    vocab_size: int,
+    k: int,
+    beta: float,
+    n_consolidation_events: int,
+    alpha_anti: float = 0.01,
+    repulsion_step_size: float = 0.05,
+    lr_pull: float = 0.1,
+    lr_push: float = 0.05,
+    device: str = "cpu",
+    repo_root: Path = _HERE.parent,
+    corpus_source: str = "wikitext",
+    wikitext_name: str = "wikitext-2-raw-v1",
+    vocab_cap: int = 1000,
+    wikitext_corpus: Optional["c3._WikiTextCorpus"] = None,
+) -> dict:
+    """Nested decomposition of the consolidation-lift L = Recall(A) − Recall(C)
+    (real world) over atom_seeds × window_seeds.
+
+    Separates σ(L) into a between-ATOM-draw component and a within-atom
+    (corpus-WINDOW-draw + binomial) component via a random-effects one-way
+    ANOVA. The dominant component dictates the variance-reduction lever.
+    """
+    effective_vocab = vocab_size
+    if corpus_source == "wikitext" and wikitext_corpus is None:
+        wikitext_corpus = c3._load_wikitext_corpus(
+            repo_root=repo_root, wikitext_name=wikitext_name, vocab_cap=vocab_cap,
+        )
+    if wikitext_corpus is not None:
+        effective_vocab = wikitext_corpus.vocab_size
+
+    recall_levels: List[float] = []
+
+    def _lift(atom_seed, window_seed):
+        common = dict(
+            theta_prime_mode="default", control_mode="shuffled-token",
+            n_consolidation_events=n_consolidation_events, D=D,
+            landscape_size=landscape_size, window_size=window_size,
+            n_test_windows=n_test_windows, vocab_size=effective_vocab,
+            n_train_windows=n_train_windows, beta=beta, k=k,
+            alpha_anti=alpha_anti, repulsion_step_size=repulsion_step_size,
+            lr_pull=lr_pull, lr_push=lr_push, device=device,
+            repo_root=repo_root, wikitext_corpus=wikitext_corpus,
+            use_context_residual=False, lr_cr=0.1, use_pull_push=True,
+            world="real", is_control=False,
+            window_seed_override=window_seed,
+        )
+        A = c3._run_single_seed_condition(
+            seed=atom_seed, standard_mode="consolidated", **common)
+        C = c3._run_single_seed_condition(
+            seed=atom_seed, standard_mode="frozen", **common)
+        ra, rc = _overall_recall(A), _overall_recall(C)
+        if ra is None or rc is None:
+            return None
+        recall_levels.extend([ra, rc])
+        return ra - rc
+
+    # L[a][w]
+    L = {a: {w: _lift(a, w) for w in window_seeds} for a in atom_seeds}
+    cells = [L[a][w] for a in atom_seeds for w in window_seeds
+             if L[a][w] is not None]
+    A_count = len(atom_seeds)
+    W_count = len(window_seeds)
+
+    grand = _mean(cells)
+    atom_means = {a: _mean([v for v in L[a].values() if v is not None])
+                  for a in atom_seeds}
+    # Random-effects one-way ANOVA (balanced approx; uses W_count per atom).
+    ss_between = W_count * sum((atom_means[a] - grand) ** 2 for a in atom_seeds)
+    ss_within = sum(
+        (L[a][w] - atom_means[a]) ** 2
+        for a in atom_seeds for w in window_seeds if L[a][w] is not None
+    )
+    ms_between = ss_between / (A_count - 1) if A_count > 1 else 0.0
+    ms_within = ss_within / (A_count * (W_count - 1)) if W_count > 1 else 0.0
+    var_atom = max(0.0, (ms_between - ms_within) / W_count) if W_count else 0.0
+    var_within = ms_within  # corpus-window draw + binomial (conflated)
+    var_total = _variance(cells)
+
+    # Separate the binomial component out of var_within. L = A−C over the
+    # same windows; an upper bound on its binomial variance is the
+    # independent-arms bound 2·p(1−p)/n_test at the mean recall level. The
+    # residual is the genuine corpus-WINDOW-draw component.
+    p_bar = _mean(recall_levels) if recall_levels else 0.0
+    var_binom_floor = (
+        2.0 * p_bar * (1 - p_bar) / n_test_windows if n_test_windows else 0.0
+    )
+    var_window_draw = max(0.0, var_within - var_binom_floor)
+
+    # Compare the three structural components: atom-draw, corpus-window-draw,
+    # binomial. Binomial is killable by more test windows; window-draw by
+    # averaging window draws per seed; atom-draw only by control-variates /
+    # a slope estimand / large n.
+    comps = {
+        "atom-draw": var_atom,
+        "window-draw": var_window_draw,
+        "binomial": min(var_binom_floor, var_within),
+    }
+    dominant = max(comps, key=comps.get)
+    recs = {
+        "atom-draw": (
+            "Between-CODEBOOK-DRAW variance dominates. Averaging window draws "
+            "or adding test windows will NOT help. Levers: (a) control-variate "
+            "/ regression adjustment using the frozen-codebook recall C as a "
+            "covariate (CUPED-style, a re-analysis of existing data); (b) "
+            "change the estimand to an exposure–recall SLOPE (Frame B) which "
+            "pools within-seed and is higher-SNR; (c) accept honest power needs "
+            "large n."
+        ),
+        "window-draw": (
+            "Corpus-WINDOW-draw variance dominates. Averaging K independent "
+            "window draws per atom seed reduces σ ~√K — a cheap win before "
+            "scaling atom-seed n."
+        ),
+        "binomial": (
+            "Binomial sampling noise dominates at this n_test — increase "
+            "n_test_windows to shrink it, then re-decompose to see the real "
+            "structural split. (Likely an artifact of a small test set or a "
+            "too-simple corpus; the real wikitext op point at n_test≥512 has "
+            "structural σ ≫ binomial.)"
+        ),
+    }
+
+    return {
+        "kind": "variance_decomposition_consolidation_lift_A_minus_C_real",
+        "atom_seeds": list(atom_seeds),
+        "window_seeds": list(window_seeds),
+        "operating_point": {
+            "D": D, "beta": beta, "K": k, "window_size": window_size,
+            "vocab_size": effective_vocab, "landscape_size": landscape_size,
+            "n_consolidation_events": n_consolidation_events,
+            "n_test_windows": n_test_windows, "corpus_source": corpus_source,
+        },
+        "L_matrix": {str(a): {str(w): L[a][w] for w in window_seeds}
+                     for a in atom_seeds},
+        "grand_mean_lift": grand,
+        "mean_recall_level": p_bar,
+        "sd_total": var_total ** 0.5,
+        "sd_between_atom": var_atom ** 0.5,
+        "sd_within_atom_window_binom": var_within ** 0.5,
+        "sd_window_draw_binom_subtracted": var_window_draw ** 0.5,
+        "sd_binomial_floor_estimate": min(var_binom_floor, var_within) ** 0.5,
+        "variance_components": {
+            "atom_draw": var_atom,
+            "window_draw": var_window_draw,
+            "binomial": min(var_binom_floor, var_within),
+        },
+        "var_fraction_atom": (
+            var_atom / (var_atom + var_within)
+            if (var_atom + var_within) > 0 else None
+        ),
+        "dominant_source": dominant,
+        "recommendation": recs[dominant],
+    }
+
+
 def write_gate0_outputs(summary: dict, output_dir: Path):
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -567,8 +872,47 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     p.add_argument("--reclassify", default=None,
                    help="Path to an existing gate0_summary.json: re-derive "
                         "the verdict (no re-run) and rewrite outputs.")
+    p.add_argument("--variance-report", default=None,
+                   help="Path to an existing gate0_summary.json: decompose "
+                        "the per-seed DiD variance (no re-run).")
+    p.add_argument("--variance-decomp", action="store_true",
+                   help="Run the nested atom×window variance decomposition "
+                        "of the consolidation lift (A−C).")
+    p.add_argument("--atom-seeds", default="0,1,2,3")
+    p.add_argument("--window-seeds", default="0,1,2,3")
     p.add_argument("--output-dir", default="reports/gate0")
     args = p.parse_args(argv)
+
+    # Analyze an existing run's DiD variance — no re-run.
+    if args.variance_report:
+        summary = json.loads(Path(args.variance_report).read_text())
+        rep = variance_report_from_summary(summary, args.meaningful_effect_floor)
+        print(json.dumps(rep, indent=2, default=str))
+        return 0
+
+    # Nested atom×window decomposition of the consolidation lift.
+    if args.variance_decomp:
+        rep = run_variance_decomposition(
+            atom_seeds=_parse_seeds(args.atom_seeds),
+            window_seeds=_parse_seeds(args.window_seeds),
+            D=args.D, landscape_size=args.landscape_size,
+            window_size=args.window_size, n_test_windows=args.n_test_windows,
+            n_train_windows=args.n_train_windows, vocab_size=args.vocab_size,
+            k=args.k, beta=args.beta,
+            n_consolidation_events=args.n_consolidation_events,
+            alpha_anti=args.alpha_anti,
+            repulsion_step_size=args.repulsion_step_size,
+            lr_pull=args.lr_pull, lr_push=args.lr_push, device=args.device,
+            repo_root=_HERE.parent, corpus_source=args.corpus_source,
+            wikitext_name=args.wikitext_name, vocab_cap=args.vocab_cap,
+        )
+        out = Path(args.output_dir)
+        out.mkdir(parents=True, exist_ok=True)
+        (out / "variance_decomp.json").write_text(
+            json.dumps(rep, indent=2, default=str))
+        print(json.dumps(rep, indent=2, default=str))
+        print(f"\nwrote {out / 'variance_decomp.json'}")
+        return 0
 
     # Re-label an existing run's verdict without re-running the arms.
     if args.reclassify:

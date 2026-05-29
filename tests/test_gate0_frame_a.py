@@ -361,5 +361,63 @@ class TestGate0EndToEnd(unittest.TestCase):
         self.assertIn("DiD", md)
 
 
+class TestGate0VarianceTools(unittest.TestCase):
+    """Variance-investigation tools: existing-data analyzer + nested
+    atom×window decomposition."""
+
+    def setUp(self):
+        self.g = importlib.import_module("gate0_frame_a")
+        self.c3 = importlib.import_module("c3_phase3_exit_criterion")
+
+    def test_variance_report_from_summary(self):
+        # High per-seed DiD variance with sign flips (the real regime).
+        summary = {
+            "header": {"operating_point": {"n_test_windows": 512}},
+            "per_seed_recall": {
+                "A": {"0": 0.50, "1": 0.10, "2": 0.40},
+                "B": {"0": 0.20, "1": 0.30, "2": 0.20},
+                "C": {"0": 0.20, "1": 0.20, "2": 0.20},
+                "D": {"0": 0.25, "1": 0.10, "2": 0.30},
+            },
+        }
+        rep = self.g.variance_report_from_summary(summary, effect=0.02)
+        self.assertEqual(rep["n_seeds_used"], 3)
+        self.assertIn("DiD", rep["contrast_sd"])
+        self.assertGreater(rep["did_sd"], 0.1)  # sign-flipping → large σ
+        self.assertIsInstance(rep["diagnosis"], str)
+        # Large σ vs a 0.02 effect → honest n is large (the brutal arithmetic).
+        self.assertGreater(rep["n_for_80pct_power_at_effect"], 30)
+
+    def test_run_variance_decomposition_structure(self):
+        # Structured fake wikitext (repeating pattern → co-occurrence the
+        # window_seed_override path can resample). 2 atoms × 2 windows.
+        V = 24
+        train = [i % V for i in range(400)]
+        held = [i % V for i in range(160)]
+        corpus = self.c3._WikiTextCorpus(
+            vocab=types.SimpleNamespace(id_to_token=list(range(V))),
+            train_ids=train, val_ids=held[:80], test_ids=held[80:],
+        )
+        rep = self.g.run_variance_decomposition(
+            atom_seeds=[0, 1], window_seeds=[0, 1],
+            D=128, landscape_size=4, window_size=4,
+            n_test_windows=16, n_train_windows=40, vocab_size=V, k=3,
+            beta=10.0, n_consolidation_events=8, device="cpu",
+            repo_root=REPO_ROOT, corpus_source="wikitext",
+            wikitext_corpus=corpus,
+        )
+        self.assertIn(rep["dominant_source"],
+                      {"atom-draw", "window-draw", "binomial"})
+        self.assertIn("sd_between_atom", rep)
+        self.assertIn("variance_components", rep)
+        self.assertEqual(
+            set(rep["variance_components"]),
+            {"atom_draw", "window_draw", "binomial"},
+        )
+        # window_seed_override genuinely varies the cells (else within-atom
+        # var would be a hard 0 and the decomposition would be vacuous).
+        self.assertEqual(len(rep["L_matrix"]), 2)
+
+
 if __name__ == "__main__":
     unittest.main()
