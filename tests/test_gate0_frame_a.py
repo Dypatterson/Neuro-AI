@@ -226,6 +226,41 @@ class TestGate0EndToEnd(unittest.TestCase):
             },
         )
 
+    def test_theta_prime_mode_both_is_accepted(self):
+        # Regression: 'both' is expanded at the c3 run() layer, which Gate 0
+        # bypasses — it must collapse to a single per-cell mode (the DiD is
+        # theta-mode-invariant), not forward 'both' into _build_theta_prime_fn.
+        corpus = _make_fake_corpus(self.c3, vocab_size=20)
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            summary = self.gate0.run_gate0(
+                seeds=[0, 1],
+                D=128,
+                landscape_size=4,
+                window_size=4,
+                n_test_windows=12,
+                n_train_windows=40,
+                vocab_size=20,
+                k=3,
+                beta=10.0,
+                theta_prime_mode="both",
+                n_consolidation_events=8,
+                device="cpu",
+                output_dir=Path(tmp),
+                repo_root=REPO_ROOT,
+                corpus_source="wikitext",
+                wikitext_corpus=corpus,
+            )
+        op = summary["header"]["operating_point"]
+        self.assertEqual(op["theta_prime_mode_requested"], "both")
+        self.assertEqual(op["theta_prime_mode_used_per_cell"], "default")
+        self.assertTrue(op["did_is_theta_mode_invariant"])
+        # And it still produced a verdict + renders.
+        self.assertIn(summary["verdict"], {
+            "G0->pass", "G0->weak", "G0->null-cons", "G0->dead", "G0->confound",
+        })
+        self.assertIn("DiD", self.gate0.format_gate0_markdown(summary))
+
     def test_markdown_renders(self):
         corpus = _make_fake_corpus(self.c3, vocab_size=20)
         import tempfile

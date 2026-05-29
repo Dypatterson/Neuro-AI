@@ -158,6 +158,16 @@ def run_gate0(
 
     seeds = list(seeds)
 
+    # The Gate 0 DiD uses stratum-POOLED (overall) Recall@K, which is
+    # INVARIANT to theta_prime_mode: the mode only changes how outcomes are
+    # partitioned into regime strata (drill-down only — precommit §"Primary
+    # metric") and never the correct/total count. The per-cell driver helper
+    # takes a SINGLE mode ("both" is expanded at the c3 run() layer, which
+    # Gate 0 bypasses), so we run cells at one mode. "both" collapses to
+    # "default" — at β=10 the calibrated loader falls back to 1/β anyway, so
+    # the two stratifications are numerically identical here.
+    cell_theta_mode = "default" if theta_prime_mode == "both" else theta_prime_mode
+
     # Corpus: Gate 0 is designed for wikitext (real co-occurrence). The
     # synthetic path is supported for plumbing tests (DiD ≈ 0 expected,
     # since synthetic windows have no co-occurrence structure).
@@ -189,7 +199,7 @@ def run_gate0(
         return c3._run_single_seed_condition(
             seed=seed,
             is_control=is_control,
-            theta_prime_mode=theta_prime_mode,
+            theta_prime_mode=cell_theta_mode,
             standard_mode=standard_mode,
             control_mode="shuffled-token",
             n_consolidation_events=n_consolidation_events,
@@ -311,7 +321,9 @@ def run_gate0(
                 "beta": beta,
                 "K": k,
                 "n_consolidation_events": n_consolidation_events,
-                "theta_prime_mode": theta_prime_mode,
+                "theta_prime_mode_requested": theta_prime_mode,
+                "theta_prime_mode_used_per_cell": cell_theta_mode,
+                "did_is_theta_mode_invariant": True,
             },
             "path_c_stack": {
                 "lr_pull": lr_pull,
@@ -382,7 +394,8 @@ def format_gate0_markdown(summary: dict) -> str:
         f"window={op['window_size']} vocab={op['vocab_size']} "
         f"landscape={op['landscape_size']} "
         f"cons_events={op['n_consolidation_events']} "
-        f"θ′={op['theta_prime_mode']}"
+        f"θ′={op['theta_prime_mode_used_per_cell']} "
+        f"(requested {op['theta_prime_mode_requested']}; DiD is θ′-invariant)"
     )
     pc = h["path_c_stack"]
     lines.append(
