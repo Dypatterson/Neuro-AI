@@ -24,6 +24,23 @@ winner = the slope-DiD spine (29/30).
 
 ## Why a slope (the binding constraint)
 
+> **⚠️ Walk-back (2026-05-29) — read before trusting the variance attribution
+> in this section and in §"Variance handling".** The claim that the structural
+> σ is dominated by the **codebook draw** is an **over-read**. The 2026-05-29
+> Stage-1 decomposition finds the within-seed **corpus-window draw dominates the
+> codebook/atom component ~24×** (point split ≈ 96/4 on a single fragile 10×4
+> run, df = 9 — treat as a *ranking*, not a percentage). The slope is **still
+> viable** because it differences out *any* per-seed additive shift (window-draw
+> included), not specifically the codebook — but its justification is the
+> *additivity*, not codebook-dominance, and **σ(β)/σ(Δβ) remains untested** (the
+> Q1 conditional is open). Further dispositive finding: even a perfect √K
+> window-average **cannot clear the endpoint level-DiD off zero at n = 10 by
+> construction** (best pool-supported K = 9 ⇒ CI ≈ [−0.013, +0.051]); **n ≈ 27
+> seeds**, not more windows, is the lever that clears zero. Sources:
+> [06-stage1-review-findings.md](../../brainstorm-workspace/2026-05-29-frameb-grill/06-stage1-review-findings.md)
+> + [07-workflow-digest.md](../../brainstorm-workspace/2026-05-29-frameb-grill/07-workflow-digest.md).
+> PROPOSED status unchanged; no number below is amended.
+
 The Gate 0 endpoint difference-in-differences failed as **underpowered, not
 falsified**: per-seed `σ(DiD) = 0.196`, ~5× the binomial floor, so the
 variance is **structural** (the random codebook draw × corpus geometry),
@@ -108,6 +125,13 @@ retained *solely* as the `FB→confound` STOP check (4a byte-identity + gauge
 slope-diff ≈ 0).
 
 ## Variance handling (the whole point)
+
+> **⚠️ Walk-back (2026-05-29):** the `σ²_intercept ≈ 0.196² − binom²`
+> attribution below assumes the per-seed variance loads on a *codebook*
+> intercept the slope removes. The 2026-05-29 decomposition shows the dominant
+> per-seed component is the **corpus-window draw (~24× the atom draw)**, not the
+> codebook; the slope helps only insofar as that variance is *additive*
+> (untested — Q1 open). See the walk-back box under §"Why a slope" above.
 
 Three nested variance kills: (1) the **within-seed slope** removes the additive
 per-seed codebook intercept (`σ²_intercept ≈ 0.196² − binom²`); (2) the

@@ -547,7 +547,16 @@ def _consolidate_codebook(
     lr_cr: float = 0.1,
     use_pull_push: bool = True,
 ) -> Tuple[torch.Tensor, ConsolidationState, OnlineCodebookUpdater, dict]:
-    """Run ``n_events`` consolidation observations over training windows.
+    """Run ``n_events`` *observations* (exposures) over training windows.
+
+    ``n_events`` counts ``observe()`` calls — one exposure per unit — NOT
+    consolidation events. A consolidation only *fires* when the buffer
+    fills (every ``consolidation_k`` observations, default 100), so e.g.
+    ``n_events=1000`` with ``consolidation_k=100`` produces only ~11 actual
+    consolidations (10 buffer-fills + one final forced flush). The caller's
+    public knob for this is ``n_consolidation_events`` / ``n_observations``
+    (the latter is the exposure-accurate name).
+
 
     For each event:
       1. Sample a training window and mask its last position (matches
@@ -683,6 +692,8 @@ def _run_single_seed_condition(
     theta_prime_mode: str,
     standard_mode: str,
     control_mode: str,
+    # Historical name for an exposure (observe()) count — see run()'s
+    # parameter comment. NOT a consolidation-event count.
     n_consolidation_events: int,
     D: int,
     landscape_size: int,
@@ -1022,7 +1033,20 @@ def run(
     theta_prime_mode: str,
     standard_mode: str = "consolidated",
     control_mode: str = "shuffled-token",
+    # NOTE: ``n_consolidation_events`` is a historical MISNOMER. It counts
+    # ``observe()`` calls — i.e. one *exposure* per unit, NOT consolidation
+    # events. Each unit drives one masked-window retrieval through
+    # ``updater.observe(...)``; a consolidation only *fires* when the
+    # buffer fills (``consolidation_k``, default 100), so
+    # ``n_consolidation_events=1000`` with ``consolidation_k=100`` yields
+    # only ~11 actual consolidations over 1000 observations. The accurate
+    # name is ``n_observations`` (accepted as an alias below); the old
+    # keyword is retained for backward compatibility because it is a public
+    # CLI flag (``--n-consolidation-events`` in this driver and in
+    # ``gate0_frame_a.py``), is used by several colab notebooks, and is
+    # passed positionally-by-keyword from the existing test suite.
     n_consolidation_events: int = 1000,
+    n_observations: Optional[int] = None,  # exposure-accurate alias for the above
     alpha_anti: float = 0.0,
     repulsion_step_size: float = 0.0,
     lr_pull: float = 0.1,
@@ -1044,7 +1068,29 @@ def run(
     ``theta_prime_mode == 'both'``. For each (mode, seed) pair runs the
     main and shuffled-token-control condition. Returns the assembled
     summary dict written to ``c3_summary.json``.
+
+    ``n_observations`` is the exposure-accurate alias for the
+    historically-named ``n_consolidation_events`` (see the parameter
+    comment above): it counts ``observe()`` calls (one exposure per unit),
+    NOT consolidation events. When ``n_observations`` is provided it
+    overrides ``n_consolidation_events``; otherwise the latter is used.
+    Passing both with conflicting values raises ``ValueError``.
     """
+    # Reconcile the exposure-accurate alias with the legacy keyword. The
+    # legacy keyword remains the value threaded everywhere downstream
+    # (including the emitted JSON metadata key, whose name is preserved for
+    # downstream variance tooling), so we only normalize the *value* here.
+    if n_observations is not None:
+        if (
+            n_observations != n_consolidation_events
+            and n_consolidation_events != 1000  # caller explicitly set the old kw too
+        ):
+            raise ValueError(
+                "run() received conflicting n_observations="
+                f"{n_observations} and n_consolidation_events="
+                f"{n_consolidation_events}; pass only one."
+            )
+        n_consolidation_events = n_observations
     if theta_prime_mode == "both":
         modes = list(THETA_PRIME_MODES)
     else:
@@ -1249,6 +1295,12 @@ def run(
             "graduation_gate_n_seeds": 10,
             "standard_mode": standard_mode,
             "control_mode": control_mode,
+            # KEY STRING PRESERVED: "n_consolidation_events" is a historical
+            # name for an *exposure* (observe()) count, NOT a consolidation-
+            # event count. Downstream variance tooling
+            # (variance_report_from_summary et al.) consumes this exact key,
+            # so the schema is intentionally left unchanged even though the
+            # value semantics are "number of observations".
             "n_consolidation_events": (
                 n_consolidation_events if standard_mode == "consolidated" else 0
             ),

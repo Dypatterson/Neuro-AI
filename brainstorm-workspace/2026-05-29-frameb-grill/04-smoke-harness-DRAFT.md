@@ -41,7 +41,7 @@ Run / re-use Gate 0's own variance tools on the corrected operating point:
 - `var_fraction_atom` high + `corr_AC_BD` low → per-seed luck is structural AND
   the worlds' lifts do NOT move together → within-pair differencing won't
   cancel it → **the slope reframe likely buys little power** (item 3 fires at
-  the endpoint level already). 
+  the endpoint level already). [WALK-BACK 2026-05-29: this is superseded — window-draw dominance does NOT auto-kill the OLS slope, which is invariant to per-seed ADDITIVE shifts (window-draw included); the Q1 σ(β) conditional is OPEN, not failed. Route to "keep slope open". See 06-stage1-review-findings.md + 07-workflow-digest.md.]
 - `corr_AC_BD` high → differencing cancels seed variance → reframe is promising;
   proceed to Stage 2 to confirm it survives at the slope level.
 
@@ -58,8 +58,9 @@ is the minimal reusable core of the Frame B build itself — so Stage 2 is
 
 Per-(pilot seed, world): fit OLS slope+intercept of Recall@K on log(exposure)
 at the corrected checkpoints, then:
-- **G1** σ(Δβ) ≤ 0.05 vs σ_level 0.196
-- **G2** |corr(intercept_real, β_real)| ≤ 0.40   *(user-approved)*
+> Glossary: two DISTINCT corr objects — corr_AC_BD (0.3 cutoff, ENDPOINT variance-decomposition diagnostic) vs corr(intercept,slope) (0.4 gate, SLOPE diagnostic). Not interchangeable.
+- **G1** σ(Δβ) ≤ 0.05 vs σ_level 0.196 (PROVISIONAL placeholder per 01:47-49 / 03 H1:23-25; not a derived gate)
+- **G2** |corr(intercept_real, β_real)| ≤ 0.40   (approval-state DISPUTED — 01:50-51,71 say "needs your number / your call"; UNRECORDED, treat 0.40 as PROPOSED, user's call)
 - **G3** slope of [r_real(e)−r_shuffle(e)] vs log e > 0 with CI excluding 0
 - **G4** mean β_shuffle CI excludes 0 (positive)
 Build the full Frame B rig only if Stage 1 didn't falsify AND G1–G4 pass.

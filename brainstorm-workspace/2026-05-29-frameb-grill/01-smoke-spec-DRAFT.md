@@ -43,6 +43,7 @@ fit per-world OLS `β_w(s)` and intercept `a_w(s)`. Then compute:
 4. **E[β_shuffle]:** mean and CI of `β_shuffle(s)`. *Tests item 7.*
 
 ## PROPOSED pass gates (these are thresholds → user sign-off)
+> Glossary: two DISTINCT corr objects — corr_AC_BD (0.3 cutoff, ENDPOINT variance-decomposition diagnostic) vs corr(intercept,slope) (0.4 gate, SLOPE diagnostic). Not interchangeable.
 Proceed to Frame B build only if ALL hold on the pilot:
 - **G1 (σ-kill real):** σ(Δβ) materially below σ_level≈0.196 — proposed
   σ(Δβ) ≤ ~0.05 (mirror the design's own line-264 bound; flagged underived in
@@ -55,7 +56,7 @@ Proceed to Frame B build only if ALL hold on the pilot:
 **Branch on failure:**
 - G1/G2 fail → luck loads on the slope; pivot buys no power → **do NOT reframe;
   the LEVEL headline (Frame A) is correct** (this is exactly the Q1 conditional
-  firing). 
+  firing). [WALK-BACK 2026-05-29: this is superseded — window-draw dominance does NOT auto-kill the OLS slope, which is invariant to per-seed ADDITIVE shifts (window-draw included); the Q1 σ(β) conditional is OPEN, not failed. Route to "keep slope open". See 06-stage1-review-findings.md + 07-workflow-digest.md.]
 - G3 fails (parallel) → signal is in the level → slope is wrong estimand →
   stay with endpoint DiD, escalate n there instead.
 - G4 fails (β_shuffle≈0) → DiD is decorative → drop the real−shuffle outer

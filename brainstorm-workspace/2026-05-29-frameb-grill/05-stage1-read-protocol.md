@@ -6,7 +6,7 @@ Source run: `colab_frameb_smoke_stage1.ipynb` → `variance_decomp.json`
 
 ## The one question Stage 1 answers
 Does within-seed pairing actually cancel per-seed codebook luck? (If not, the
-slope reframe buys ~0 power and we should NOT reframe — Q1 conditional fires.)
+slope reframe buys ~0 power and we should NOT reframe — Q1 conditional fires.) [WALK-BACK 2026-05-29: this is superseded — window-draw dominance does NOT auto-kill the OLS slope, which is invariant to per-seed ADDITIVE shifts (window-draw included); the Q1 σ(β) conditional is OPEN, not failed. Route to "keep slope open". See 06-stage1-review-findings.md + 07-workflow-digest.md.]
 
 ## Pre-committed decision rule (apply verbatim, no rationalizing)
 
@@ -20,7 +20,7 @@ Read TWO numbers:
 |---|---|---|
 | D=atom-draw AND C ≤ ~0.3 (or 1B unavailable) | **pairing won't cancel luck** | do NOT build Stage 2 yet; report to user that the reframe likely buys little power; revisit Frame A / CUPED |
 | D=atom-draw AND C > ~0.3 | **pairing cancels seed variance** | reframe promising → proceed to Stage 2 (checkpoint hook) for the slope-level gates G2/G3/G4 |
-| D=window-draw | luck is corpus-window, not codebook | cheaper fix = average K window draws; slope reframe not the lever → flag to user |
+| D=window-draw | luck is corpus-window, not codebook | cheaper fix = average K window draws; slope reframe not the lever → flag to user [WALK-BACK 2026-05-29: this is superseded — window-draw dominance does NOT auto-kill the OLS slope, which is invariant to per-seed ADDITIVE shifts (window-draw included); the Q1 σ(β) conditional is OPEN, not failed. Route to "keep slope open". See 06-stage1-review-findings.md + 07-workflow-digest.md.] |
 | D=binomial | op point too small to show structure | raise n_test, re-run Stage 1 (not a real read) |
 
 ## Hard guardrails (anti-improvisation)
