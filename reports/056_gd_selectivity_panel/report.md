@@ -51,6 +51,31 @@ write-marginal **+0.057 [+0.031,+0.083]**, independently recomputed from raw per
 guard fires because selectivity is *so* strong the deranged cue dips a hair sub-chance — a
 strong-selectivity signature, reported transparently; the write is in fact strongest at obs=3.)
 
+## D=4096 WikiText-2 confirmation (Phase-2 convincer — DONE, independently re-verified)
+
+The Colab panel ran at the **real substrate dimension** (`gd_corpus_d4096_colab.ipynb`,
+3 seeds, N=1000). Recomputed locally from the raw per-seed Drive JSONs (not the notebook's
+`✅`); matches to 3 decimals:
+
+| obs | write+L2 (=ceiling) | store-as-is | role-Δ [CI] | write-marginal [CI] | element-wise | no-decorr | PASS |
+|----:|-------------------:|------------:|:-----------:|:-------------------:|-------------:|----------:|:----:|
+| 1 | 0.423 (=0.424) | 0.036 | 0.323 [0.299,0.347] | **+0.387** [+0.364,+0.409] | 0.098 | 0.096 | ✅ |
+| 2 | 0.755 (=0.759) | 0.035 | 0.730 [0.711,0.749] | **+0.720** [+0.699,+0.739] | 0.114 | 0.096 | ✅ |
+| 3 | 0.925 (=0.925) | 0.062 | 0.907 [0.894,0.918] | **+0.863** [+0.847,+0.877] | 0.150 | 0.096 | ✅ |
+
+**3/3 PASS at D=4096.** write+L2 tracks the WikiText information ceiling exactly; and two
+things complete here that the local CPU runs could only foreshadow:
+- **Fork 3 closes:** the **element-wise ablation finally separates hard** (0.098/0.114/0.150
+  ≪ L2 0.42/0.76/0.93 ≈ floor), as predicted — the high-D shared-mask null-space pathology
+  (Reports 053/054) is now demonstrated in-panel at D=4096. **no-decorr is also pinned at the
+  floor (0.096)** → the L2 decorrelator is the *sole* active ingredient.
+- **Held-out memory-not-learner confirmed on real text at D=4096:** write+L2 held-out =
+  **0.049/0.038/0.050 ≈ chance** (frac_seen 0.65/0.29/0.10), store-as-is even lower — the
+  in-sample PASS is genuine role-selective *recall*, not leakage; real-text role-generalization
+  is null, exactly as a contextual-completion memory should behave.
+
+![G-D D=4096 WikiText certificate](gd_certificate.png)
+
 ## Controls (in-sample, same windows)
 
 | control | expectation | synthetic obs=2 | repo_sample obs=2 | verdict |
@@ -124,9 +149,8 @@ system. The Report-055 corpus graduation **stands as the correct memorization re
 
 ## Remaining
 
-- **WikiText D=4096 Colab** (`notebooks/gd_corpus_d4096_colab.ipynb`): the in-sample memorization
-  panel at the real substrate dimension, where the element-wise null-space ablation separates
-  hardest (completing Fork 3). Pending a GPU session.
+- ~~WikiText D=4096 Colab~~ **DONE** (3/3 PASS, independently re-verified; element-wise separation
+  + held-out memory-not-learner confirmed — see §D=4096 confirmation above).
 - `entropy`/`margin` drill-downs: recorded per arm (rule-vs-noise split) in the JSON; a focused
   `tix=0` vs sharp-wrong-basin write-up is the next drill-down.
 - Then: fold the heteroassociative write + L2 decorrelator into the real Phase-4 consolidation path.
@@ -135,4 +159,5 @@ system. The Report-055 corpus graduation **stands as the correct memorization re
 
 - `experiments/56_gd_selectivity_panel.py` — the G-D panel (synthetic + corpus; `--split heldout|insample`; full control panel).
 - `reports/056_gd_selectivity_panel/`: `headline_D2048.json` (synthetic in-sample 5-seed), `dsweep_D{512..4096}.json`, `corpus_repo_D1024.json` (repo in-sample), `heldout_syn_D2048.json` + `corpus_repo_heldout_D1024.json` (held-out secondary).
-- `notebooks/gd_corpus_d4096_colab.ipynb` (+ generator `_build_gd_corpus_notebook.py`) — the D=4096 convincer.
+- `notebooks/gd_corpus_d4096_colab.ipynb` (+ generator `_build_gd_corpus_notebook.py`) — the D=4096 convincer (**run, 3/3 PASS**).
+- `reports/056_gd_selectivity_panel/gd_certificate.png` + `gd_certificate_table.csv` — recovered from Drive (`gd_certificate_20260531-0940`); raw JSONs `gd_wikitext_D4096_{insample,heldout}.json` verified Drive-resident.
