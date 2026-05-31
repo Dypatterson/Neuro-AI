@@ -40,8 +40,19 @@ only `--landscape-size ∈ {64, 256, 512}`, n=10 seeds (0..9), `--device cuda`.
 **L=64 is the recovered run** (`reports/gate0_2026-05-28/`, σ_A=0.157) and is
 re-run only as a same-environment reproducibility anchor (it MUST reproduce
 σ_A≈0.157). So the new compute is **L=256 + L=512**. Per-cell retrieve work is
-linear in L, so cost ≈ (1+4+8)=13× one consolidating arm-column ≈ **~1.8 GPU-hr**
-(the n=10 run was 506 s CUDA).
+linear in L, so serial cost ≈ (1+4+8)=13× one consolidating arm-column ≈ **~1.8
+GPU-hr** (the n=10 run was 506 s CUDA).
+
+**Two equivalent runners** (the diagnostic is method-fixed; the runner is not):
+- **Serial:** `scripts/colab_landscape_sweep_2026-05-30.ipynb` — full `gate0_frame_a.py`
+  ×3 landscapes; read via `scripts/landscape_sweep_read.py`. ~1.8 GPU-hr.
+- **Parallel (preferred):** `scripts/colab_landscape_sweep_parallel_2026-05-30.ipynb`
+  + `scripts/landscape_sweep_parallel.py` — fans 3 L × 10 seeds out to 30 single-cell
+  CUDA workers, running **only arms A + C** (all the σ read needs). **Byte-identical**
+  to the serial path because cells are **order-independent** (verified 2026-05-30:
+  arm-A recall is the same whether a seed runs fresh or after others), so per-seed
+  fan-out cannot change any number. ~5–10 min on an idle A100. The σ read is the
+  same thresholds; the harness emits `landscape_sweep_summary.json` directly.
 
 ## Pre-committed read (apply verbatim — no rationalizing)
 
