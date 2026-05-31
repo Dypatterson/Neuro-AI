@@ -61,9 +61,15 @@ def _deranged(n: int, seed: int, device: str) -> torch.Tensor:
     return ((torch.arange(n) + 1) % n).to(device)
 
 
-def build_pairs(*, D: int, N: int, C: int, seed: int, device: str):
+def build_pairs(*, D: int, N: int, C: int, seed: int, device: str, key_rho: float = 0.0):
     fhrr = TorchFHRR(dim=D, seed=seed, device=device)
     keys = fhrr.random_vectors(N)        # [N, D]
+    if key_rho > 0.0:
+        # Correlated keys: blend in a shared component so pairwise key cosine
+        # rises (more Hebbian crosstalk) while each key stays distinct (the
+        # task stays well-posed -- one cue -> one value).
+        shared = fhrr.random_vectors(1)  # [1, D]
+        keys = fhrr.normalize((1.0 - key_rho) * keys + key_rho * shared)
     values = fhrr.random_vectors(C)      # [C, D] value codebook
     vidx = torch.randint(0, C, (N,), generator=fhrr.generator, device="cpu").to(device)
     pair_vals = values[vidx]             # [N, D]
@@ -134,7 +140,7 @@ def _recall_W(keys, W, D):
 def run_seed(args, seed: int) -> dict:
     dev = args.device
     fhrr, keys, values, vidx, pair_vals, bundle = build_pairs(
-        D=args.D, N=args.N, C=args.C, seed=seed, device=dev)
+        D=args.D, N=args.N, C=args.C, seed=seed, device=dev, key_rho=args.key_rho)
     N, C, D = args.N, args.C, args.D
     chance = 1.0 / C
     der = _deranged(N, seed, dev)
@@ -144,7 +150,11 @@ def run_seed(args, seed: int) -> dict:
         target = vidx[der] if shuffle else vidx
         return top_index_hits(ti, target), N, float(ent.mean()), float(marg.mean())
 
-    out = {"seed": seed, "chance": chance}
+    with torch.no_grad():
+        kc = (keys @ keys.conj().T).real.abs() / D
+        offdiag = kc[~torch.eye(N, dtype=torch.bool, device=dev)]
+        mean_key_cos = float(offdiag.mean())
+    out = {"seed": seed, "chance": chance, "mean_key_cos": mean_key_cos}
 
     # store-as-is (the 065/066 null)
     u_true = torch.stack([fhrr.unbind(bundle, keys[i]) for i in range(N)], dim=0)
@@ -198,6 +208,8 @@ def main():
     ap.add_argument("--D", type=int, default=512)
     ap.add_argument("--N", type=int, default=128)
     ap.add_argument("--C", type=int, default=32)
+    ap.add_argument("--key-rho", type=float, default=0.0, dest="key_rho",
+                    help="0=random keys; ->1 blends a shared component (correlated keys)")
     ap.add_argument("--seeds", type=int, default=5)
     ap.add_argument("--beta", type=float, default=10.0)
     ap.add_argument("--max-iter", type=int, default=12, dest="max_iter")

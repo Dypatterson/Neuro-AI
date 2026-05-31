@@ -42,6 +42,22 @@ Store-as-is decays toward chance (reproducing the 065/066 key-only null — and 
 
 **D↑ helps, D↓ hurts** — the lever is **N/D**, not D alone. This confirms the grill q5 correction: "lower-D rescues" is **mechanistically backwards** (lowering D at fixed N raises crosstalk). The capacity-wall fix is dimension/orthogonalization (↑D) or fewer items (↓N), never ↓D.
 
+## Result 3 — correlated-key stress (does the write SHAPE matter?)
+
+Random keys are near-orthogonal, so Result 1's writes were indistinguishable. Blending a shared component into the keys (`--key-rho`) raises pairwise key cosine and stresses the write. N=256, D=512, 3 seeds:
+
+| key cosine | store | hebbian | delta | swap-contrastive |
+|---|---|---|---|---|
+| 0.025 | 0.342 | 1.000 | 1.000 | 1.000 |
+| 0.028 | 0.322 | 1.000 | 1.000 | 1.000 |
+| 0.126 | 0.171 | **0.595** | **0.947** | **0.956** |
+| 0.770 | 0.052 | 0.060 | 0.225 | **0.309** |
+| 0.969 | 0.048 | 0.051 | 0.066 | 0.064 |
+
+**The write shape matters once keys correlate.** At cosine 0.126 plain Hebbian drops to 0.60 while the error-correcting (delta) and contrastive (swap) writes hold ≥0.95. At cosine 0.77 (heavily correlated) store-as-is and Hebbian are both at chance (~0.05–0.06) but the contrastive/margin writes still extract **0.23–0.31** (5–7× chance) — and **swap-contrastive > delta** (0.31 vs 0.23), i.e. the *precommitted* swap-negative adds value beyond pure error-correction. (At cosine 0.97 the keys are near-degenerate and everything collapses — expected.)
+
+This **vindicates the plan's margin/contrastive emphasis** and resolves the phase3b narrative: the contrastive *idea* was right; phase3b failed because its negative was **self-mined via `sims.argmax` (a runtime thermostat)** plus a top-1 readout — the **precommitted swap-negative** (anti-homunculus-clean) is the fix, and it genuinely helps under correlation.
+
 ## Verdict (the fork)
 
 Combined with G-A (exp 048: frozen-refit shows **no readout defect**):
@@ -52,11 +68,12 @@ Combined with G-A (exp 048: frozen-refit shows **no readout defect**):
 
 ## Caveats (bound the claim)
 
-1. **The write SHAPE doesn't differentiate here.** Hebbian = delta = swap-contrastive = bounded-one-shot to ~3 decimals, because random keys are near-orthogonal so plain heteroassociation already saturates the task. The contrastive/margin/BTSP advantages (and the phase3b "self-mined negative is a thermostat" story) would only surface with **correlated keys**, a small value codebook with collisions, or at the capacity edge. So the surgical recommendation simplifies: it is **"do an associative write at all (vs store-as-is)," not "find a clever contrastive negative."**
+1. **The write SHAPE matters under correlation (Result 3 resolves this).** With random/near-orthogonal keys all write rules saturate the task and look identical; but once keys correlate (cosine ≥ 0.13, the realistic regime), plain Hebbian collapses while error-correcting (delta) and contrastive (swap) writes hold, and the precommitted swap-negative beats delta at high correlation. So the surgical direction is **an error-correcting / contrastive heteroassociative write with a precommitted swap-negative — not plain Hebbian, and not the self-mined `argmax` negative phase3b used.**
 2. **A dense D×D weight W is a new mechanism** vs the project's FHRR-codebook+MHN. Anti-homunculus-clean (fixed offline rule, no runtime arbitration), but integrating heteroassociation into the architecture (and at D=4096 the 16M-param cost) is the surgical design question — see MESH for the fixed-scaffold form.
 3. **BTSP (G-0) used a magnitude-bounded proxy**, not the faithful sparse-binary rule (card `biorxiv:2025.05.15.654220` = transfers-with-caveats, substrate mismatch). The faithful port is unnecessary for *this* verdict (plain heteroassociation already rescues) but remains open if a one-shot/online variant is wanted.
 
 ## Next
 
-- Stress the write SHAPE: correlated-key / colliding-value regime where Hebbian fails and a margin/contrastive write should separate (the regime where the phase3b lesson bites).
-- Carry the verdict to a surgical design note: heteroassociative role→target write for Phase 4 consolidation (MESH-style fixed scaffold), with the anti-homunculus check.
+- **Surgical design note** for Phase 4: an **error-correcting / contrastive heteroassociative** role→target write (MESH-style fixed scaffold; delta-rule + precommitted swap-negative), with the anti-homunculus check and the integration cost at D=4096. The verdict is set; this is the build.
+- Port the write into the project's actual FHRR-codebook+MHN consolidation path (the toy used a standalone W); confirm the rescue survives integration on a real corpus slice.
+- Optional: the faithful sparse-binary BTSP port (G-0) if a one-shot/online variant is wanted — not needed for the verdict.
