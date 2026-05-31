@@ -7,6 +7,16 @@
 > (`00-diagnosis-synthesis.md`, `02-forward-plan-FINAL.md`, `03-grill-and-audits.md`).
 > Confidence in the root cause: **medium** (reached by elimination, not yet a positive
 > write-then-read). This spec is the citation target for the experiment preamble.
+>
+> **Progress (2026-05-31): corpus-transfer GRADUATION confirmed ([Report 055](../../reports/055_graduation_certificate/report.md)).**
+> The surgical mechanism (heteroassoc write + **L2-renorm** cue-space decorrelator)
+> tracks the information ceiling and clears its shuffled-key floor with disjoint
+> multi-seed CIs at every cue richness on D=4096 WikiText-2 (exp-50 masked completion).
+> This is the **corpus-transfer** read, **not** the §Headline R1 4-role-toy
+> Selectivity-Δ. **G-D still open:** R1 on the 4-role toy (role-*pairing*-shuffle,
+> chance 0.25) + controls 2 (no-negatives/no-swap) and 4 (content-matched
+> non-positional shuffle) + `entropy`/`margin` drill-downs (:53). Corpus graduation
+> makes G-D high-probability but does not discharge it.
 
 ## The question
 
