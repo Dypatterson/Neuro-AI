@@ -151,9 +151,10 @@ system. The Report-055 corpus graduation **stands as the correct memorization re
 
 - ~~WikiText D=4096 Colab~~ **DONE** (3/3 PASS, independently re-verified; element-wise separation
   + held-out memory-not-learner confirmed — see §D=4096 confirmation above).
-- `entropy`/`margin` drill-downs: recorded per arm (rule-vs-noise split) in the JSON; a focused
-  `tix=0` vs sharp-wrong-basin write-up is the next drill-down.
-- Then: fold the heteroassociative write + L2 decorrelator into the real Phase-4 consolidation path.
+- ~~`entropy`/`margin` drill-downs~~ **DONE** ([entropy_margin_drilldown.md](entropy_margin_drilldown.md)):
+  a miss is a sharp-WRONG basin (not flat); the random-codebook control is the only flat failure
+  (readout sound); the rule-vs-noise split exposes the Bayes-optimal↔memorization boundary.
+- **Next: fold the heteroassociative write + L2 decorrelator into the real Phase-4 consolidation path** (in progress).
 
 ## Artifacts
 
