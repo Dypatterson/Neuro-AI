@@ -60,12 +60,20 @@ class CueDecorrelator:
         return self
 
     def apply(self, keys: torch.Tensor) -> torch.Tensor:
-        """Decorrelate cue keys with the learned transform, renormalized to unit
-        magnitude (FHRR convention)."""
+        """Decorrelate cue keys with the learned transform, renormalized by L2
+        (vector) magnitude.
+
+        L2-renorm, NOT element-wise unit-magnitude (the usual FHRR convention): the
+        whitened key lives in the rank-(<=N) signal subspace, so element-wise renorm
+        would fill the (D-rank)-dim null space with unit-magnitude noise — catastrophic
+        when N<<D (~93% noise at D=4096), the cause of the Report 053 graduation
+        collapse (D=4096 obs=1: element-wise 0.086 ≈ floor vs L2 0.549 ≈ ceiling). L2
+        preserves the subspace direction; the downstream heteroassociative matmuls do
+        not require per-element unit magnitude."""
         if self.P is None:
             raise RuntimeError("fit() the decorrelator before apply()")
         out = keys @ self.P   # P is Hermitian (Sigma^{-1/2}); cov(keys @ P) = I
-        return out / out.abs().clamp_min(1e-12)
+        return out / out.norm(dim=-1, keepdim=True).clamp_min(1e-12)
 
     @staticmethod
     def _cov(keys: torch.Tensor) -> torch.Tensor:

@@ -38,11 +38,14 @@ class DecorrelatorTest(unittest.TestCase):
         dec = CueDecorrelator(dim=256).fit(keys)
         self.assertLess(dec.offdiag_after, dec.offdiag_before * 0.5)
 
-    def test_apply_unit_magnitude(self):
+    def test_apply_unit_l2_norm(self):
+        # L2 (vector) renorm, NOT element-wise (the Report-053 fix): preserves the
+        # whitened key's subspace direction instead of filling the null space.
         fhrr, keys, values, vidx = _correlated_toy()
         dec = CueDecorrelator(dim=256).fit(keys)
         out = dec.apply(keys)
-        self.assertTrue(torch.allclose(out.abs(), torch.ones_like(out.abs()), atol=1e-5))
+        norms = out.norm(dim=-1)
+        self.assertTrue(torch.allclose(norms, torch.ones_like(norms), atol=1e-4))
 
     def test_apply_before_fit_raises(self):
         with self.assertRaises(RuntimeError):
