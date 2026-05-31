@@ -99,6 +99,7 @@ This was assumed-tested but wasn't really.
 | -- | --- | :---: | --- |
 | F1 | Phase 3 Hebbian + Phase 4 replay running concurrently, multi-seed, with active codebook evolution | ✅ | n=10 at integration regime in [report 038](../../reports/038_phase4_d1_graduation.md). Hebbian fired at meaningful rate (consolidations 52–571 per seed), Phase 4 candidates 63–108 per seed. |
 | F2 | Phase 4 with batch codebook retrains as drift source | ❌ | sanctioned drift source per design, never tested |
+| F3 | Surgical heteroassociative-write (write+L2 decorrelator, Reports 055/056) folded into the production `OnlineCodebookUpdater` (`observe(cue=)`→`consolidate_hetero()`→`recall_hetero()`), dense H, batch-offline, default-off → byte-identical | ✅ | Code landed + AH-reviewed in [Report 057](../../reports/057_phase4_hetero_integration/report.md); **end-to-end wiring confirmed BIT-IDENTICAL** to the standalone 055/056 harness in [Report 058](../../reports/058_e2e_integration_wiring/report.md) (24/24 cells `torch.equal` on H + basin indices; synthetic obs2 role-Δ=0.592=published; random-cb control→chance; adversarial verify PASS/high). **DENSE H only; MESH-scaffold scaling DEFERRED** (open user decision). D=4096 Colab confirmation through the integrated path optional. |
 
 ---
 
