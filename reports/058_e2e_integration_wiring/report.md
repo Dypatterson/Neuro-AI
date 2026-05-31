@@ -4,8 +4,11 @@
 > integrated `OnlineCodebookUpdater` public API (`observe(cue=)` → `consolidate_hetero()`
 > → `recall_hetero()`, Report 057) reproduces the standalone exp-56 harness (the code
 > behind Reports 055/056) **bit-identically** — `torch.equal` on both the dense `H` and
-> the basin indices, in **all 24 cells**. Adversarial verification (4-agent workflow, 3
-> independent falsification probes) returns **PASS, high confidence, no genuine defect.**
+> the basin indices, in **all 24 local cells** (D=1024/2048, CPU) **and at the D=4096
+> WikiText-2 graduation scale on GPU** (Colab/CUDA), where it lands **exactly** on the
+> published 055/056 anchors (`A−report = +0.000` on all three obs cells). Adversarial
+> verification (4-agent workflow, 3 independent falsification probes) returns **PASS, high
+> confidence, no genuine defect.**
 >
 > **CLASSIFICATION: DRILL-DOWN / integration-wiring validation — NOT a graduation
 > experiment.** The mechanism already graduated (055) and passed G-D (056). The claim under
@@ -91,6 +94,27 @@ Pooled in-sample role-Selectivity-Δ through the **integrated** path (Path B):
   (repo 0.0000; synthetic scatters around chance at the small `|value_cb|=8`). No readout leak
   survived the fold-in.
 
+## D=4096 WikiText-2 confirmation (Colab / CUDA) — lands EXACTLY on the 055/056 anchors
+
+The graduation-scale convincer, run through the integrated path on GPU
+([`notebooks/058_integration_wiring_d4096_colab.ipynb`](../../notebooks/058_integration_wiring_d4096_colab.ipynb),
+WikiText-2-raw-v1, D=4096, N=1000, 3 seeds, in-sample):
+
+| obs | role-Δ (B) | == A | true_rate (B) | two-floor | Report-056 anchor | A−report | rand-cb / chance |
+|---|---|---|---|---|---|---|---|
+| 1 | 0.323 | ✅ | 0.423 | PASS | 0.323 | **+0.000** | 0.0000 / 0.0005 |
+| 2 | 0.730 | ✅ | 0.755 | PASS | 0.730 | **+0.000** | 0.0000 / 0.0005 |
+| 3 | 0.907 | ✅ | 0.925 | PASS | 0.907 | **+0.000** | 0.0000 / 0.0005 |
+
+`ALL basin indices bit-identical (A == B): True`.
+
+Unlike `repo_sample` (a *live* corpus → small anchor drift), **WikiText-2 is a fixed external
+corpus**, so the standalone Path A reproduces the published Report-056 role-Δ **to 3 decimals**
+(`A−report = +0.000`), the integrated Path B matches it **bit-identically**, and `true_rate`
+lands precisely on the Report-055 information-ceiling recall (0.423/0.755/0.925). This is the
+cleanest anchor: the integrated path is behaviorally equivalent to the graduated mechanism **at
+the real substrate dimension on real text**, with zero drift.
+
 ## Adversarial verification
 
 A 4-agent workflow (3 refutation lenses → synthesis) returned **`wiring_validated: true`,
@@ -130,12 +154,13 @@ A 4-agent workflow (3 refutation lenses → synthesis) returned **`wiring_valida
 5. **Dense `H` only.** The fold-in ships the dense form (~128 MB @ D=4096); the **MESH-scaffold**
    scaling form is **deferred and unvalidated** ([[neuro_ai_mesh_scaling_decision_open]]). This
    check validates the dense path exclusively.
-6. **Local scale.** Run on CPU at D=1024 (repo) / D=2048 (synthetic). The D=4096 WikiText
-   convincer (Reports 055/056) is Colab/CUDA and is out of scope here; the equivalence is
-   D-independent (same leaf functions), so the local check is sufficient for the *wiring* claim.
-   An optional D=4096 Colab confirmation through the integrated path is provided as
-   [`notebooks/058_integration_wiring_d4096_colab.ipynb`](../../notebooks/058_integration_wiring_d4096_colab.ipynb)
-   (self-contained; runs the same head-to-head on WikiText-2 D=4096 on GPU).
+6. **Scale: local + graduation-scale both confirmed.** The local head-to-head ran on CPU at
+   D=1024 (repo) / D=2048 (synthetic); the **D=4096 WikiText-2 graduation scale was confirmed
+   on GPU** (Colab/CUDA — see the §"D=4096 WikiText-2 confirmation" section above; bit-identical,
+   `A−report=+0.000`) via
+   [`notebooks/058_integration_wiring_d4096_colab.ipynb`](../../notebooks/058_integration_wiring_d4096_colab.ipynb).
+   The equivalence is D-independent (same leaf functions), and this is now demonstrated end-to-end
+   from D=1024 through the real D=4096 substrate dimension.
 
 ## Verdict
 
