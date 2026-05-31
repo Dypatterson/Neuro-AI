@@ -1,4 +1,8 @@
-"""Generates notebooks/graduation_d4096_colab.ipynb (run locally; output committed)."""
+"""Generates notebooks/graduation_d4096_colab.ipynb (run locally; output committed).
+
+The graduation CERTIFICATE: floor-gated done-gate + information-ceiling overlay +
+the one-line-fix ablation (element-wise vs L2 renorm). Re-run this and it pulls the
+Report-054 fix and certifies the surgical mechanism at D=4096 on WikiText-2."""
 import json
 
 def md(src): return {"cell_type": "markdown", "metadata": {}, "source": src}
@@ -7,42 +11,29 @@ def code(src): return {"cell_type": "code", "metadata": {}, "execution_count": N
 cells = []
 
 cells.append(md(
-"""# 🧠 Phase-4 Surgical Mechanism — Graduation Run @ **D=4096** on WikiText-2
+"""# 🎓 Graduation Certificate — surgical mechanism @ **D=4096** on WikiText-2
 
-**Branch:** `consolidation/role-structure` · **Substrate:** FHRR + Modern Hopfield + emergent codebook
+**Branch:** `consolidation/role-structure` · FHRR + Modern Hopfield + emergent codebook
 
----
+This is the formal, floor-gated confirmation that the consolidation-write fix works at the real substrate dimension. The story it certifies:
 
-### The story this run tests
+- the mechanism = **heteroassociative write + cue-space decorrelator**;
+- the D=4096 graduation first **failed** (Report 052) — but the autopsy (Report 053) showed it was **mechanism-limited, not task-limited**, and the killer was **D-scale, not corpus**;
+- the cause was a **one-line renorm bug** (Report 054): `apply()` renormalized **element-wise** (FHRR phasor convention), filling the rank-deficient null space with noise (~93% at D=4096). **L2-renorm** fixes it.
 
-A multi-stage investigation localized the project's role-binding failure to the **consolidation write**, then validated a surgical fix on toy + small-corpus data:
+**This notebook certifies the fix** with three things the first run lacked:
+1. the **correct done-gate** — clear the **shuffled-key floor** with disjoint Wilson CIs (not "beat store-as-is", which can be sub-floor);
+2. the **information ceiling** overlaid (the Bayes-optimal Recall@1 — no model can beat it);
+3. a **smoking-gun ablation** — toggle the one line (element-wise ↔ L2) and watch obs=1 collapse to the floor and snap back to the ceiling.
 
-| step | finding |
-|---|---|
-| fork | **NOT rebuild** — the substrate holds associations |
-| write alone | rescues synthetic key-only recall, but **collapses under real key correlation** |
-| the lever | **cue-space decorrelation** rescues the collapse, and **transfers** to real sparse-cue data (0.59 vs 0.024 where store-as-is fails) |
+> ⏱️ ~20–30 min on a T4."""))
 
-This notebook runs the **scaled graduation test** at the real substrate dimension **D=4096** on **WikiText-2**:
-the project's current **store-as-is** path vs the surgical **heteroassociative write + cue-space decorrelator**,
-swept across **cue richness** (sparse → rich), with Wilson-CI'd controls.
-
-**The headline question:** in the *sparse-cue* regime where store-as-is fails, does **write + decorrelation** beat it with non-overlapping CIs — at full scale?
-
-> ⏱️ ~15–30 min on a T4. Results + plots are saved to your Drive at the end."""))
-
-cells.append(md("## 1 · GPU check\n_(the parent process never touches CUDA — every experiment runs as an isolated subprocess, per the project's Colab worker rule)_"))
+cells.append(md("## 1 · GPU + fetch the code (pulls the Report-054 fix)"))
 cells.append(code(
-"""!nvidia-smi -L || echo "⚠️  No GPU detected — set Runtime ▸ Change runtime type ▸ GPU (T4 is plenty)"
-"""))
-
-cells.append(md("## 2 · Fetch the code\nClones the branch with the surgical-mechanism modules. If your repo is private, paste a GitHub token when prompted (else just press Enter)."))
-cells.append(code(
-"""import os, subprocess
+"""!nvidia-smi -L 2>/dev/null || echo "⚠️  set Runtime ▸ Change runtime type ▸ GPU"
+import os, subprocess
 from getpass import getpass
-
 REPO, BRANCH, DEST = "Dypatterson/Neuro-AI", "consolidation/role-structure", "/content/Neuro-AI"
-
 if not os.path.isdir(DEST):
     tok = getpass("GitHub token (Enter if public): ").strip()
     url = f"https://{tok}@github.com/{REPO}.git" if tok else f"https://github.com/{REPO}.git"
@@ -50,189 +41,155 @@ if not os.path.isdir(DEST):
 else:
     subprocess.run(["git", "-C", DEST, "fetch", "origin", BRANCH], check=True)
     subprocess.run(["git", "-C", DEST, "reset", "--hard", f"origin/{BRANCH}"], check=True)
-
-print("HEAD:", subprocess.check_output(["git", "-C", DEST, "log", "-1", "--oneline"]).decode().strip())
 subprocess.run(["pip", "-q", "install", "datasets"], check=True)
-print("datasets installed ✓")
+print("HEAD:", subprocess.check_output(["git", "-C", DEST, "log", "-1", "--oneline"]).decode().strip())
 """))
 
-cells.append(md("## 3 · Pre-warm the WikiText-2 cache\n_(downloads the corpus once so the timed runs don't pay for it)_"))
+cells.append(md("## 2 · Pre-warm WikiText-2 + compute the information ceiling\n_The Bayes-optimal Recall@1 (best any cue→target predictor can do), on matched windows._"))
 cells.append(code(
 """import sys; sys.path.insert(0, "/content/Neuro-AI/src")
 from pathlib import Path
-from energy_memory.phase2.corpus import load_corpus_splits
-splits = load_corpus_splits("wikitext", Path("/content/Neuro-AI"), wikitext_name="wikitext-2-raw-v1")
-print({k: len(v) for k, v in splits.items()}, "lines/split — WikiText-2 cached ✓")
+from collections import defaultdict, Counter
+import numpy as np
+from energy_memory.phase2.corpus import (build_vocabulary, encode_texts, load_corpus_splits,
+                                          make_windows, sample_windows)
+from energy_memory.phase2.encoding import mask_positions
+
+def ceiling_by_obs(source="wikitext", max_vocab=2000, window=6, N=1000, seeds=(0,1,2), OBS=(1,2,3,5)):
+    sp = load_corpus_splits(source, Path("/content/Neuro-AI"), wikitext_name="wikitext-2-raw-v1")
+    v = build_vocabulary(sp["train"], max_vocab=max_vocab); ids = encode_texts(sp["train"], v)
+    mpos = mask_positions(window, 1, "center")[0]; allw = make_windows(ids, window)
+    out = {o: [] for o in OBS}
+    for s in seeds:
+        w = [x for x in sample_windows(allw, min(N, len(allw)), seed=s + 7)
+             if x[mpos] != v.unk_id and x[mpos] != v.mask_id]
+        for o in OBS:
+            g = defaultdict(Counter)
+            for x in w:
+                ctx = [p for p in range(window) if p != mpos][:max(1, o)]
+                g[tuple(x[p] for p in ctx)][x[mpos]] += 1
+            hits = sum(c.most_common(1)[0][1] for c in g.values()); n = sum(sum(c.values()) for c in g.values())
+            out[o].append(hits / n)
+    return {o: float(np.mean(out[o])) for o in OBS}
+
+CEIL = ceiling_by_obs()
+print("information ceiling by cue richness:", {o: round(c, 3) for o, c in CEIL.items()})
 """))
 
-cells.append(md(
-"""## 4 · The graduation sweep
-
-For each cue richness (`observed` = context positions in the cue, **1 = sparse … 5 = rich**), at **D=4096, N=1000, 3 seeds**, we measure **Recall@1 via `top_index_hits`** for:
-
-| arm | what it is |
-|---|---|
-| **store-as-is** | the project's current path (full-window MHN → unbind → cleanup) |
-| **write** | heteroassociative write, **no** decorrelation |
-| **write + decorrelation** | the surgical mechanism (write + cue-space ZCA decorrelator) |
-| _floor_ | shuffled-key control |
-| _random codebook_ | readout sanity (→ chance) |
-
-Each run is an isolated `--device cuda` subprocess."""))
+cells.append(md("## 3 · Run the graduation sweep — the fix (L2) across cue richness + the bug (element-wise) at obs=1\n_The L2 sweep is the certificate; the obs=1 element-wise run is the ablation control._"))
 cells.append(code(
 """import os, subprocess, time
 os.makedirs("/content/results", exist_ok=True)
 CFG = dict(D=4096, max_vocab=2000, window=6, N=1000, seeds=3, epochs=20)
-OBSERVED = [1, 2, 3, 5]                       # sparse → rich cue
+OBS = [1, 2, 3, 5]
 env = {**os.environ, "PYTHONPATH": "src"}
 
-for obs in OBSERVED:
-    out = f"/content/results/grad_obs{obs}.json"
-    if os.path.exists(out):
-        print(f"observed={obs}: cached"); continue
+def run(obs, renorm):
+    out = f"/content/results/grad_obs{obs}_{renorm}.json"
+    if os.path.exists(out): return out
     t = time.time()
     cmd = ["python", "experiments/50_corpus_hetero_write.py",
            "--D", str(CFG["D"]), "--corpus-source", "wikitext", "--max-vocab", str(CFG["max_vocab"]),
            "--window-size", str(CFG["window"]), "--N", str(CFG["N"]), "--observed", str(obs),
-           "--seeds", str(CFG["seeds"]), "--epochs", str(CFG["epochs"]), "--device", "cuda", "--out", out]
+           "--seeds", str(CFG["seeds"]), "--epochs", str(CFG["epochs"]),
+           "--decorr-renorm", renorm, "--device", "cuda", "--out", out]
     r = subprocess.run(cmd, cwd="/content/Neuro-AI", env=env, capture_output=True, text=True)
     if r.returncode != 0:
-        print("STDERR tail:\\n", r.stderr[-2500:]); raise RuntimeError(f"observed={obs} failed")
-    print(f"observed={obs}: done in {time.time()-t:.0f}s")
+        print("STDERR:\\n", r.stderr[-2500:]); raise RuntimeError(f"obs={obs} {renorm} failed")
+    print(f"  obs={obs} renorm={renorm}: {time.time()-t:.0f}s"); return out
+
+for obs in OBS: run(obs, "l2")          # the fix — full sweep
+run(1, "elementwise")                   # the bug — obs=1 ablation control
 print("\\n✓ sweep complete")
 """))
 
-cells.append(md("## 5 · Aggregate with Wilson CIs"))
+cells.append(md("## 4 · Floor-gated done-gate (Wilson CIs) — the certificate"))
 cells.append(code(
 """import json, math, pandas as pd
-
 def wilson(s, n, z=1.96):
     if n == 0: return (0.0, 0.0, 0.0)
     p = s / n; d = 1 + z*z/n; c = (p + z*z/(2*n)) / d
     h = z*math.sqrt(p*(1-p)/n + z*z/(4*n*n)) / d
     return (p, max(0.0, c-h), min(1.0, c+h))
-
-ARMS = {"store_as_is": "store-as-is (current)", "hetero_delta": "write (no decorr)",
-        "hetero_whiten": "write + decorrelation", "shuffled_key_control": "floor (shuffled key)",
-        "random_codebook_control": "random codebook"}
+def pooled(path, arm):
+    d = json.load(open(path)); s = sum(round(ps[arm]*ps["N"]) for ps in d["per_seed"]); n = sum(ps["N"] for ps in d["per_seed"])
+    return wilson(s, n)
 rows = []
-for obs in [1, 2, 3, 5]:
-    d = json.load(open(f"/content/results/grad_obs{obs}.json"))
-    for arm, label in ARMS.items():
-        s = sum(round(ps[arm] * ps["N"]) for ps in d["per_seed"])   # pooled hits
-        n = sum(ps["N"] for ps in d["per_seed"])
-        p, lo, hi = wilson(s, n)
-        rows.append(dict(observed=obs, arm=label, rate=p, lo=lo, hi=hi, n=n))
-df = pd.DataFrame(rows)
-chance = json.load(open("/content/results/grad_obs1.json"))["chance"]
-print(f"Recall@1 (top_index_hits) by cue richness · chance≈{chance:.4f}\\n")
-display(df.pivot(index="observed", columns="arm", values="rate").round(3))
+for o in OBS:
+    p = f"/content/results/grad_obs{o}_l2.json"
+    wd, wd_lo, wd_hi = pooled(p, "hetero_whiten")
+    st = pooled(p, "store_as_is"); fl = pooled(p, "shuffled_key_control")
+    clears = wd_lo > fl[2]                  # CORRECT gate: write+decorr lower-CI > floor upper-CI
+    rows.append(dict(obs=o, store=round(st[0],3), write_decorr=round(wd,3),
+                     wd_ci=f"[{wd_lo:.3f},{wd_hi:.3f}]", floor=round(fl[0],3),
+                     ceiling=round(CEIL[o],3), clears_floor=clears))
+df = pd.DataFrame(rows); display(df)
 """))
 
-cells.append(md("## 6 · The money plot 📈"))
+cells.append(md("## 5 · The money plot — write+decorr tracks the information ceiling 📈"))
 cells.append(code(
 """import matplotlib.pyplot as plt
 plt.rcParams.update({"figure.dpi": 120, "font.size": 11})
-fig, ax = plt.subplots(figsize=(8.2, 5))
-style = {"store-as-is (current)": ("#777", "o", "-"),
-         "write (no decorr)": ("#e08a3c", "s", "--"),
-         "write + decorrelation": ("#2a9d8f", "o", "-")}
-for arm, (col, mk, ls) in style.items():
-    sub = df[df.arm == arm].sort_values("observed")
-    ax.errorbar(sub.observed, sub.rate, yerr=[sub.rate - sub.lo, sub.hi - sub.rate],
-                marker=mk, ls=ls, lw=2.2, capsize=4, color=col, label=arm)
-flo = df[df.arm == "floor (shuffled key)"].sort_values("observed")
-ax.plot(flo.observed, flo.rate, "k:", alpha=.5, label="floor (shuffled)")
-ax.set_xlabel("context positions in cue   (sparse  →  rich)")
-ax.set_ylabel("Recall@1   (top_index_hits)")
-ax.set_title("D=4096 · WikiText-2 · store-as-is  vs  write + cue-space decorrelation")
-ax.set_xticks([1, 2, 3, 5]); ax.set_ylim(-0.02, 1.02); ax.legend(loc="center right"); ax.grid(alpha=.3)
-plt.tight_layout(); plt.savefig("/content/results/graduation_plot.png", bbox_inches="tight"); plt.show()
+wd = [r["write_decorr"] for r in rows]; st = [r["store"] for r in rows]
+fl = [r["floor"] for r in rows]; cl = [r["ceiling"] for r in rows]
+abl1 = json.load(open("/content/results/grad_obs1_elementwise.json"))["summary"]["hetero_whiten"]
+fig, ax = plt.subplots(figsize=(8.6, 5.3))
+ax.fill_between(OBS, fl, cl, color="#dfe7ea", label="recoverable headroom (floor→ceiling)")
+ax.plot(OBS, cl, "o-", color="#264653", lw=2.2, label="information ceiling (Bayes-optimal)")
+ax.plot(OBS, wd, "o-", color="#2a9d8f", lw=2.8, label="write+decorr — L2 (the fix)")
+ax.scatter([1], [abl1], marker="X", s=120, color="#c1121f", zorder=5,
+           label=f"write+decorr — element-wise BUG (obs=1) = {abl1:.2f}")
+ax.plot(OBS, st, "o-", color="#777", lw=2, label="store-as-is")
+ax.plot(OBS, fl, "k:", alpha=.6, label="floor (shuffled key)")
+ax.set_xlabel("context positions in cue  (sparse → rich)"); ax.set_ylabel("Recall@1 (top_index_hits)")
+ax.set_title("GRADUATION · D=4096 · WikiText-2 · the fix tracks the information ceiling")
+ax.set_xticks(OBS); ax.set_ylim(-0.02, 1.04); ax.legend(loc="center right", fontsize=8.5); ax.grid(alpha=.3)
+plt.tight_layout(); plt.savefig("/content/results/graduation_certificate.png", bbox_inches="tight"); plt.show()
 """))
 
-cells.append(md("## 7 · Headline verdict (done-gate)\nAt the **sparse cue** (where store-as-is fails), does **write + decorrelation** beat it with **non-overlapping Wilson CIs**?"))
+cells.append(md("## 6 · 🎓 The certificate"))
 cells.append(code(
-"""o = 1
-sa = df[(df.observed == o) & (df.arm == "store-as-is (current)")].iloc[0]
-wd = df[(df.observed == o) & (df.arm == "write + decorrelation")].iloc[0]
-print(f"Sparse cue (observed={o}):")
-print(f"  store-as-is:          {sa.rate:.3f}   CI[{sa.lo:.3f}, {sa.hi:.3f}]")
-print(f"  write + decorrelation:{wd.rate:.3f}   CI[{wd.lo:.3f}, {wd.hi:.3f}]")
-beats = wd.lo > sa.hi
-print("\\n" + ("✅ HEADLINE PASS — write+decorrelation > store-as-is, CIs disjoint"
-              if beats else "❌ no separation — CIs overlap"))
-print("(store-as-is should also WIN at the rich cue — that crossover is the whole story.)")
+"""passed = all(r["clears_floor"] for r in rows)
+abl = json.load(open("/content/results/grad_obs1_elementwise.json"))["summary"]
+print("Floor-gated graduation (write+decorr clears the shuffled-key floor, disjoint Wilson CIs):")
+for r in rows:
+    near = abs(r["write_decorr"] - r["ceiling"]) < 0.06
+    print(f"  obs={r['obs']}: {r['write_decorr']:.3f} {r['wd_ci']} vs floor {r['floor']:.3f}  "
+          f"{'✅ clears' if r['clears_floor'] else '❌ ties/overlaps'}  "
+          f"{'· at ceiling ('+str(r['ceiling'])+')' if near else ''}")
+print()
+print("Smoking-gun ablation (obs=1, D=4096): the one line is the whole story —")
+print(f"  element-wise renorm (the bug): {abl['hetero_whiten']:.3f} ≈ floor {abl['shuffled_key_control']:.3f}")
+print(f"  L2 renorm (the fix):           {rows[0]['write_decorr']:.3f}  ({rows[0]['write_decorr']/max(1e-9,abl['hetero_whiten']):.1f}× the bug)")
+print()
+print("🎓 GRADUATES ✅" if passed else "❌ does not clear the floor at every cell")
 """))
 
-cells.append(md("## 8 · Save to Drive\n_Colab writes to Drive, not the repo — recover this folder into `reports/` afterwards._"))
+cells.append(md("## 7 · Save to Drive"))
 cells.append(code(
 """from google.colab import drive; drive.mount("/content/drive")
 import shutil, os, datetime
 stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M")
-dest = f"/content/drive/MyDrive/neuro-ai/results/graduation_d4096_{stamp}"
-os.makedirs(dest, exist_ok=True)
-for f in os.listdir("/content/results"):
-    shutil.copy(f"/content/results/{f}", dest)
-df.to_csv(f"{dest}/graduation_table.csv", index=False)
+dest = f"/content/drive/MyDrive/neuro-ai/results/graduation_certificate_{stamp}"; os.makedirs(dest, exist_ok=True)
+df.to_csv(f"{dest}/certificate_table.csv", index=False)
+for f in os.listdir("/content/results"): shutil.copy(f"/content/results/{f}", dest)
 print("Saved →", dest)
 """))
 
 cells.append(md(
-"""## 9 · (optional) Capacity curve — sparse cue, sweep N
-
-The decorrelation rescue is **rank-bounded** (helps to N≈D). This sweeps N at the sparse cue to show where it holds and where it rank-decays — the MESH-scaffold follow-up targets the tail."""))
-cells.append(code(
-"""import os, subprocess, json, math, time
-env = {**os.environ, "PYTHONPATH": "src"}
-NS = [500, 1000, 2000, 4000, 8000]
-for N in NS:
-    out = f"/content/results/cap_N{N}.json"
-    if os.path.exists(out): continue
-    t = time.time()
-    cmd = ["python", "experiments/50_corpus_hetero_write.py", "--D", "4096", "--corpus-source", "wikitext",
-           "--max-vocab", "4000", "--window-size", "6", "--N", str(N), "--observed", "1",
-           "--seeds", "2", "--epochs", "20", "--device", "cuda", "--out", out]
-    r = subprocess.run(cmd, cwd="/content/Neuro-AI", env=env, capture_output=True, text=True)
-    print(f"N={N}: {'ok' if r.returncode==0 else 'FAIL'} ({time.time()-t:.0f}s)")
-    if r.returncode != 0: print(r.stderr[-1500:])
-
-import matplotlib.pyplot as plt
-rows = []
-for N in NS:
-    p = f"/content/results/cap_N{N}.json"
-    if not os.path.exists(p): continue
-    d = json.load(open(p)); s = d["summary"]
-    rows.append((s["N"], s["N"]/4096, s["store_as_is"], s["hetero_whiten"], s["shuffled_key_control"]))
-import pandas as pd; cap = pd.DataFrame(rows, columns=["N","N/D","store","write+decorr","floor"])
-display(cap.round(3))
-fig, ax = plt.subplots(figsize=(8,4.5))
-ax.plot(cap["N/D"], cap["write+decorr"], "o-", color="#2a9d8f", lw=2.2, label="write + decorrelation")
-ax.plot(cap["N/D"], cap["store"], "o-", color="#777", lw=2, label="store-as-is")
-ax.plot(cap["N/D"], cap["floor"], "k:", alpha=.5, label="floor")
-ax.set_xlabel("N / D  (load)"); ax.set_ylabel("Recall@1"); ax.set_title("Capacity curve · sparse cue · D=4096")
-ax.legend(); ax.grid(alpha=.3); plt.tight_layout(); plt.savefig("/content/results/capacity_plot.png"); plt.show()
-"""))
-
-cells.append(md(
 """---
-### After the run
-1. **Recover artifacts:** copy the Drive folder into the repo `reports/` (e.g. `reports/052_graduation_d4096/`) and commit — Colab writes to Drive, not the repo.
-2. **Read the verdict:** the headline is the sparse-cue separation (§7) + the crossover in the §6 plot (store-as-is wins rich, write+decorrelation wins sparse).
-3. **Next:** the MESH fixed-scaffold form (`pdf:mesh-2022`) to lift the rank-bounded capacity past N≈D.
+Paste me the **§6 certificate** (or the table + plot). If it graduates, the surgical
+mechanism is confirmed at the real substrate dimension and we move to the next phase
+(`entropy`/`margin` drill-downs, then Phase-4 integration). The Report-052 numbers stand;
+the fix (Report 054) is the resolution.
 
-_Mechanism: `src/energy_memory/phase4/{hetero_write,decorrelator}.py`. Design: `notes/emergent-codebook/phase-4-heteroassociative-write-design.md`. Reports 048–051._"""))
+_Mechanism: `phase4/{hetero_write,decorrelator}.py`. The fix: L2-renorm in `decorrelator.apply()`._"""))
 
-nb = {
-    "cells": cells,
-    "metadata": {
-        "accelerator": "GPU",
-        "colab": {"provenance": [], "toc_visible": True},
-        "kernelspec": {"display_name": "Python 3", "name": "python3"},
-        "language_info": {"name": "python"},
-    },
-    "nbformat": 4,
-    "nbformat_minor": 0,
-}
+nb = {"cells": cells, "metadata": {"accelerator": "GPU",
+      "colab": {"provenance": [], "toc_visible": True},
+      "kernelspec": {"display_name": "Python 3", "name": "python3"},
+      "language_info": {"name": "python"}},
+      "nbformat": 4, "nbformat_minor": 0}
 with open("notebooks/graduation_d4096_colab.ipynb", "w") as f:
     json.dump(nb, f, indent=1)
-print("wrote notebooks/graduation_d4096_colab.ipynb with", len(cells), "cells")
+print("wrote notebooks/graduation_d4096_colab.ipynb (certificate) with", len(cells), "cells")

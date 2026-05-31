@@ -32,8 +32,11 @@ class CueDecorrelator:
     set and applied uniformly. ``fit`` then ``apply``; both are pure measurements of
     the cue distribution (no runtime arbitration)."""
 
-    def __init__(self, dim: int):
+    def __init__(self, dim: int, renorm: str = "l2"):
+        if renorm not in ("l2", "elementwise"):
+            raise ValueError("renorm must be 'l2' or 'elementwise'")
         self.dim = dim
+        self.renorm = renorm   # 'l2' is the fix; 'elementwise' kept for the Report-053 ablation
         self.P: Optional[torch.Tensor] = None
         self.offdiag_before: Optional[float] = None
         self.offdiag_after: Optional[float] = None
@@ -73,6 +76,8 @@ class CueDecorrelator:
         if self.P is None:
             raise RuntimeError("fit() the decorrelator before apply()")
         out = keys @ self.P   # P is Hermitian (Sigma^{-1/2}); cov(keys @ P) = I
+        if self.renorm == "elementwise":   # the Report-053 BUG (fills the null space) — ablation only
+            return out / out.abs().clamp_min(1e-12)
         return out / out.norm(dim=-1, keepdim=True).clamp_min(1e-12)
 
     @staticmethod

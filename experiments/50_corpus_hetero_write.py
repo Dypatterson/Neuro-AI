@@ -129,7 +129,7 @@ def run(args):
         h_rate = top_index_hits(ti_h, target_ids) / N
 
         # decorrelation arm: whiten the (correlated) real context keys, then write
-        wkeys = CueDecorrelator(args.D).fit(masked_enc).apply(masked_enc)
+        wkeys = CueDecorrelator(args.D, renorm=args.decorr_renorm).fit(masked_enc).apply(masked_enc)
         bufw = HeteroConsolidationBuffer(dim=args.D, device=args.device)
         for i in range(N):
             bufw.add(wkeys[i], int(target_ids[i]))
@@ -192,6 +192,8 @@ def main():
     ap.add_argument("--window-size", type=int, default=6, dest="window_size")
     ap.add_argument("--observed", type=int, default=99,
                     help="context positions in the cue (default all; small=sparse, store-as-is fails)")
+    ap.add_argument("--decorr-renorm", choices=["l2","elementwise"], default="l2", dest="decorr_renorm",
+                    help="decorrelator renorm: l2 (the fix) or elementwise (the Report-053 bug; ablation)")
     ap.add_argument("--N", type=int, default=512)
     ap.add_argument("--seeds", type=int, default=3)
     ap.add_argument("--beta", type=float, default=10.0)
