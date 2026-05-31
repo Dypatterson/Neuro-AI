@@ -137,10 +137,30 @@ def _recall_W(keys, W, D):
     return (keys @ W.transpose(0, 1)) / D                    # [N, D]
 
 
+def _whiten(keys: torch.Tensor) -> torch.Tensor:
+    """ZCA-whiten the keys (the UPPER BOUND of any decorrelating write: full
+    orthogonalization of the key set). For correlated/low-rank keys the inverse
+    sqrt is floored, so whitening cannot manufacture rank that isn't there --
+    which is exactly the question (can decorrelation rescue correlated keys, or
+    is the capacity rank-bound?)."""
+    N, D = keys.shape
+    cov = (keys.conj().transpose(0, 1) @ keys) / N        # [D, D] Hermitian
+    evals, evecs = torch.linalg.eigh(cov)
+    inv_sqrt = torch.where(evals > 1e-6, evals.clamp_min(1e-6) ** -0.5,
+                           torch.zeros_like(evals))
+    w_zca = (evecs * inv_sqrt.to(evecs.dtype)) @ evecs.conj().transpose(0, 1)
+    out = keys @ w_zca
+    return out / out.abs().clamp_min(1e-12)                # back to unit-magnitude FHRR
+
+
 def run_seed(args, seed: int) -> dict:
     dev = args.device
     fhrr, keys, values, vidx, pair_vals, bundle = build_pairs(
         D=args.D, N=args.N, C=args.C, seed=seed, device=dev, key_rho=args.key_rho)
+    if getattr(args, "whiten_keys", False):
+        keys = _whiten(keys)
+        bundle = fhrr.normalize(torch.stack(
+            [keys[i] * pair_vals[i] for i in range(args.N)], dim=0).sum(dim=0))
     N, C, D = args.N, args.C, args.D
     chance = 1.0 / C
     der = _deranged(N, seed, dev)
@@ -210,6 +230,8 @@ def main():
     ap.add_argument("--C", type=int, default=32)
     ap.add_argument("--key-rho", type=float, default=0.0, dest="key_rho",
                     help="0=random keys; ->1 blends a shared component (correlated keys)")
+    ap.add_argument("--whiten-keys", action="store_true", dest="whiten_keys",
+                    help="ZCA-whiten keys before write/read (decorrelation UPPER BOUND)")
     ap.add_argument("--seeds", type=int, default=5)
     ap.add_argument("--beta", type=float, default=10.0)
     ap.add_argument("--max-iter", type=int, default=12, dest="max_iter")

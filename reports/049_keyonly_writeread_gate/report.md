@@ -58,6 +58,47 @@ Random keys are near-orthogonal, so Result 1's writes were indistinguishable. Bl
 
 This **vindicates the plan's margin/contrastive emphasis** and resolves the phase3b narrative: the contrastive *idea* was right; phase3b failed because its negative was **self-mined via `sims.argmax` (a runtime thermostat)** plus a top-1 readout — the **precommitted swap-negative** (anti-homunculus-clean) is the fix, and it genuinely helps under correlation.
 
+## Result 4 — decorrelation rescues the correlated-key collapse (validates the redirect)
+
+Report 050 found the write collapses under real key correlation and redirected to a
+decorrelating objective. Testing decorrelation in the limit (ZCA **whitening** of the
+keys — the upper bound of any learnable decorrelator), `--whiten-keys`, on the
+correlated regime (rho=0.6, key cosine ~0.77):
+
+| | store | hebbian | delta | swap |
+|---|---|---|---|---|
+| no-whiten | 0.052 | 0.060 | 0.225 | 0.309 |
+| **+ whiten** | 0.279 | **1.000** | **1.000** | **1.000** |
+
+Whitening **fully rescues** the write. N-sweep at rho=0.6 (delta_W) pins the reach:
+
+| N/D | no-whiten | whiten |
+|---|---|---|
+| 0.25 | 0.44 | 1.00 |
+| 0.50 | 0.22 | 1.00 |
+| 1.00 | 0.12 | 1.00 |
+| 1.50 | 0.07 | 0.99 |
+| 2.00 | 0.07 | 0.89 |
+
+**The collapse was ill-conditioning, not a rank wall** — decorrelation recovers full
+performance up to **N≈D** (the rank capacity), degrading gracefully past it. Two
+load-bearing distinctions:
+- This is **key/cue-space** decorrelation. The project's existing `repulsion_force`
+  (`torch_fhrr.py:147-182`, a `d_eff`-maximizing **atom-space** spread, already in the
+  Frame-B baseline at `repulsion_step_size=0.05` and run at `100.0` in the Phase-5
+  pilots 045-053) is a **different** lever — it spreads stored atoms, not the
+  correlated context cues. So cue-space decorrelation is **genuinely untested**, not
+  redundant with the baseline repulsion.
+- It is **rank-bounded**: it rescues ill-conditioned (full-rank correlated) keys up to
+  N≈D; it cannot manufacture capacity when keys are genuinely rank-deficient (N≫D) or
+  ill-posed (single-role cue, rank ≤ K roles).
+
+**Open question for the real-data gate:** does the real role-binding bottleneck fall in
+the ill-conditioned (decorrelation-helpable, N≤D) regime, or the rank-bound/ill-posed
+regime (where nothing helps and rich-context store-as-is already wins, Report 050)?
+This is what a learnable cue-space decorrelator (FEP self-orthogonalizing, the learnable
+approximation of whitening) must be tested against next.
+
 ## Verdict (the fork)
 
 Combined with G-A (exp 048: frozen-refit shows **no readout defect**):
