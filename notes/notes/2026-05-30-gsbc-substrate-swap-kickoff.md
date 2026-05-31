@@ -3,7 +3,7 @@ name: gsbc-substrate-swap-kickoff
 date: 2026-05-30
 project: personal-ai
 status: KICKOFF SEED — PIVOTED 2026-05-30 to the learning-objective question (option B). GSBC PARKED downstream. To be finalized into a binding Stage-0 precommit by the next session (with the user).
-branch: GSBC/substrate-swap (off codex/…@86cc9e4; name kept for origin, but the active first move is the consolidation/learning objective, NOT the substrate swap)
+branch: consolidation/role-structure (renamed from GSBC/substrate-swap on 2026-05-30; off codex/…@86cc9e4. Active first move is the consolidation/learning objective; GSBC parked downstream in this seed.)
 parent: brainstorm-workspace/2026-05-24-unconsidered-paths/research/01-alternative-vsa-algebras.md (GSBC spec — parked)
 tags: [notes, subject/substrate, subject/consolidation, subject/learning-objective, gsbc-parked]
 ---
@@ -106,5 +106,6 @@ Idea A (D=4096, B=64, L=64, block-circular bind, ℓ∞ similarity).
 
 ## Branch facts
 - `substrate/` has no interface/ABC (FHRR only). Phase 5′ stays **paused**; this branch
-  doesn't touch it. Branch name kept for origin; active scope is broader than GSBC — rename
-  optional.
+  doesn't touch it. Branch renamed `GSBC/substrate-swap` → `consolidation/role-structure`
+  (2026-05-30) to match the learning-objective scope; GSBC parked. (Filename keeps the
+  `gsbc` slug for git continuity.)
