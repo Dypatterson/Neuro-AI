@@ -142,6 +142,25 @@ untouched); pure-Python reference backend retained (the module ships a reference
 
 ## Integration plan
 
+> **STATUS (2026-05-31): INTEGRATED (step 2 DONE), DENSE H.** The validated mechanism is
+> folded into the production consolidation-write orchestrator
+> `src/energy_memory/phase34/online_codebook.py` (`OnlineCodebookUpdater`) as a **separate
+> batch-offline pass** behind a default-off flag — `observe(..., cue=)` accumulates a CLOSED
+> cue buffer (all observations, never quality-gated), `consolidate_hetero()` fits the L2
+> decorrelator + freezes + writes a **dense `H`**, `recall_hetero()` reads via
+> `cleanup(H·decorr(cue))` → `top_index`. The **key is the RAW masked cue** (not the
+> post-unbind slot_query) — the graduated advantage is that `H` bypasses the scene-MHN+unbind
+> that corrupts the slot_query at sparse cues. Reproducibility: `hetero_write_enabled=False`
+> default → the streaming `_consolidate()` (pull/push, context-residual, C.2.x) is
+> **byte-identical** (117 insertions / 0 deletions; the byte-identity test stays green). AH
+> condition 1 discharged structurally (the `error_driven_learner:103-115` thermostat is never
+> invoked). **Anti-homunculus reviewer: PASS** (2026-05-31, all 7 points + all 3 conditions).
+> Tests: `tests/test_hetero_consolidation_integration.py` (7/7). Report 057.
+>
+> **DENSE H; MESH-scaffold scaling form DEFERRED (open user decision — see §"Open scaling
+> question" below + memory `neuro_ai_mesh_scaling_decision_open`). Trigger to revisit: dense
+> `H`'s O(D²) memory (~128 MB at D=4096) becoming a bottleneck at scale.**
+
 1. Module `src/energy_memory/phase4/hetero_write.py` — the delta/swap heteroassociative
    write over a **closed, seed-fixed buffer** of precommitted `(k, v, v⁻)` tuples; the
    `top_index_hits` read. The module **owns its buffer** and never invokes the

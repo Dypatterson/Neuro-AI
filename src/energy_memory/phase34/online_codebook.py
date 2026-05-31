@@ -80,6 +80,14 @@ class OnlineCodebookUpdater:
         use_pull_push: bool = True,
         use_context_residual: bool = False,
         lr_cr: float = 0.1,
+        hetero_write_enabled: bool = False,
+        decorrelator_enabled: bool = True,
+        hetero_lr: float = 0.5,
+        hetero_epochs: int = 20,
+        hetero_contrastive: bool = False,
+        hetero_lr_push: float = 0.1,
+        hetero_neg_seed: int = 0,
+        decorrelator_ridge: float = 1e-5,
     ):
         if torch is None:  # pragma: no cover
             raise ModuleNotFoundError("OnlineCodebookUpdater requires torch") from _IMPORT_ERROR
@@ -107,19 +115,59 @@ class OnlineCodebookUpdater:
         self.use_pull_push = use_pull_push
         self.use_context_residual = use_context_residual
         self.lr_cr = lr_cr
+        # ----- Surgical Phase-4 heteroassociative consolidation write -----
+        # The VALIDATED mechanism (Reports 055 graduation / 056 G-D): a dense
+        # heteroassociative map H (cue -> target atom) + an L2 cue-space
+        # decorrelator, written BATCH-OFFLINE over a CLOSED buffer in a SEPARATE
+        # pass (consolidate_hetero), NOT in the per-K streaming _consolidate().
+        # All flags default to the reproducibility-preserving setting
+        # (hetero_write_enabled=False) -> observe()/_consolidate() are byte-
+        # identical to the pre-hetero path. The key is the RAW masked cue (not
+        # the post-unbind slot_query): the graduated advantage is that H bypasses
+        # the scene-MHN+unbind that corrupts the slot_query at sparse cues.
+        # DENSE H only; the MESH-scaffold scaling form is DEFERRED (open user
+        # decision; see notes/emergent-codebook/phase-4-heteroassociative-write-design.md
+        # §"Open scaling question" + the §Memorization framing in the parent spec).
+        # Anti-homunculus: a single batch-offline pass over a frozen buffer; the
+        # headline write is pull-only delta-rule (decorrelator is the active
+        # ingredient, 055:55); recall terminates in a top_index count (never an
+        # energy / min-over-branches / ΔE — the Phase-5' fence). entropy/margin
+        # are reported, NEVER fed back into write-gating (re-imports the thermostat).
+        self.hetero_write_enabled = hetero_write_enabled
+        self.decorrelator_enabled = decorrelator_enabled
+        self.hetero_lr = hetero_lr
+        self.hetero_epochs = hetero_epochs
+        self.hetero_contrastive = hetero_contrastive
+        self.hetero_lr_push = hetero_lr_push
+        self.hetero_neg_seed = hetero_neg_seed
+        self.decorrelator_ridge = decorrelator_ridge
+        self._hetero_keys: List["torch.Tensor"] = []
+        self._hetero_vidx: List[int] = []
+        self.hetero_H: Optional["torch.Tensor"] = None
+        self.hetero_decorrelator: Optional["object"] = None
 
     def observe(
         self,
         target_id: int,
         slot_query: "torch.Tensor",
         predicted_id: int,
+        cue: Optional["torch.Tensor"] = None,
     ) -> bool:
         """Observe one (target, slot_query, predicted) tuple.
 
         If similarity(slot_query, codebook[target]) is below quality_threshold,
         the observation is buffered as a failure. Returns True if a
         consolidation is now ready to fire (buffer reached K).
+
+        ``cue`` (optional): the RAW masked-context cue for this observation. When
+        ``hetero_write_enabled`` and ``cue`` is supplied, ``(cue, target_id)`` is
+        appended to the CLOSED heteroassociative buffer (ALL observations, never
+        gated on quality) for the separate batch-offline ``consolidate_hetero()``
+        pass. ``cue=None`` (the default) leaves this path inert -> byte-identical.
         """
+        if self.hetero_write_enabled and cue is not None:
+            self._hetero_keys.append(cue.detach().clone())
+            self._hetero_vidx.append(int(target_id))
         self._total_observations += 1
         quality = float(
             self.substrate.similarity(slot_query, self.codebook[target_id])
@@ -360,4 +408,73 @@ class OnlineCodebookUpdater:
             "failure_rate": (
                 self._total_failures / max(1, self._total_observations)
             ),
+            "hetero_buffer_size": len(self._hetero_keys),
+            "hetero_written": self.hetero_H is not None,
         }
+
+    # ------------------------------------------------------------------ #
+    # Surgical Phase-4 heteroassociative consolidation write (batch-offline).
+    # A SEPARATE pass from the per-K streaming _consolidate(); see __init__.
+    # ------------------------------------------------------------------ #
+    def consolidate_hetero(self) -> Optional[dict]:
+        """Batch-offline heteroassociative consolidation write (the validated
+        mechanism, Reports 055/056). Fits the L2 cue-space decorrelator on the
+        CLOSED accumulated cue buffer, freezes, and writes a DENSE ``H`` mapping
+        the (decorrelated) raw cue -> target atom. Stores ``H`` + the decorrelator
+        on ``self``; returns diagnostics, or ``None`` if no cues were accumulated.
+
+        This is a single batch-offline pass over a frozen buffer (AH condition 3);
+        it never touches the codebook or the streaming ``_consolidate()`` path,
+        and never invokes the ``sims.argmax`` thermostat (the optional negative is
+        a precommitted seed-fixed swap draw). DENSE ``H`` only — the MESH-scaffold
+        scaling form is DEFERRED (open user decision)."""
+        if not self.hetero_write_enabled:
+            raise RuntimeError("consolidate_hetero requires hetero_write_enabled=True")
+        if not self._hetero_keys:
+            return None
+        from energy_memory.phase4.hetero_write import (
+            HeteroConsolidationBuffer, heteroassociative_write,
+        )
+        from energy_memory.phase4.decorrelator import CueDecorrelator
+        keys = torch.stack(self._hetero_keys, dim=0)        # [N, D] closed buffer
+        dim = keys.shape[1]
+        write_keys = keys
+        if self.decorrelator_enabled:
+            dec = CueDecorrelator(dim, renorm="l2").fit(keys, ridge=self.decorrelator_ridge)
+            write_keys = dec.apply(keys)
+            self.hetero_decorrelator = dec
+        else:
+            self.hetero_decorrelator = None
+        buf = HeteroConsolidationBuffer(dim, keys.device)
+        for i in range(write_keys.shape[0]):
+            buf.add(write_keys[i], self._hetero_vidx[i])
+        buf.freeze()
+        self.hetero_H = heteroassociative_write(
+            buf, self.codebook, lr=self.hetero_lr, epochs=self.hetero_epochs,
+            contrastive=self.hetero_contrastive, lr_push=self.hetero_lr_push,
+            neg_seed=self.hetero_neg_seed,
+        )
+        return {
+            "hetero_n": int(write_keys.shape[0]),
+            "hetero_decorrelated": self.decorrelator_enabled,
+            "hetero_dim": int(dim),
+            "hetero_contrastive": self.hetero_contrastive,
+        }
+
+    def recall_hetero(self, cue, *, beta: float = 10.0, max_iter: int = 12):
+        """Recall the target-atom basin for a cue via the heteroassociative map:
+        ``cleanup(H · decorr(cue))`` over the codebook -> ``(top_index, entropy,
+        margin)``. The read terminates in a ``top_index`` basin-membership index
+        (Phase-5' fence respected; entropy/margin are diagnostics, never fed back
+        into write-gating). Requires ``consolidate_hetero()`` to have run.
+        ``cue`` is ``[D]`` or ``[B, D]``."""
+        if self.hetero_H is None:
+            raise RuntimeError("call consolidate_hetero() before recall_hetero()")
+        from energy_memory.phase4.hetero_write import recall_top_index
+        keys = cue if cue.dim() == 2 else cue.unsqueeze(0)
+        if self.hetero_decorrelator is not None:
+            keys = self.hetero_decorrelator.apply(keys)
+        return recall_top_index(
+            self.substrate, self.hetero_H, keys, self.codebook,
+            beta=beta, max_iter=max_iter,
+        )
