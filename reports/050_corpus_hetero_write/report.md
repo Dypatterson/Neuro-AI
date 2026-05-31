@@ -1,9 +1,46 @@
-# Real-corpus validation of the heteroassociative write — a qualifying negative result
+# Real-corpus validation of the heteroassociative write — qualified, then resolved
 
-> **Status:** decision-relevant. The synthetic key-only rescue (Report 049) **does
-> NOT transfer** to the real masked-token contextual-completion path. This **qualifies**
-> the provisional surgical verdict and **redirects** the surgical direction. Harness:
+> **Status:** decision-relevant. **Part 1** (the heteroassociative write alone) does NOT
+> transfer to the rich-context masked-token path — store-as-is already wins; this
+> qualified the verdict. **Part 2** (added 2026-05-30): with the **cue-space
+> decorrelator** (whitening, validated in Report 049 §4), the surgical mechanism **DOES
+> transfer** — it recovers the real **sparse-cue** regime where store-as-is fails. The
+> decorrelation lever's real-data payoff is **confirmed**. Harness:
 > `experiments/50_corpus_hetero_write.py`. Design: `phase-4-heteroassociative-write-design.md`.
+
+## Part 2 — decorrelation transfers to the real sparse-cue regime (the resolution)
+
+Part 1's write failed in the *rich-context* regime because store-as-is already wins
+there. The faithful analog of the role-binding null is the **sparse-cue** regime
+(few context positions), where store-as-is fails. Re-running with `--observed 1` (one
+context token) + the whitening decorrelator (`--whiten-keys` analog, the validated
+upper-bound lever), D=256→512, 2 seeds:
+
+| cue | store-as-is | raw write | **write + decorrelation** | floor |
+|---|---|---|---|---|
+| full context (observed=5) | 1.000 | 0.081 | 1.000 | 0.045 |
+| sparse (observed=1), N/D=0.9 | **0.024** | 0.058 | **0.590** | 0.047 |
+
+Sparse-cue N-sweep (D=512, observed=1, key cosine ~0.48 — real keys are highly correlated):
+
+| N/D | store-as-is | raw write | **write + decorrelation** | floor |
+|---|---|---|---|---|
+| 0.45 | 0.211 | 0.087 | **0.678** | 0.046 |
+| 0.89 | 0.024 | 0.058 | **0.590** | 0.047 |
+| 1.78 | 0.010 | 0.049 | **0.519** | 0.044 |
+| 3.59 | 0.005 | 0.048 | **0.242** | 0.048 |
+
+**In the real sparse-cue regime where store-as-is AND the raw write both fail (≈floor),
+decorrelation + the write recovers 0.24–0.68** — up to 48× store-as-is and 12× the
+floor — degrading gracefully with N/D (the rank reach, exactly as the synthetic Report
+049 §4 predicted). **The crux open question is answered: the real role-binding-analog
+bottleneck is ill-conditioned and decorrelation-helpable, NOT rank-bound/ill-posed.**
+The surgical direction (heteroassociative write + cue-space decorrelation) **transfers
+to real data** where the project's current store-as-is fails.
+
+---
+
+## Part 1 — the heteroassociative write alone does not transfer (the original qualification)
 
 ## Experiment preamble
 

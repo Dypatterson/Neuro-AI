@@ -58,6 +58,26 @@ def _deranged(n, seed, device):
     return ((torch.arange(n) + 1) % n).to(device)
 
 
+def _whiten(keys):
+    """ZCA-whiten the keys (decorrelation upper bound; see Report 049 §4)."""
+    N, D = keys.shape
+    cov = (keys.conj().transpose(0, 1) @ keys) / N
+    evals, evecs = torch.linalg.eigh(cov)
+    inv_sqrt = torch.where(evals > 1e-6, evals.clamp_min(1e-6) ** -0.5, torch.zeros_like(evals))
+    w_zca = (evecs * inv_sqrt.to(evecs.dtype)) @ evecs.conj().transpose(0, 1)
+    out = keys @ w_zca
+    return out / out.abs().clamp_min(1e-12)
+
+
+def _sparse_cue(w, mpos, observed, window_size, mask_id):
+    """Cue keeps only the first `observed` context positions (target + the rest
+    masked). Fewer observed -> sparser cue -> store-as-is degrades into its
+    failing regime, where a write (+ decorrelation) could matter."""
+    ctx = [p for p in range(window_size) if p != mpos]
+    keep = set(ctx[:max(1, observed)])
+    return tuple(w[p] if p in keep else mask_id for p in range(window_size))
+
+
 def run(args):
     repo_root = Path(__file__).resolve().parents[1]
     splits = load_corpus_splits(args.corpus_source, repo_root, wikitext_name=args.wikitext_name)
@@ -86,7 +106,8 @@ def run(args):
         # full + masked encodings
         full_enc = torch.stack([encode_window(sub, positions, codebook, w) for w in windows])
         masked_enc = torch.stack([
-            encode_window(sub, positions, codebook, masked_window(w, [mpos], vocab.mask_id))
+            encode_window(sub, positions, codebook,
+                          _sparse_cue(w, mpos, args.observed, args.window_size, vocab.mask_id))
             for w in windows])
 
         # ---- store-as-is masked-token recall (the project's current path) ----
@@ -103,12 +124,22 @@ def run(args):
             buf.add(masked_enc[i], int(target_ids[i]))   # key = masked context, value = target token
         buf.freeze()
         H = heteroassociative_write(buf, codebook, lr=args.lr, epochs=args.epochs)
-        Hc = heteroassociative_write(buf, codebook, lr=args.lr, epochs=args.epochs,
-                                     contrastive=True, lr_push=args.lr_push, neg_seed=seed)
         ti_h, _, _ = recall_top_index(sub, H, masked_enc, codebook, beta=args.beta, max_iter=args.max_iter)
-        ti_hc, _, _ = recall_top_index(sub, Hc, masked_enc, codebook, beta=args.beta, max_iter=args.max_iter)
         h_rate = top_index_hits(ti_h, target_ids) / N
-        hc_rate = top_index_hits(ti_hc, target_ids) / N
+
+        # decorrelation arm: whiten the (correlated) real context keys, then write
+        wkeys = _whiten(masked_enc)
+        bufw = HeteroConsolidationBuffer(dim=args.D, device=args.device)
+        for i in range(N):
+            bufw.add(wkeys[i], int(target_ids[i]))
+        bufw.freeze()
+        Hw = heteroassociative_write(bufw, codebook, lr=args.lr, epochs=args.epochs)
+        ti_hw, _, _ = recall_top_index(sub, Hw, wkeys, codebook, beta=args.beta, max_iter=args.max_iter)
+        hw_rate = top_index_hits(ti_hw, target_ids) / N
+        # mean pairwise key correlation (diagnostic: how correlated are real keys?)
+        with torch.no_grad():
+            kc = (masked_enc @ masked_enc.conj().T).real.abs() / args.D
+            key_cos = float(kc[~torch.eye(N, dtype=torch.bool, device=args.device)].mean())
 
         # ---- controls ----
         der = _deranged(N, seed, args.device)
@@ -120,15 +151,15 @@ def run(args):
         rand_rate = top_index_hits(ti_rand, target_ids) / N      # random codebook -> chance
 
         out["per_seed"].append({
-            "seed": seed, "N": N, "store_as_is": sa_rate,
-            "hetero_delta": h_rate, "hetero_contrastive": hc_rate,
+            "seed": seed, "N": N, "key_cos": key_cos, "store_as_is": sa_rate,
+            "hetero_delta": h_rate, "hetero_whiten": hw_rate,
             "shuffled_key_control": shuf_rate, "random_codebook_control": rand_rate,
         })
 
     def mean(k):
         return sum(s[k] for s in out["per_seed"]) / len(out["per_seed"])
     out["summary"] = {k: mean(k) for k in
-                      ("N", "store_as_is", "hetero_delta", "hetero_contrastive",
+                      ("N", "key_cos", "store_as_is", "hetero_delta", "hetero_whiten",
                        "shuffled_key_control", "random_codebook_control")}
     print(json.dumps({"chance": chance, "n_decode": len(decode_ids), **out["summary"]}, indent=2))
     if args.out:
@@ -158,6 +189,8 @@ def main():
     ap.add_argument("--wikitext-name", default="wikitext-2-raw-v1", dest="wikitext_name")
     ap.add_argument("--max-vocab", type=int, default=512, dest="max_vocab")
     ap.add_argument("--window-size", type=int, default=6, dest="window_size")
+    ap.add_argument("--observed", type=int, default=99,
+                    help="context positions in the cue (default all; small=sparse, store-as-is fails)")
     ap.add_argument("--N", type=int, default=512)
     ap.add_argument("--seeds", type=int, default=3)
     ap.add_argument("--beta", type=float, default=10.0)
