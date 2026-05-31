@@ -3,7 +3,7 @@ name: frame-b-exposure-slope-headline-design
 date: 2026-05-28
 project: personal-ai
 phase: Phase 3 — Growing Codebook (Frame B)
-status: design / PROPOSED — pending user sign-off on the thresholds before it becomes binding
+status: SHELVED 2026-05-30 — dropped by the pre-committed corr_AC_BD<0.3 branch rule (measured corr_AC_BD=+0.10); never pinned, never binding. See reports/116_frameb_corr_ac_bd_slope_drop.md. (was: design / PROPOSED — pending user sign-off)
 parent: 2026-05-28-phase3-frame-b-continual-learning-and-gauge-control-finding.md
 supersedes: the Part 3 "exposure–recall slope (and asymptote)" sketch in the anchor note
 tags:
@@ -14,6 +14,17 @@ tags:
 ---
 
 # Frame B headline — within-seed exposure–recall **slope-DiD**
+
+> **⚠️ SHELVED 2026-05-30 — this design was NOT adopted.** The recovered Gate-0
+> n=10 summary gives `corr_AC_BD = +0.10` < the pre-committed `0.3` cutoff
+> (read-protocol [05:30](../../brainstorm-workspace/2026-05-29-frameb-grill/05-stage1-read-protocol.md)).
+> Per the user's pre-committed `corr_AC_BD<0.3` rule, the slope-DiD is **dropped**
+> and the active Phase-3 headline reverts to the endpoint **level-DiD** at
+> **n≈27 seeds**. Important: `corr_AC_BD` falsifies only the slope's *outer*
+> (real−shuffle) variance kill; the *inner-slope* σ(β) kill is **untested**
+> (Q1 open) — the drop **honors the pre-commit**, it does not measure σ(β).
+> This document is retained as a design record. Everything below is unamended
+> and **not binding**. See [Report 116](../../reports/116_frameb_corr_ac_bd_slope_drop.md).
 
 **This is the proposed Phase 3 (Frame B) graduation headline.** It resolves the
 anchor note's open question #1 (Part 8): the primary number is the

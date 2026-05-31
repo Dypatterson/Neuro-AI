@@ -91,6 +91,19 @@ measured — the Q1 conditional is **open, not failed**.
 
 ## 3. Dispositive off-zero arithmetic (drill-down: why more windows won't clear the bar)
 
+> **⚠️ CORRECTION 2026-05-30 (see [Report 117](117_frameb_leveldid_feasibility_consolidation_variance.md)).**
+> Two numbers in this section are **wrong**, though the conclusion survives:
+> (1) **`K=9 ⇒ σ=0.044` is wrong** — under the same model K=9 ⇒ σ=**0.0685**;
+> reaching σ=0.044 needs **K≈26**. (2) **"WikiText val+test is only thousands of
+> windows / saturates at K=9" is wrong** — the test pool is **~48,900** windows;
+> window-averaging is **compute-limited, not pool-limited**. The conclusion
+> ("√K window-averaging cannot clear the DiD off zero at n=10") **holds a
+> fortiori**: the correct K=9 CI is **[−0.030, +0.068]** (wider, still spans
+> zero). Crucially, window-averaging via `window_seed_override` is **K×
+> re-consolidation, not cheap eval**, so "n≈27" is NOT a cheap path — total cells
+> to clear zero is monotonic in K (min at K=1, n≈424 ≈ 42× the n=10 run). See
+> Report 117 §1–§2.
+
 The endpoint level-DiD point is +0.019 with per-seed σ≈0.19; at n=10 the
 Student-t critical value is t(df=9)=2.262, so the CI half-width is
 `t·σ/√n = 2.262·σ/√10` around +0.019. A √K window-average shrinks the

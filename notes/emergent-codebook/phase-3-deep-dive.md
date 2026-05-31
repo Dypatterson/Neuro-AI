@@ -188,7 +188,18 @@ Phase 3 has one headline metric that defines whether the phase crossed its viabi
 > Codebook") with a **corpus-stream-shuffle** control. The criterion below is
 > **not binding**.
 >
-> **PROPOSED replacement headline (2026-05-28, pending sign-off):** the
+> **⚠️ DROPPED 2026-05-30 — the slope-DiD reframe below is SHELVED.** The
+> recovered Gate-0 n=10 summary gives `corr_AC_BD=+0.10` < the pre-committed
+> `0.3` cutoff → the slope's *outer* real−shuffle variance kill is **falsified**
+> (the inner-slope σ(β) kill stays **untested**, Q1 open). Per the user's
+> pre-committed `corr_AC_BD<0.3` rule, the slope is dropped and the **active
+> Phase-3 (Frame B) headline reverts to the endpoint level-DiD** (consolidation
+> benefit, real vs global-stream-shuffle), escalated to **n≈27 seeds** (the
+> lever that clears zero — Report 115 §3). See
+> [Report 116](../../reports/116_frameb_corr_ac_bd_slope_drop.md). The slope-DiD
+> spec is retained below as a design record — **not pinned, not binding.**
+>
+> **[SHELVED 2026-05-30] PROPOSED replacement headline (2026-05-28):** the
 > **within-seed exposure–recall slope-DiD** — full spec at
 > [2026-05-28-frame-b-exposure-slope-headline-design.md](../notes/2026-05-28-frame-b-exposure-slope-headline-design.md).
 > `Δβ(s) = β_real(s) − β_shuffle(s)`, the per-seed OLS slope of Recall@K on
