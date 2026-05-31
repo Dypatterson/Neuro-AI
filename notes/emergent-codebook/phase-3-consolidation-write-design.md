@@ -70,6 +70,51 @@ empirical status):
 This is a **drill-down**, not graduation, at any scale until the headline re-point is
 recorded in STATUS (done 2026-05-30) and the report cites this spec.
 
+### §G-D substrate amendment (2026-05-31, user-approved)
+
+The literal **clean 4-role rule-toy** (independent-uniform fillers, chance 1/N=0.25,
+held-out generalization) was empirically shown — by a 7-agent design panel whose
+judge **ran code** — to be **incapable of reproducing the graduated mechanism's
+signature**, for two structural reasons:
+- **Fork 1:** any role→target rule *recoverable from the cue* puts the predictive
+  binding *in* the cue, which the scene-MHN matches too → **store-as-is also wins** →
+  write-marginal Δ≈0 (verified: copy-rule store=1.00, Markov=0.66–0.70).
+- **Fork 2:** the **linear** delta-rule write **cannot fit a random hash** (verified
+  write+L2=0.12–0.16 at full coverage); the corpus worked because language is
+  **low-rank/smooth**. The hash defeats store-as-is but also defeats the write.
+- **Fork 3:** the L2-vs-element-wise renorm separation is a **corpus-specific high-D
+  null-space pathology** (the shared mask-binding eigenvalue; Reports 053/054), not a
+  clean-toy property — already discharged, not re-litigated on the toy.
+
+**Amendment (binding for G-D):** G-D is grounded on the **masked-encoding substrate**
+(the graduated exp-50 wiring), instantiated as a **position-dependent topic-corpus**
+(closed-form/Bayes ceiling) and, as a convincer, the **real corpus** (repo/wikitext,
+D=4096). The **headline** is the **role-Selectivity-Δ of write+L2** —
+`Δ = top_index_hits(true-position cue) − top_index_hits(position-deranged cue)` over
+the value codebook — under the **two-floor Wilson rule** with **chance = 1/|value
+codebook|** (a documented re-point from the literal 1/N=0.25, justified because the
+graduated native read is a value-codebook cleanup, not a role classifier), **plus the
+smoke-refinement-1 write-marginal anchor** `Δ(write+L2) − Δ(store-as-is)` with a
+Newcombe difference CI (FHRR binding is already role-selective, so raw Δ>0 is
+confounded). Prototype-verified (3 seeds, D=1024): write+L2 **tracks the ceiling**,
+role-Selectivity-Δ ≈ **+0.50** (position-shuffle → near floor), the content-matched
+(bag-structure) control collapses Δ→~0, write-marginal ≈ **+0.05**. Report: 056.
+
+**Memorization framing (2026-05-31, user-approved — refines the held-out reading).** An
+adversarial verification (held-out split, which the spec literally requires) showed the
+mechanism is a role-selective **associative memory**: *in-sample* it recalls role→target
+bindings role-selectively from sparse cues; *held-out* it generalizes that role-selectivity
+**only on low-rank structure** (the topic toy, Δ≈0.42, structure-ablation bag-toy→0), while
+on **real text** held-out recall is **≈ chance** (no low-rank role→target rule to generalize
+at sparse cues). Since this project is a **contextual-completion system, NOT a
+sequence-prediction system** (CLAUDE.md / PROJECT_PLAN), the **target capability is
+memorization-recall** (recall a stored episode from a partial cue), not rule generalization.
+**Therefore G-D is judged in-sample**: the headline is the **in-sample role-Selectivity-Δ of
+write+L2** (the memory's recall is role-selective), and it **PASSES** (Report 056). Held-out
+generalization is reported as a **secondary capability** (holds on low-rank structure, null
+on real text — the expected signature of a memory, not a learner). The Report-055 corpus
+graduation **stands as the correct memorization result**.
+
 ## §Required controls (all on the same held-out test set)
 
 1. **random-codebook ablation** — must collapse Δ→0 (and give a near-zero G-A
