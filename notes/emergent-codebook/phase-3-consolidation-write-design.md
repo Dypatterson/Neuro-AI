@@ -157,7 +157,10 @@ Ranked, each cites ≥1 source_id + a principle check; link_only/absent carded f
 primary before load-bearing (carding is licensed to return "does-not-transfer"):
 **swap-reconstruction** (`arxiv:2412.19847` ArSyD; precommitted role-swap negative — the
 FHRR-native form of the rank-1 negative that avoids the phase3b self-mined trap),
-**predictive/JEPA** (`pdf:pam-2026`, `arxiv:2502.05164`, `arxiv:2501.14174`; cue-derived
+**predictive/JEPA** (`pdf:pam-2026` — the sole JEPA-flavored anchor, mechanism-shape only
+and itself a memory-not-learner; ~~`arxiv:2502.05164`~~ DEMOTED = DAM/one-step-energy, not
+JEPA; ~~`arxiv:2501.14174`~~ DROPPED = DreamWeaver generative world-model, not JEPA —
+citations repaired 2026-05-31, see [phase-3-within-scene-predictive-jepa-design.md](phase-3-within-scene-predictive-jepa-design.md); cue-derived
 self-target, EMA/stop-grad), **FEP single-phase self-orthogonalizing** (`arxiv:2505.22749`;
 anti-Hebbian = the missing margin), **mixture-prior EM** (`arxiv:2406.07141`; negatives-free),
 **Dorrell rectangular-support** (`arxiv:2410.06232`; Report 068 deferred the training step —
