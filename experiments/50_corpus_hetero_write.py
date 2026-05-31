@@ -46,6 +46,7 @@ from energy_memory.phase4.hetero_write import (
     HeteroConsolidationBuffer, batched_hopfield_topindex,
     heteroassociative_write, recall_top_index,
 )
+from energy_memory.phase4.decorrelator import CueDecorrelator
 from energy_memory.substrate.torch_fhrr import TorchFHRR
 
 
@@ -128,7 +129,7 @@ def run(args):
         h_rate = top_index_hits(ti_h, target_ids) / N
 
         # decorrelation arm: whiten the (correlated) real context keys, then write
-        wkeys = _whiten(masked_enc)
+        wkeys = CueDecorrelator(args.D).fit(masked_enc).apply(masked_enc)
         bufw = HeteroConsolidationBuffer(dim=args.D, device=args.device)
         for i in range(N):
             bufw.add(wkeys[i], int(target_ids[i]))

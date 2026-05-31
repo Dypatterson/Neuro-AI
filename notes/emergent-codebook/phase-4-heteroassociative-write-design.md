@@ -1,17 +1,21 @@
 # Phase 4 — Heteroassociative Consolidation Write (surgical design)
 
-> Status: **QUALIFIED / SUPERSEDED as front-runner** (2026-05-30). Designed,
-> AH-reviewed, and module-tested (`src/energy_memory/phase4/hetero_write.py`,
-> `tests/test_hetero_write.py` 7/7), but the real-corpus validation **falsified its
-> transfer**: [Report 050](../../reports/050_corpus_hetero_write/report.md) shows the
-> heteroassociative write **collapses under real key correlation** while store-as-is
-> already holds ~0.99 on real masked-token completion. **The real lever is
-> DECORRELATION**, not heteroassociation → the surgical objective is redirected to a
-> self-orthogonalizing write (FEP `arxiv:2505.22749` / Dorrell `arxiv:2410.06232`).
-> This note is retained as the *validated-but-non-transferring* mechanism + the
-> reusable module/buffer/readout infrastructure (which the decorrelating write reuses).
-> The fork verdict is unchanged: **NOT rebuild** (the substrate holds real associations).
-> Original framing below.
+> Status: **BUILT + validated on real data** (2026-05-30). The surgical mechanism is
+> **heteroassociative write + a cue-space decorrelator**. Modules:
+> `src/energy_memory/phase4/hetero_write.py` (7/7 tests) +
+> `src/energy_memory/phase4/decorrelator.py` (4/4 tests). The write **alone** collapses
+> under real key correlation (Report 050 Part 1), but **+ the cue-space decorrelator it
+> transfers** to real data: in the sparse-cue regime where store-as-is fails, the
+> integrated pipeline recovers **0.59 vs 0.024** (Report 050 Part 2, reproduced by the
+> production module). The decorrelator is **batch ZCA whitening** (`P = Σ^{-1/2}` over
+> the cue subspace) — an **offline/batch statistic** of the cue distribution, so it is
+> anti-homunculus-exempt (the same class as the project's existing batch `d_eff`/eigvalsh
+> computations); it never reads a per-cue metric to gate or branch. **Finding:** the
+> online single-phase anti-Hebbian (FEP `arxiv:2505.22749`) form is **impractically slow**
+> here — the real cue covariance is ill-conditioned (cond ~1e5, the frequent-token
+> direction dominates), so the gradient/anti-Hebbian iteration converges far too slowly;
+> the closed-form batch whitening is the production form (same fixed point). Fork verdict
+> unchanged: **NOT rebuild**. Original framing below.
 >
 > Grounded in Reports 048/049 + the research-grounded plan. Parent spec:
 > [phase-3-consolidation-write-design.md](phase-3-consolidation-write-design.md).
