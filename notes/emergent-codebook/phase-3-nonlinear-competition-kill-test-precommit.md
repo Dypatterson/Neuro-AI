@@ -124,9 +124,16 @@ AND/OR the second-order SPPMI `exp61.build_S` (the +0.021 linear anchor's operat
   - **Interpretation matrix (the payoff):** 3a-pass∧3b-pass = strong (local writer recovers E AND survives
     raw stream); 3a-pass∧3b-null = the operator pre-computation was load-bearing; 3a-null∧3b-null = the
     family is dead route-invariantly; 3a-null∧3b-pass = surprising, scrutinize.
-  - **Honest 3a subtlety:** symmetric-NSM matches `M_trans` directly (the clean E-cousin); a row-streaming
-    NSM on `x_i = M_trans[i,:]` instead matches the 2nd-order Gram `M_trans M_transᵀ` (one power removed) —
-    use SYMMETRIC as 3a-primary, row-streaming only as a numerical fallback.
+  - **3a CORRECTION (build-time finding, 2026-06-01 — supersedes the draft):** symmetric-NSM matching
+    `M_trans` DIRECTLY requires inputs whose Gram = M_trans, i.e. `sqrt(M_trans)` = a global
+    EIGENDECOMPOSITION — the banned SVD-homunculus shape INSIDE the mechanism. So the genuinely-LOCAL
+    writer is **ROW-STREAMING** (inputs = operator rows → preserves the 2nd-order Gram, NO eig).
+    **Row-streaming is the 3a PRIMARY**, and the operator is UNIFIED to a 2nd-order similarity so the
+    linear floor (`grow_G`), the NMF ceiling (Oracle E, re-anchored IN-HARNESS on the same operator), and
+    the NSM/kWTA candidates all factorize the SAME operator (apples-to-apples). Primary operator =
+    `exp61.build_S` (SPPMI 2nd-order = the +0.021 grow_G floor operator); secondary = `M_trans` (E's +0.19
+    operator), with E re-anchored in-harness on each. The 2nd-order Gram is a SANCTIONED batch-offline
+    operator (same shape as `build_S = SPPMI@SPPMIᵀ`); only the eig/sqrt is banned.
 - **CEILING — GLOBAL NMF** (Oracle E, reproduced in-harness at matched k): +0.19. READ 3's recovery is
   reported AS A FRACTION of this (the "does the LOCAL writer recover most of E" question).
 
