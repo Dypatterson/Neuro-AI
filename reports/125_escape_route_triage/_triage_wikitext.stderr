@@ -1,0 +1,12 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+V=2002 windows=292788 n_para=40 k_sym=1 src=SimLex-999 (>= 5.0); https://fh295.github.io/SimLex-999.zip
+[anchor] spec=+0.1092 kq=0.222 calib_ok=True
+[baseline flat-SPPMI] best collapse-free spec=-0.0003
+[B M_trans] spec=+0.0024 corr_hi=+0.443 PASS=False
+[B M_SR] spec=+0.0029 corr_hi=+0.431 PASS=False
+[C beta=0.5] spec=+0.0007 corr_hi=+0.164 PASS=False
+[C beta=1.0] spec=-0.0011 corr_hi=+0.277 PASS=False
+[D order] spec=+0.0047 corr_hi=+0.225 PASS=False
+[E k=8] slot spec=+0.1238 corr_hi=+0.251 kq=+0.863 PASS=False
+[E k=16] slot spec=+0.1758 corr_hi=+0.346 kq=+0.851 PASS=False
+[E k=32] slot spec=+0.1878 corr_hi=+0.443 kq=+0.899 PASS=False

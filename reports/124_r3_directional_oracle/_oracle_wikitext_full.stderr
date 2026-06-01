@@ -1,0 +1,15 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+V=2002 windows=292788 gamma=0.9 W=6
+k_sym=1 dens_sym=0.186 | k_dir=1 dens_FB=0.145 Mf_dens=0.096
+n_para=40 n_collo=5 n_rand=40 kq=True src=SimLex-999 (>= 5.0); https://fh295.github.io/SimLex-999.zip
+[S_dir] specs r2=+0.315 r3=+0.441 r5=+0.531 r10=+0.506 r20=+0.543 r300=+0.175
+[S_fwd] specs r2=+0.292 r3=+0.435 r5=+0.561 r10=+0.480 r20=+0.472 r300=+0.105
+[S_bwd] specs r2=+0.375 r3=+0.441 r5=+0.503 r10=+0.477 r20=+0.521 r300=+0.156
+[S_sym] specs r2=+0.269 r3=+0.377 r5=+0.451 r10=+0.461 r20=+0.459 r300=+0.168
+[S_2nd] specs r2=+0.268 r3=+0.367 r5=+0.425 r10=+0.449 r20=+0.445 r300=+0.170
+[anchor raw-SPPMI-SVD] spec=+0.1092 kq=0.222
+[FHRR-port S_dir] spec=+0.1542 CI[+0.111,+0.198]
+[local-iter S_dir] best collapse-free spec=+0.0067 deff_ratio=1.39 corr_hi=+0.259
+[local-iter S_fwd] best collapse-free spec=+0.0104 deff_ratio=1.37 corr_hi=+0.389
+[local-iter S_sym] best collapse-free spec=+0.0007 deff_ratio=1.45 corr_hi=+0.259
+[local-iter S_2nd] best collapse-free spec=-0.0003 deff_ratio=1.46 corr_hi=+0.205

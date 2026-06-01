@@ -1,68 +1,85 @@
-# HANDOFF — 2026-06-01 (end of night; fresh-session orientation)
+# HANDOFF — 2026-06-01 (end of day; fresh-session orientation)
 
-**Branch:** `consolidation/role-structure` · **HEAD:** `dc642a0`
-**One line:** The Phase-3 second-order growth re-scope ran end-to-end → **NULL** at every
-stage that matters, but each null was *earned* (signal confirmed to exist; two metric traps
-caught before banking) and the failures converged on one decisive finding → the genuine next
-move is **R3 (a predictive/successor LOCAL growth)**, un-built. Clean stopping point.
+**Branch:** `consolidation/role-structure` · **HEAD:** today's commit "Reports 124 + 125: flat-code
+growth family exhausted; TEM factorization is the live route" (Reports 124/125, `experiments/63` &
+`65`, 2 precommits, brainstorm synthesis, STATUS/archive/HANDOFF). **Committed, NOT pushed.**
+Memory edits live in `~/.claude/...` (separate from the repo). Oracle `_*.json` are gitignored
+(data); `.stderr` run logs are committed. Pre-existing untracked left alone (see §5).
+
+**One line:** The **flat-code growth family is EXHAUSTED** — the local-vs-global bound is
+**route-invariant for LOCAL single-projection dynamics** (now 7 operators across 121/123/124/125).
+The **one live route is a LOCAL writer for the TEM structure×content factorization** (Report 125,
+Oracle E: the factorization *target* is real, the local *writer* untested). **NEXT = a TEM
+local-reachability oracle.** Clean stopping point; nothing mid-run.
 
 ## 0. Read first (in order)
-1. **[CONTEXT.md](CONTEXT.md)** — the charter (the bet, the gates, the invariants).
-2. **[STATUS.md](STATUS.md)** — the bookmark (Active deliverable + Recent updates).
+1. **[CONTEXT.md](CONTEXT.md)** — the charter (bet, gates, invariants).
+2. **[STATUS.md](STATUS.md)** — the bookmark (Active deliverable = the full chain).
 3. This file.
-4. The load-bearing reports for the next move: **[Report 123](reports/123_growth_redesign_sweep_null/report.md)**
-   (the sweep NULL + the subdominant-modes finding + the R3 disposition) and
-   **[Report 122](reports/122_phase3_second_order_growth_oracles/report.md)** (the oracle
-   reopen + the pressure-test that killed the basin-read rescue). Plus the design spec:
-   **[precommit §GR](notes/emergent-codebook/phase-3-second-order-growth-precommit.md)**.
+4. **[Report 125](reports/125_escape_route_triage/report.md)** (the 4-oracle triage + the E
+   disposition + the two guardrails) and **[Report 124](reports/124_r3_directional_oracle/report.md)**
+   (the directional NULL + the contraction-artifact lesson). Design space:
+   **[brainstorm-workspace/2026-06-01-nonflat-phase3/SYNTHESIS.md](brainstorm-workspace/2026-06-01-nonflat-phase3/SYNTHESIS.md)**.
+   Frozen precommit for the next oracle's siblings:
+   [phase-3-escape-route-oracle-triage-precommit.md](notes/emergent-codebook/phase-3-escape-route-oracle-triage-precommit.md).
 
 ## 1. Where we are RIGHT NOW
-Report 121 (first-order centroid) was a paradigmatic NULL → re-scope to a second-order
-growth. This session built and ran that, exhaustively:
-- **The signal EXISTS** — the §10 SVD-of-SPPMI oracle (`experiments/62`) shows WikiText-2's
-  SPPMI carries paradigmatic structure (king/queen 0.222; specificity +0.109). So no Option-B
-  capitulation: the corpus has the signal.
-- **But the LOCAL growth can't write it.** The B′ (row-centered SPPMI) + energy-native
-  `H_anti` anti-collapse sweep (`experiments/61`, D=4096, gauge-free gate) is a NULL — 0/60
-  cells pass. H_anti prevents collapse, but the surviving clustering is **collocational, not
-  paradigmatic** (Report 123).
-- **THE DECISIVE FINDING:** paradigmatic ("substitutability") structure lives in the
-  **subdominant modes** of SPPMI — the *global* SVD isolates them; *local* iterative
-  pull+repulsion (which runs to the dominant collocational modes) **cannot reach them**.
-  Local best +0.021 clean vs global +0.109. A real local-vs-global bound.
+Today: ran the directional R3 oracle → NULL (124); the user lifted the Phase-5 fence; 2 workflows
+(Option-B latent grounding + non-flat brainstorm) + a completeness critic converged on a few
+bound-escapes + the **locality trap** (power iteration reaches the dominant collocational mode, not
+the subdominant paradigmatic one); built+ran the **4-oracle escape-route triage** (Report 125):
+- **B (SFA/SR, the LEAD), C (eligibility), D (order) = clean LOCAL `grow_G` NULLs.** The lead
+  nulling confirms the locality trap. The bound is route-invariant for local dynamics.
+- **E (TEM nonnegative slot-factorization) = a real GLOBAL-flashlight POSITIVE** — recovers ~all of
+  M_trans's full-rank paradigmatic specificity in 8–32 dims (label-shuffle + random-nonneg controls
+  confirm real). **But it's a global flashlight (NMF), not a local dynamic** — same epistemic status
+  the global SVD had for the flat code: *target real, local writer untested*.
 
-## 2. The genuine next move — R3 (un-built)
-**A predictive / successor-context LOCAL growth** — model *which contexts follow from a token*
-(a slowly-drifting FHRR context vector / successor representation), richer than the symmetric
-co-occurrence centroid; it may promote the subdominant substitutability axis locally. Reuse the
-graduated heteroassoc write (055–058) + FHRR bind/bundle/permute. **Needs its own grounding +
-pre-commit** (don't build from first principles — the codebook-framing + anti-smush workflows
-this session carded much of the relevant literature; check `docs/ground-truth/` + Reports 017/018
-(error-driven/reconstruction = already-killed first-order) before treating a mechanism as new).
-- **Honest contingency:** if R3 also can't reach the subdominant structure → paradigmatic
-  structure needs a **latent/hierarchical layer** (PCN/SFA grounding said this) — bigger, but
-  still local. NOT more `S'@G` knobs — that shape is bounded.
+## 2. The genuine next move — a TEM LOCAL-reachability oracle (un-built)
+The make-or-break, adjudicated by the verification. **Substrate-free, ~exp63 scale, no FHRR port,
+no Phase-5 commitment.** ONE question: *does a LOCAL online Hebbian path-integration rule — fixed
+random structural slots; content vectors Hebbian-bound to the slots they co-occur in across windows;
+accumulated ONE WINDOW AT A TIME, with NO global factorization — recover most of E's +0.19, or null
+to ≈0 like B/C/D?* The load-bearing distinction from E: E **factorized** M_trans globally (NMF); the
+oracle must **accumulate** slot-occupancy locally/online.
+- **PASS** (recovers most of +0.19) → the slot architecture breaks the locality trap → license a TEM
+  build (then: open Whittington 2020 + the Hebbian-not-backprop locality question; FHRR-port Stage-1;
+  the Phase-5 fence — the user's to lift).
+- **NULL** (nulls like B/C/D) → the global NMF optimization was the part that mattered → TEM inherits
+  the trap → kill the TEM build for ~zero cost.
+- **Gates: g1 (CI-lo>+0.04), g2 (beat flat-SPPMI −0.0003 by +0.02), g4 (no collapse), PLUS a
+  frequency-matched / label-shuffle collocational control — NOT g3** (dead at n=40; see §4). Expand
+  the non-co-occurring SimLex set or replace g3 with a powered discrimination control. **Write a
+  frozen precommit first.** Reuse `experiments/65` + `exp63` machinery.
 
 ## 3. Invariants the user holds (do not violate)
-- **Local growth is NON-NEGOTIABLE.** No global SVD/PCA/word2vec shortcut as the *mechanism*
-  (global computations are diagnostics/flashlights only — the SVD oracle is used that way).
-  "If we're going to do something, we're going to do it right." [[memory: do-it-right]]
-- **Anti-homunculus** (local geometric dynamic, never an `if-metric-then` arbiter);
-  **batch-offline only** (sleep/wake); **FHRR-native**; **floor (055–058) untouched**.
-- **Anti-rationalization:** two metric traps were caught this session before banking a verdict
-  (the stream-shuffle gauge LEAKS 0.79 for 2nd-order operators → retired; the gauge-free
-  headline double-subtracted contraction → fixed `dc642a0`). Stay this suspicious of any metric.
+- **LOCAL growth is the MECHANISM, NON-NEGOTIABLE.** Global computations (SVD/NMF/word2vec) are
+  DIAGNOSTIC FLASHLIGHTS only — Oracle E's NMF is used that way; it does NOT license a build.
+  "Do it right — no thesis-compromising shortcuts." [[do-it-right]]
+- Anti-homunculus; batch-offline (sleep/wake; online TD/error-driven banned); FHRR-native; the
+  055-058 FLOOR untouched. **Phase fence: a TEM/latent BUILD is Phase-5 architecture — the user's to
+  lift; grounding + substrate-free oracles are in-scope.**
+- **Anti-rationalization:** FOUR metric subtleties were caught across 124/125 before banking (the
+  stream-shuffle gauge leak; the gauge-free double-subtraction; the SVD low-rank contraction artifact;
+  g3 unachievable at n=40 for static reads). Stay this suspicious — the verdict-bearer is the faithful
+  `grow_G` LOCAL read, never the SVD/NMF flashlight.
 
 ## 4. Banked side-findings (don't relitigate)
-- High static cosine ≠ merged Hopfield basin at β=30 (β-decoupling; Report 122). The
-  basin-read reframe (R1) was pressure-tested and KILLED as a rescue — do not revive it.
-- The gauge-free para-vs-random gate is the right paradigmatic test (the stream-shuffle gauge
-  is invalid for SPPMI). `corr(log cooc, drift) < 0.15` is the collocational-vs-paradigmatic
-  discriminator.
+- The **locality trap** (completeness critic): power iteration + local whitening (H_anti) converges
+  to the dominant collocational mode, not the subdominant paradigmatic one. SFA ≡ SR (one eigenproblem).
+- **g3 (`corr<0.15`) is unachievable for STATIC global reads at n=40** — the accepted +0.109 SVD
+  anchor also fails it (corr pt 0.077, CI-hi 0.44). g3 is VALID for the `grow_G` LOCAL drift (its
+  designed read-class; it correctly killed 123/124) — do NOT generalize the correction.
+- **Do NOT claim "E beats the SVD" (+0.19 > +0.109)** — apples-to-oranges (different operators; a fair
+  SVD-300 on M_trans gives +0.183). E's absolute cosines are low-dim-INFLATED (rand 0.47–0.67).
+- Predict-context objectives (Γ1/PAM/WS-InfoNCE/raw-SR-cosine) are SPPMI-factorizers in disguise →
+  bound-extends-to-them (Option-B grounding); the eligibility cheap surrogate (Oracle C) nulled.
 
-## 5. Artifacts
-- Reports **121/122/123**; precommit **§GR**; `experiments/61` (gauge-free gate + force-normalized
-  H_anti, both fixed), `experiments/62` (oracles, CUDA-fixed); notebooks **061** (first headline
-  run) / **062** (the D=4096 sweep). Sweep JSON on Drive (`_sweep_all.json`, `_oracle_d4096.json`).
-- Nothing is mid-run; tree is committed + pushed. The 3 pre-existing untracked artifacts
-  (`brainstorm-workspace/.../_wf1,2_raw.json`, `reports/gate0_2026-05-28/`) are pre-existing — leave them.
+## 5. Artifacts (uncommitted)
+- Reports **124** (`_oracle_wikitext_full.json` + localiter), **125** (`_triage_wikitext.json`).
+- `experiments/63_directional_successor_oracle.py`, `experiments/65_escape_route_triage.py`.
+- Precommits: `phase-3-r3-directional-oracle-precommit.md`,
+  `phase-3-escape-route-oracle-triage-precommit.md`.
+- `brainstorm-workspace/2026-06-01-nonflat-phase3/` (SYNTHESIS + option_b_brief + brainstorm_menu +
+  whats_missing) and `brainstorm_nonflat_phase3.js`.
+- Pre-existing untracked (leave them): `brainstorm-workspace/2026-05-30-research-grounded-plan/_wf{1,2}_raw.json`, `reports/gate0_2026-05-28/`.
