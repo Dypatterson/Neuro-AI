@@ -331,12 +331,21 @@ def topk_rows(Sp, k):
 # Growth: G <- normalize( a*centroid + (1-a)*G ), decaying a
 # =====================================================================
 
-def grow_G(sub, G_init, operator_matrix, epochs, alpha0, alpha_decay, device):
+def grow_G(sub, G_init, operator_matrix, epochs, alpha0, alpha_decay, device, eta_sep=0.0):
     """operator_matrix is the REAL VxV matrix M; centroid = M @ G (a real-weighted bundle
     of the complex unit-modulus rows of G) each epoch. MPS lacks complex matmul, so on MPS
     the matmul runs on CPU (mirrors codebook_learner); CUDA/CPU run it natively on-device —
     a large speedup on GPU, where this matmul is the dominant cost of the headline run.
-    (CPU path is numerically identical to the prior CPU-forced version: float32 either way.)"""
+    (CPU path is numerically identical to the prior CPU-forced version: float32 either way.)
+
+    H_anti KEEP-APART (precommit §GR): if eta_sep > 0 AND sub.alpha_anti > 0, after each
+    pull step apply the substrate's energy-native anti-collapse force
+    G <- normalize(G + eta_sep * sub.repulsion_force(G)) — the -alpha*log(d_eff) gradient on
+    the CENTERED Gram (torch_fhrr.py:141,166-182), which removes the common-mode the bundle
+    injects (the diagnosed smush cause). alpha_anti is fixed at substrate construction (the
+    gradient IS the actuator, not a feedback loop on d_eff) -> anti-homunculus clean.
+    eta_sep=0 OR alpha_anti=0 -> repulsion_force returns zeros -> BYTE-IDENTICAL to B' alone.
+    (repulsion_force uses complex autograd/matmul; supported on cuda/cpu, not mps.)"""
     G = G_init.clone()
     mps = (str(device) == "mps")
     M = operator_matrix.to(dtype=G.real.dtype)
@@ -349,7 +358,9 @@ def grow_G(sub, G_init, operator_matrix, epochs, alpha0, alpha_decay, device):
         if mps:
             centroid = centroid.to(device)
         centroid_norm = sub.normalize(centroid)
-        G = sub.normalize(alpha * centroid_norm + (1.0 - alpha) * G)
+        G = sub.normalize(alpha * centroid_norm + (1.0 - alpha) * G)  # B' pull-similar
+        if eta_sep > 0.0:                                             # H_anti keep-apart
+            G = sub.normalize(G + eta_sep * sub.repulsion_force(G))
         alpha *= alpha_decay
     return G
 
@@ -575,7 +586,7 @@ def run_variant(args, variant, k, alpha0, pair_words, vocab, real_arm, C_shuf_pe
                                                   k, special, args.topk_c)
 
     for si, seed in enumerate(range(args.seeds)):
-        sub = TorchFHRR(dim=args.D, seed=seed, device=device)
+        sub = TorchFHRR(dim=args.D, seed=seed, device=device, alpha_anti=args.alpha_anti)
         G_init = sub.random_vectors(V)
 
         # shuffle-arm operator: use the per-seed counts precomputed once in run()
@@ -585,8 +596,8 @@ def run_variant(args, variant, k, alpha0, pair_words, vocab, real_arm, C_shuf_pe
                                                    k, special, args.topk_c)
 
         # grow G on each arm
-        G_real = grow_G(sub, G_init, M_real, args.epochs, alpha0, args.alpha_decay, device)
-        G_shuf = grow_G(sub, G_init, M_shuf, args.epochs, alpha0, args.alpha_decay, device)
+        G_real = grow_G(sub, G_init, M_real, args.epochs, alpha0, args.alpha_decay, device, eta_sep=args.eta_sep)
+        G_shuf = grow_G(sub, G_init, M_shuf, args.epochs, alpha0, args.alpha_decay, device, eta_sep=args.eta_sep)
 
         cb_init = G_init.cpu()
         cb_real = G_real.cpu()
@@ -911,6 +922,7 @@ def run(args):
             "k_chosen_by_density": k_chosen, "density": dens,
             "density_target": [args.density_lo, args.density_hi],
             "offdiag_drift_ceiling": args.offdiag_drift_ceiling,
+            "alpha_anti": args.alpha_anti, "eta_sep": args.eta_sep,
             "variants": variants, "k_grid": k_grid, "alpha_grid": alpha_grid,
         },
         "pair_source": simlex_status,
@@ -969,6 +981,12 @@ def main():
                     help="frozen ceiling on global off-diag mean-cosine drift (collapse gate)")
     ap.add_argument("--topk-c", type=int, default=20, dest="topk_c",
                     help="Variant C: fixed uniform top-k per row of S'")
+    ap.add_argument("--alpha-anti", type=float, default=0.0, dest="alpha_anti",
+                    help="H_anti = -alpha*log(d_eff) energy strength, FIXED at substrate "
+                         "construction (anti-homunculus: not adapted from observed d_eff). "
+                         "0.0 -> inert -> byte-identical to B' alone (precommit §GR).")
+    ap.add_argument("--eta-sep", type=float, default=0.0, dest="eta_sep",
+                    help="step size for the H_anti keep-apart force in grow_G; 0.0 -> off.")
     ap.add_argument("--device", default="cpu")
     ap.add_argument("--out", default="")
     run(ap.parse_args())

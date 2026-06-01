@@ -6,7 +6,10 @@ real substrate and reshaped the gate — see Appendix B). The re-scope target op
 by [Report 121](../../reports/121_phase3_structure_gate_3b/report.md). Tests a NEW
 growth mechanism against the 3b paradigmatic gate. Suggested harness:
 `experiments/61_phase3_second_order_growth.py` (a fork of
-`experiments/60_phase3_structure_gate_3b.py`). Not yet run. Not yet committed.*
+`experiments/60_phase3_structure_gate_3b.py`). **RAN on WikiText → NULL → §10 oracles
+(signal EXISTS) → pressure-test (basin-read rescue KILLED) → the GROWTH REDESIGN (§GR
+below) is the current plan. Full chain:
+[Report 122](../../reports/122_phase3_second_order_growth_oracles/report.md).***
 
 > **Naming (set by the grill, G8).** `G` is the **PARADIGMATIC (second-order)
 > codebook**. We deliberately avoid calling it "structural" — that word is bound
@@ -14,6 +17,81 @@ growth mechanism against the 3b paradigmatic gate. Suggested harness:
 > Phase-4's *structural binding map* `H` (`phase-4-heteroassociative-write-design.md:60`).
 > A 3b-on-`G` PASS proves paradigmatic **geometry** forms; it does NOT prove
 > Phase-5 structural **retrieval** works (§0 caveat).
+
+---
+
+## GR — GROWTH REDESIGN (post-pressure-test, 2026-06-01): B′ + energy-native anti-collapse
+
+*Supersedes the forward-looking parts below. The WikiText run RAN → NULL; the §10 oracles
+showed the paradigmatic signal EXISTS (SVD king/queen 0.222) and survives a single FHRR
+port with contraction; an adversarial pressure-test KILLED the basin-read rescue (R1) —
+the 3b null was no-signal-written, not a smush — and redirected here. Full chain:
+[Report 122](../../reports/122_phase3_second_order_growth_oracles/report.md).*
+
+**THE MECHANISM (converged across 3 research workflows + the pressure-test):** compose the
+**row-centered SPPMI pull-similar** (B′) with a **local energy-native anti-collapse
+"keep-apart"** — the substrate's `H_anti = −α·log(d_eff)` repulsion
+(`torch_fhrr.py:147-182`, already built, currently inert at `α_anti=0`):
+
+```
+G_pull = normalize(α·normalize(S'@G) + (1−α)·G)               # B′ pull-similar (S' = rownorm(SPPMI@SPPMIᵀ) − rowmean)
+G      = normalize(G_pull + η_sep · repulsion_force(G_pull))   # H_anti keep-apart (zeros if α_anti=0 → byte-identical)
+```
+
+*Why this is the fix (diagnosis, Report 122 §3):* the smush is **operator-spectrum
+collapse** — `S'` is near-rank-1 even after row-centering (top eigenvalue 0.150 vs next
+~0.005), so `S'@G` is one step of power-iteration onto the leading shared mode (random
+pairs → 0.58). `H_anti` descends `−log(d_eff)` on the **centered** Gram
+(`torch_fhrr.py:141`), pushing each atom off the population-mean direction — removing
+exactly the common-mode the bundle injects, while leaving the small idiosyncratic
+king/queen block (which sits *below* the dominant mode) intact. The brain's
+lateral-inhibition / homeostatic-decorrelation solution (the *local* analog of the global
+SVD that provably doesn't contract); it also **retires the threshold-`_apply_repulsion`
+homunculus**.
+
+- **ANTI-HOMUNCULUS (PASS):** `α_anti` is fixed at construction, never read back from
+  observed d_eff (`torch_fhrr.py:48-55`) — the gradient *is* the actuator.
+- **LOCAL-NOT-GLOBAL (PASS):** `repulsion_force` depends only on pairwise overlaps via the
+  d_eff identity `(tr G)²/tr(G²)` — NOT an eigensolve/PCA. REJECTED: full
+  Földiák/Pehlevan-Chklovskii whitening of G (fixed point = PCA/ZCA = the forbidden global
+  word2vec shortcut).
+
+**THE GATE (gauge-free — the stream-shuffle gauge is INVALID for 2nd-order operators).**
+The WikiText run proved the SPPMI gauge LEAKS (`corr(S_real,S_shuffle)=0.79`:
+`SPPMI@SPPMIᵀ` is frequency-dominated, frequency survives the shuffle). Headline becomes
+**para-vs-random specificity** (the oracle's gauge-free test): paradigmatic
+(non-co-occurring SimLex) drift > matched-random drift, hierarchical-bootstrap CI > 0; AND
+`corr(log cooc, drift) CI-hi < 0.15` (decorrelation) + the PMI/collocational floor; AND
+the collapse floor `d_eff_end/init ≥ 0.5 ∧ off-max < 0.99`. *(Retiring the stream-shuffle
+gauge is justified by the measured leak — a control-validity correction, not a
+drop-to-pass; ratify into the 3b spec.)*
+
+**ARMS (pre-registered):** A0 = B′ alone (`α_anti=0`); **A1 = B′ + H_anti** (`α_anti>0`,
+`η_sep` swept) — primary; CTRL-collapse = uncentered B; CTRL-global = the owned
+CueDecorrelator full-ZCA on G (the FORBIDDEN-line control — measured to locate the
+rank-1-vs-global boundary, NOT adopted). Per-arm fresh-random G; k pinned by density.
+
+*η_sep SCALE (smoke-measured, `experiments/61` H_anti arm built 2026-06-01):* the d_eff
+gradient is ~1e-4 per coordinate for unit-modulus phasors, so **`η_sep` lives at ~1e3–5e4,
+not ~0.1** (`α_anti=0` OR `η_sep=0` → byte-identical to B′, verified: planted
+`drift_king_queen=0.12719…` unchanged). The smoke shows a clear trade-off on a collapsing
+schedule (B′ alone → d_eff_ratio 0.05): too-high `η_sep` decorrelates king/queen *with*
+everything (specificity lost, e.g. 1e3 → kq +0.19 ≈ random +0.19); a specificity-preserving
+anti-collapse regime exists (1e4 → d_eff_ratio 0.05→0.26, kq +0.40 > random −0.06,
+distractor −0.28). **Sweep `α_anti × η_sep` on WikiText.**
+
+**PRE-REGISTERED NULL DISPOSITION:** if no (`α_anti`, `η_sep`, k, α) point clears the
+para-vs-random gate AND the collapse floor for B′+H_anti, then *local common-mode removal
+does not write paradigmatic structure on real text* → the second-order `S'@G` growth is
+the wrong shape → escalate to a true predictive/successor-context growth target ("R3"),
+NOT more knobs. (The signal EXISTS in the SPPMI statistics per the §10 SVD oracle, so a
+null here is about the local GROWTH dynamic, not the corpus.)
+
+**β-decoupling note (banked, pressure-test):** high static cosine ≠ merged Hopfield basin
+— at β=30 a smushed codebook (mean cos ≤ ~0.65, d_eff ≥ ~6.6) still retrieves selectively;
+collapse only past ~0.67 (recoverable at β≥100). So the collapse floor's `d_eff ≥ 0.5`
+guard is *conservative* relative to actual basin integrity — a future dynamical-readout
+drill-down (NC1-class, on the floor's settling) could tighten it, but is NOT this gate.
 
 ---
 
