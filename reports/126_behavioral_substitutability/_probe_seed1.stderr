@@ -1,0 +1,12 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+V=2002 n_decode=2000 windows=292788 tracked=152 para=40 rand=40 collo=5 bg=2000 src=SimLex-999 (>= 5.0); https://fh295.github.io/SimLex-999.zip
+[C0] write_l2 true=0.9890 store_as_is true=0.6525 chance=0.00050 5x=0.0025 VALID=True
+[para ] n= 40 score Δ=+0.0104 CI[+0.0040,+0.0181] rank Δ=+0.0636 CI[+0.0139,+0.1145]
+[rand ] n= 40 score Δ=+0.0037 CI[-0.0003,+0.0079] rank Δ=+0.0319 CI[-0.0121,+0.0755]
+[collo] n=  5 score Δ=+0.0256 CI[+0.0032,+0.0485] rank Δ=+0.1073 CI[-0.0060,+0.2176]
+[para_shuffled] n= 40 score Δ=+0.0046 CI[-0.0001,+0.0094] rank Δ=+0.0419 CI[-0.0084,+0.0896]
+[HEADLINE para−rand] score=+0.0068 CI[-0.0008,+0.0155] rank=+0.0317 CI[-0.0334,+0.0987]
+[KILL para−shuffled] score=+0.0058 CI[-0.0023,+0.0148] rank=+0.0217 CI[-0.0470,+0.0919]  pair_specific=False
+[B3 ctx-specificity] Δ=+0.0085 CI[+0.0019,+0.0164]
+[king/queen] score Δ=+0.0341 rank Δ=+0.2684
+[VERDICT] NULL — no behavioral substitutability beyond rand-pairs (para ≈ rand) → the bound is CAPAB
