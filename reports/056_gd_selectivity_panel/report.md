@@ -10,6 +10,16 @@
 > **contextual-completion (not sequence-prediction)** architecture, **memorization-recall is
 > the target capability**, so G-D is judged in-sample (user-approved 2026-05-31). Report 055
 > stands as the correct memorization graduation. Closes 048→…→055 → **056 (G-D role-selectivity)**.
+>
+> **⟵ FRAMING CORRECTION (2026-05-31, re-grounding — appended, not rewritten).** This report's
+> "memory-not-learner" result is the Phase-3 **FLOOR** (role-selective recall = the
+> contextual-completion result the original plan wanted), **not** the project's ceiling or
+> identity. The held-out real-text null is the **predicted** Phase-3 floor behavior
+> (`experimental-progression.md §"What to test against"`); compositional/structural generalization is the **Phase-5**
+> deliverable, deferred by design — not abandoned. Read "the target capability is
+> memorization-recall" as **"…at Phase 3."** The project is a contextual-completion system, **not
+> "just a memory"** (that would be the forbidden vector-DB, `PROJECT_PLAN.md:276`). Charter:
+> [CONTEXT.md](../../CONTEXT.md).
 
 ## Experiment preamble (CLAUDE.md requirement)
 

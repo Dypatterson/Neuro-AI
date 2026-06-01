@@ -5,13 +5,15 @@ when exploring the codebase.
 
 ## Layout
 
-This is a **single-context** repo, but with a non-standard surface. There
-is **no** `CONTEXT.md` and **no** `docs/adr/`. The canonical domain-doc
-surface is:
+This is a **single-context** repo. As of 2026-05-31 there is a root
+**`CONTEXT.md`** — the stable charter (the bet, the original per-phase gates,
+the invariants, the current crux); read it first. There is **no** `docs/adr/`.
+The canonical domain-doc surface is:
 
 ```
 /
-├── STATUS.md                           ← bookmark: active phase + blockers
+├── CONTEXT.md                          ← stable charter: bet + original gates + invariants + crux (read FIRST)
+├── STATUS.md                           ← bookmark: current position (volatile)
 ├── CLAUDE.md                           ← working agreement + non-negotiable rules
 ├── docs/
 │   └── PROJECT_PLAN.md                 ← top-level phase plan
@@ -27,12 +29,13 @@ surface is:
 Per `CLAUDE.md`'s session-start protocol, the order to read before any
 non-trivial work is:
 
-1. `STATUS.md`
-2. The active phase checklist under `notes/emergent-codebook/`
-3. The §"Headline metric" + §"Required controls" of the active phase's
+1. `CONTEXT.md` — the stable charter (bet + original per-phase gates + invariants + crux)
+2. `STATUS.md`
+3. The active phase checklist under `notes/emergent-codebook/`
+4. The §"Headline metric" + §"Required controls" of the active phase's
    design doc (with explicit line-number citations)
-4. `docs/PROJECT_PLAN.md` for the current phase + non-negotiable rules
-5. Relevant dated notes under `notes/notes/`
+5. `docs/PROJECT_PLAN.md` for the current phase + non-negotiable rules
+6. Relevant dated notes under `notes/notes/`
 
 ## Before exploring, read these
 
@@ -55,8 +58,9 @@ For any skill that would normally read `docs/adr/` for past decisions:
   tried and what the verdict was — read these before proposing to revive
   an apparently-untouched mechanism.
 
-If a file you'd expect doesn't exist, **proceed silently** — don't suggest
-creating a `CONTEXT.md` upfront. This project's canonical surface is the
+The root **`CONTEXT.md`** (added 2026-05-31) is the charter a skill looking for
+domain vocabulary should read first; `docs/PROJECT_PLAN.md` and the per-phase
+design specs remain the detailed surface. This project's canonical surface is the
 one above, not the Pocock-skill default.
 
 ## Use the existing vocabulary

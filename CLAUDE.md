@@ -22,14 +22,21 @@ and synthesis from cross-paper reviews live in dated notes under
 Before doing anything else in a session — before reading reports, before
 planning, before answering a question that involves project state — read:
 
-1. [STATUS.md](STATUS.md) at the repo root. This is the bookmark. It names
+1. **[CONTEXT.md](CONTEXT.md)** at the repo root — the stable charter: the
+   bet, the thesis (**memorization is the Phase-3 *floor*, not the project
+   ceiling**; not a vector DB), the **original per-phase gates**, the
+   invariants, and the current crux. Read FIRST so STATUS is interpreted
+   *against* the gates, not in place of them. *(This read exists because the
+   original gates went unread while STATUS drifted — CONTEXT.md §"Why this
+   file exists.")*
+2. [STATUS.md](STATUS.md) at the repo root. This is the bookmark. It names
    the active phase, the current headline metric, the last verified result,
    and the active blockers.
-2. The exit checklist for the active phase (e.g.
+3. The exit checklist for the active phase (e.g.
    [notes/emergent-codebook/phase-4-checklist.md](notes/emergent-codebook/phase-4-checklist.md))
    if one exists for the active phase. Every line item with a non-✅ status
    is potentially relevant to the current session.
-3. **The §"Headline metric" + §"Required controls" sections of the active
+4. **The §"Headline metric" + §"Required controls" sections of the active
    phase's design document** (e.g.
    [notes/emergent-codebook/phase-5-unified-design.md](notes/emergent-codebook/phase-5-unified-design.md)).
    Cite the exact line numbers — STATUS.md banners can drift away from
@@ -302,7 +309,8 @@ this repo's existing `STATUS.md` blocker vocabulary. See
 
 ### Domain docs
 
-Single-context layout. The canonical "domain doc" surface is
-`docs/PROJECT_PLAN.md` + `notes/emergent-codebook/<phase>-*.md` +
-`notes/notes/<dated>.md`, not `CONTEXT.md` / `docs/adr/`. See
-[docs/agents/domain.md](docs/agents/domain.md).
+Single-context layout. The stable charter is the root `CONTEXT.md` (added
+2026-05-31 — the bet, the original per-phase gates, the invariants, the current
+crux; read first). The detailed domain-doc surface is `docs/PROJECT_PLAN.md` +
+`notes/emergent-codebook/<phase>-*.md` + `notes/notes/<dated>.md` (not
+`docs/adr/`). See [docs/agents/domain.md](docs/agents/domain.md).

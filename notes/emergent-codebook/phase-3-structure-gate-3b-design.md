@@ -1,0 +1,104 @@
+# Phase-3 Structure-Gate "3b" — design spec
+
+> Status: **ACTIVE** (opened 2026-05-31, user-approved). This is the **single genuine
+> next build** per the 2026-05-31 dependency analysis (the re-grounding chain:
+> [CONTEXT.md](../../CONTEXT.md) §5, [RE-GROUNDING-MAP.md](../RE-GROUNDING-MAP.md),
+> and the 5-agent dependency verdict). It is the citation target for the experiment
+> preamble.
+
+## The question
+
+**Does the emergent codebook develop *corpus-specific* structure from experience?**
+This is the original Phase-3 emergent-structure deliverable
+(`experimental-progression.md` §Phase 3 success criteria + §"How to know it's actually
+working": *"Similar items develop similar hypervectors without explicit supervision —
+if 'king' and 'queen' don't end up geometrically close after Phase 3, something's
+wrong. Cross-checked against a control: structure should appear in the standard run and
+be absent in the control."*). It is **distinct from** the consolidation-write *floor*
+(role-selective recall, cleared by Reports 055–058): the floor asks "does the memory
+recall a stored episode?"; **3b asks "does the codebook's geometry itself become a
+learned rule grown from co-occurrence?"** — the load-bearing test of the "more than
+memory / the landscape geometry IS the rule" thesis (`overview.md:17`). Every Phase-5
+mechanism (bind-vs-bundle discovery, atom-splitting, analogical retrieval) depends on a
+YES here; **Phase 5 is gated behind 3b** (dependency verdict §6–7).
+
+## Why the original control was invalid (do not reuse)
+
+The original Phase-3 shuffled-token control was proven **gauge-vacuous**: it permuted
+*which i.i.d. atom each token-id wears* (`codebook_ctrl[i] = A_{π(i)}`), and since the
+pipeline reads atoms only through codebook rows and the atoms are i.i.d. random-phase
+FHRR vectors, `E[Δ] = 0` **by construction** for any corpus and any mechanism
+(`notes/notes/2026-05-28-phase3-frame-b-continual-learning-and-gauge-control-finding.md`).
+The Frame-B level-DiD that chased corpus-specificity through this control is a **closed
+drift-artifact — do NOT re-chase it.**
+
+## §Headline metric
+
+**Related-pair-cosine drift, real vs gauge-safe corpus-stream-shuffle, CI-disjoint.**
+
+- For a precommitted set of **related token pairs** (synonyms / collocations; WordNet or
+  hand-curated per `experimental-progression.md` §"What to test against"), measure the
+  mean codebook cosine `sim(cb[a], cb[b])` at **init** and after **training**.
+  `Δrelated = sim_end − sim_init`.
+- **Control: gauge-safe corpus-stream shuffle** (the 2026-05-28-decided primary control):
+  permute the **flat token sequence before windowing** — preserves unigram marginals,
+  destroys co-occurrence. Train an identical codebook on the shuffled stream; measure
+  `Δrelated_shuffle`.
+- **HEADLINE PASS** = `Δrelated_real − Δrelated_shuffle` has a **CI strictly > 0**
+  (multi-seed, bootstrap/Wilson): related pairs are pulled together by **real
+  co-occurrence**, not by training dynamics per se. A matched **unrelated/random-pair**
+  arm must NOT show the same lift (specificity).
+
+## §Required controls (same protocol, same seeds)
+
+1. **Gauge-safe corpus-stream-shuffle** (primary) — destroys co-occurrence, preserves
+   marginals. Real-beats-shuffle is the genuine corpus-specificity signal.
+2. **No-consolidation DiD baseline** — difference out the Phase-2 (init) landscape:
+   report `(real_end − real_init) − (shuffle_end − shuffle_init)`, NOT raw end-state
+   similarity (which carries init structure). (NOT "hold landscape fixed + shuffle only
+   the consolidation corpus" — that degenerate noise-injection was rejected, gauge note.)
+3. **Unrelated/random-pair arm** — related-pair lift must exceed random-pair lift
+   (rules out global contraction/collapse masquerading as structure).
+4. **NC1 / inter-basin-separability drill-down** (reuse `phase3/basin_diagnostics.py`:
+   `compute_basin_nc1`, `compute_basin_separability_nc2`) — within-basin variability
+   bounded-and-nonzero while inter-basin separability **grows** under real and **not**
+   under shuffle. Explains *why* the headline moves; not a competing definition.
+5. **RETIRED:** the atom-relabel shuffled-token control (gauge-vacuous) — must not appear.
+
+## Anti-homunculus check (PASSES)
+
+- **Local dynamic:** codebook atoms drift under the fixed Hebbian/error two-pathway
+  update (`phase2/codebook_learner.py`); the measured quantities are **offline** cosine
+  + **offline** NC1/separability batch statistics (AH-exempt, same class as the
+  Report-044 diagnostics). No runtime metric gates, branches, or selects.
+- **No decision:** the geometry either separates related pairs or it does not, as a
+  consequence of the fixed update — there is no arbiter.
+- **The control is a data manipulation** (stream shuffle), not a mechanism. Read
+  terminates in a similarity/separability measurement, never an energy→argmin→ΔE.
+
+## Reuse (do not reinvent)
+
+- Training: `experiments/03_phase3a_hebbian_codebook.py` + `phase2/codebook_learner.py`
+  (`CodebookLearner`) + `phase2/corpus.py` (`build_vocabulary`, `encode_texts`,
+  `make_windows`); add a `corpus_stream_shuffle(token_ids, seed)` before windowing.
+- Structure metrics: `phase3/basin_diagnostics.py` (NC1, separability).
+- CIs: `phase2/metrics.py` Wilson / bootstrap.
+
+## §Done-gates
+
+1. Headline `Δrelated_real − Δrelated_shuffle` with CI, multi-seed (n≥5).
+2. All controls (corpus-stream-shuffle, no-consolidation DiD, random-pair, NC1/sep) on
+   the same protocol/seeds.
+3. Drill-downs explain the headline.
+4. Written up under `reports/`; STATUS + CONTEXT updated walk-back-first.
+
+## PRE-REGISTERED HONEST PRIOR (binding interpretation)
+
+The C.3 evidence is a real prior that **3b MAY FAIL** at current scale (consolidation
+change ≈ corpus-independent; atoms collapse spread→tight ~90% rather than bifurcating).
+**A null 3b is a RE-SCOPE signal** — the emergent codebook does not yet develop
+corpus-specific structure → rethink the **growth dynamics** (the codebook-learner update
+rule / capacity / objective), NOT "run it bigger" and NOT "build Phase 5 anyway." A
+PASS licenses opening Phase 5 (still gated behind de-arbitrating the Phase-5′
+`min_branch` aggregator). **I will not reinterpret a null as a near-miss.** This
+interpretation is committed before the run (CLAUDE.md anti-rationalization).

@@ -107,13 +107,23 @@ bindings role-selectively from sparse cues; *held-out* it generalizes that role-
 **only on low-rank structure** (the topic toy, Δ≈0.42, structure-ablation bag-toy→0), while
 on **real text** held-out recall is **≈ chance** (no low-rank role→target rule to generalize
 at sparse cues). Since this project is a **contextual-completion system, NOT a
-sequence-prediction system** (CLAUDE.md / PROJECT_PLAN), the **target capability is
-memorization-recall** (recall a stored episode from a partial cue), not rule generalization.
+sequence-prediction system** (CLAUDE.md / PROJECT_PLAN), the **target capability AT PHASE 3
+is memorization-recall** (recall a stored episode from a partial cue). **Compositional / rule
+generalization is NOT abandoned — it is the PHASE-5 deliverable** (binding discovery,
+atom-splitting, analogical retrieval; `experimental-progression.md §"Phase 5"`), which the original
+plan explicitly deferred as a 3→5 gradient: *"don't expect to crush these; expect meaningful
+signal that increases with phases 3-5"* (`experimental-progression.md §"What to test against"`).
 **Therefore G-D is judged in-sample**: the headline is the **in-sample role-Selectivity-Δ of
-write+L2** (the memory's recall is role-selective), and it **PASSES** (Report 056). Held-out
-generalization is reported as a **secondary capability** (holds on low-rank structure, null
-on real text — the expected signature of a memory, not a learner). The Report-055 corpus
-graduation **stands as the correct memorization result**.
+write+L2** (the memory's recall is role-selective), and it **PASSES** (Report 056) — this is the
+Phase-3 **FLOOR**. The held-out real-text null is the **PREDICTED Phase-3 floor behavior**
+(§"What to test against"), reported as a secondary capability — **NOT a verdict that "the project is just a
+memory"** (that would collapse into the forbidden vector-DB, `PROJECT_PLAN.md:276`). The
+Report-055 corpus graduation **stands as the correct memorization (floor) result**.
+*(Back-citation — bidirectional-fix 2026-05-31: this R1/G-D Selectivity-Δ is the
+operationalization of the original Phase-3 headline `experimental-progression.md:70`
+— "regime-stratified masked Recall@K vs control" — after that section's C.3 shuffled-token
+control was retired as gauge-vacuous. The genuine still-OPEN Phase-3 gate is the
+emergent-STRUCTURE read "3b"; see [CONTEXT.md](../../CONTEXT.md).)*
 
 ## §Required controls (all on the same held-out test set)
 

@@ -69,6 +69,17 @@ Replace fixed codebook with the growth mechanism. Atoms refine through the **two
 
 **Headline metric (added 2026-05-09):** Recall@K on masked-token contextual completion, **stratified by regime classification** from the consolidation-geometry diagnostic (`consolidation-geometry-diagnostic.md`), evaluated against the **shuffled-token control**. This is one number plus a controlled comparison plus a stratification axis. It aligns directly with the architecture's core claim: retrieval quality emerges from geometry-conditioned consolidation. The shuffled control rules out corpus-statistical artefacts; the regime stratification distinguishes "the system works in the tight regime where consolidation should be safe" from "the system works generally, including spread-regime atoms."
 
+> **Operationalization note (bidirectional-fix, 2026-05-31).** This Phase-3 headline's original
+> shuffled-token control was found **gauge-vacuous** (permuting i.i.d. atoms → E[Δ]=0; the
+> 2026-05-28 gauge-control finding). The consolidation-write **floor** was then operationalized
+> as the value-codebook `top_index_hits` Selectivity-Δ
+> ([phase-3-consolidation-write-design.md](phase-3-consolidation-write-design.md) §G-D; Report
+> 056) and **cleared**. The still-OPEN piece of *this* gate is the emergent-**STRUCTURE** read
+> ("similar tokens → similar hypervectors," success criteria below) under a **gauge-safe**
+> control — the genuine next build ("3b"). Memorization-recall is the Phase-3 **floor**;
+> compositional generalization is the **Phase-5** deliverable (the "phases 3-5" gradient below;
+> Phase 5 §). Charter: [CONTEXT.md](../../CONTEXT.md).
+
 **Drill-down metrics:** cap-coverage error, meta-stable-state rate, NC1 within-basin variability + separability pair, softmax entropy as feature/prototype mode classifier, bimodality flag rate, regime-classifier distribution. These explain *why* the headline moves; they are not competing definitions of success. Full diagnostic stack and the NC1 reformulation are in `phase-3-deep-dive.md`.
 
 **Success looks like:** codebook stabilizes within a finite training budget, headline metric improves meaningfully over the Phase 2 baseline, distributional structure appears in codebook geometry (similar tokens have similar hypervectors), shuffled-token control fails to produce the same semantic organization.

@@ -75,7 +75,7 @@ can actually license, and we drop the part the grill proved it cannot.
   Phase-5 "modularization" concept is the **latent-code factorization** measured here,
   and even that is latent-code factorization of a standalone probe — **NOT** the paused
   Phase-5 codebook bind-vs-bundle / atom-splitting deliverable
-  (experimental-progression.md:88-98), which needs learned role atoms that do not exist
+  (experimental-progression.md §"Phase 5"), which needs learned role atoms that do not exist
   until Phase 5. The design **does not reopen Phase 5 or Phase 5′.**
 
 ---

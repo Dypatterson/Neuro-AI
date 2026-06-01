@@ -48,7 +48,7 @@ Reports 055/056 graduated a surgical consolidation write (**heteroassociative de
 
 Both paths terminate in the **same** leaf functions with **identical** hyper-parameters (`lr=0.5, epochs=20, ridge=1e-5, β=10, max_iter=12`), so a **`torch.equal`** match on the dense `H` *and* the basin indices proves the fold-in introduced **zero computational drift**. The wiring witness is **A == B bit-identical**; the role-Selectivity-Δ is anchored to the published Report-056 D=4096 numbers (obs 1/2/3 = 0.32 / 0.73 / 0.91).
 
-In-sample only (memorization is the target — contextual-completion, not prediction). Held-out is out of scope (real-text held-out recall ≈ chance *by design* — memory, not learner).
+In-sample only (a wiring check, by construction): memorization-recall is the **Phase-3 floor** (contextual-completion, not prediction). Held-out compositional generalization ≈ chance is the *predicted* Phase-3 floor (a Phase-5 deliverable, deferred by design — **not** the project ceiling; see `CONTEXT.md`).
 
 > ⏱️ ~5–15 min on a T4."""))
 

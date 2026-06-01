@@ -33,9 +33,11 @@ DESIGN: head-to-head equivalence on byte-identical data.
   constructed with ``codebook=value_cb`` and ``target_id`` = the value-codebook-local
   index. This is the load-bearing equivalence mapping.
 
-In-sample only (tr==te==range(N)): the target capability is memorization-recall
-(CLAUDE.md contextual-completion, NOT prediction); held-out is out of scope for a
-wiring check (real-text held-out recall is ~chance by design — memory not learner).
+In-sample only (tr==te==range(N)): this is a WIRING check by construction.
+Memorization-recall is the PHASE-3 FLOOR (CLAUDE.md contextual-completion, NOT
+prediction) — not the project ceiling; held-out compositional generalization
+(~chance on real text) is the PREDICTED Phase-3 floor and a Phase-5 deliverable,
+deferred by design (see CONTEXT.md), not relevant to a wiring-equivalence check.
 
 Run:
   PYTHONPATH=src .venv/bin/python experiments/57_e2e_integration_wiring_check.py \
