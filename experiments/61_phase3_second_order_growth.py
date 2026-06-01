@@ -208,31 +208,39 @@ def stream_shuffle(token_ids, seed):
 # Co-occurrence + SPPMI (the operator). Build counts ONCE per arm.
 # =====================================================================
 
-def build_cooccurrence(windows, V, special):
+def build_cooccurrence(windows, V, special, device="cpu", chunk=50000):
     """Symmetric within-window co-occurrence count matrix C[i,j] (#(i,j)),
     unigram marginals uni[i] (#(i), window-presence based), and |D| = total presence.
 
-    Counts each unordered pair once per window where both appear (presence-based,
-    matching the 60-harness _cooc_counts and _heldout_pmi semantics)."""
+    Presence-based: each unordered pair counted once per window where both appear
+    (matches the 60-harness _cooc_counts / _heldout_pmi semantics). VECTORIZED as a
+    chunked binary-presence Gram matrix: C = sum_chunks(Pᵀ P) with P[w,t]=1 iff token t
+    is present in window w (specials zeroed), diagonal (self-presence) zeroed. Counts are
+    exact small integers (< 2^24), so float32 chunks accumulated in float64 are
+    BIT-IDENTICAL to the prior per-window Python loop. The matmul runs on `device`
+    (GPU under CUDA), where each build is ~1s instead of minutes over millions of
+    windows — this is the headline-run's dominant cost when it is rebuilt per grid cell.
+    """
     if not windows:
-        return (torch.zeros((V, V)), torch.zeros(V), 0.0)
-    wt = torch.tensor(windows, dtype=torch.long)
-    n_win, W = wt.shape
-    C = torch.zeros((V, V), dtype=torch.float64)
-    uni = torch.zeros(V, dtype=torch.float64)
-    # presence-based: for each window, the SET of tokens present.
-    for w in range(n_win):
-        present = sorted(set(int(t) for t in wt[w].tolist()) - special)
-        for t in present:
-            uni[t] += 1.0
-        for ai in range(len(present)):
-            a = present[ai]
-            for bi in range(ai + 1, len(present)):
-                b = present[bi]
-                C[a, b] += 1.0
-                C[b, a] += 1.0
+        return (torch.zeros((V, V), dtype=torch.float64), torch.zeros(V, dtype=torch.float64), 0.0)
+    wt = torch.tensor(windows, dtype=torch.long, device=device)
+    n_win = wt.shape[0]
+    spec = torch.zeros(V, dtype=torch.bool, device=device)
+    for s in special:
+        if s < V:
+            spec[s] = True
+    C = torch.zeros((V, V), dtype=torch.float64, device=device)
+    uni = torch.zeros(V, dtype=torch.float64, device=device)
+    for start in range(0, n_win, chunk):
+        wb = wt[start:start + chunk]                                   # (b, W)
+        P = torch.zeros((wb.shape[0], V), dtype=torch.float32, device=device)
+        P.scatter_(1, wb, 1.0)                                         # presence (idempotent on dups)
+        P[:, spec] = 0.0
+        uni += P.sum(dim=0).double()
+        C += (P.t() @ P).double()                                      # windows where both present
+    C.fill_diagonal_(0.0)
     total = float(uni.sum().item())
-    return C, uni, total
+    return C.cpu(), uni.cpu(), total
 
 
 def build_sppmi(C, uni, total, k):
@@ -507,17 +515,19 @@ def build_operator(variant, C, uni, total, k, special, topk_c):
 # Main run: one variant across the k x alpha grid, full gate panel
 # =====================================================================
 
-def run_variant(args, variant, k, alpha0, pair_words, vocab, train_windows, sh_windows_per_seed,
+def run_variant(args, variant, k, alpha0, pair_words, vocab, real_arm, C_shuf_per_seed,
                 special, V, fallback_used):
-    """Run `variant` at (k, alpha0) across seeds; return the full gate panel dict."""
+    """Run `variant` at (k, alpha0) across seeds; return the full gate panel dict.
+    `real_arm` = (C_real, uni_real, total_real) and `C_shuf_per_seed[si]` = the seed's
+    (C, uni, total) are precomputed ONCE in run() and reused across the grid."""
     device = args.device
 
     # resolve pairs to ids (in-vocab) once; cooc filter done per the REAL arm's C below.
     def tid(tok):
         return vocab.token_to_id.get(tok)
 
-    # We need C (real arm) to filter pairs by cooc. Build the real-arm counts once.
-    C_real, uni_real, total_real = build_cooccurrence(train_windows, V, special)
+    # real-arm counts (precomputed once in run(); was rebuilt per cell here).
+    C_real, uni_real, total_real = real_arm
 
     # paradigmatic pair candidates: in vocab, distinct, non-special, cooc <= max
     para_pairs = []
@@ -560,19 +570,17 @@ def run_variant(args, variant, k, alpha0, pair_words, vocab, train_windows, sh_w
     offmean_init, offmean_real, offmean_shuf = [], [], []
     S_real_off_cat, S_shuf_off_cat = [], []         # for gauge-validity corr
     cooc_para = cooc_counts_for_pairs(C_real, para_t)
-    density_real = float("nan")
+    # real-arm operator is seed-independent (C_real constant) — build it ONCE.
+    M_real, S_real, density_real = build_operator(variant, C_real, uni_real, total_real,
+                                                  k, special, args.topk_c)
 
     for si, seed in enumerate(range(args.seeds)):
         sub = TorchFHRR(dim=args.D, seed=seed, device=device)
         G_init = sub.random_vectors(V)
 
-        # real arm operator
-        M_real, S_real, dens_real = build_operator(variant, C_real, uni_real, total_real,
-                                                   k, special, args.topk_c)
-        density_real = dens_real
-        # shuffle arm operator: build counts SEPARATELY (Guard-2 per-arm S)
-        sh_windows = sh_windows_per_seed[si]
-        C_shuf, uni_shuf, total_shuf = build_cooccurrence(sh_windows, V, special)
+        # shuffle-arm operator: use the per-seed counts precomputed once in run()
+        # (Guard-2 per-arm S). Real-arm operator was built once above.
+        C_shuf, uni_shuf, total_shuf = C_shuf_per_seed[si]
         M_shuf, S_shuf, dens_shuf = build_operator(variant, C_shuf, uni_shuf, total_shuf,
                                                    k, special, args.topk_c)
 
@@ -823,8 +831,16 @@ def run(args):
         sh_ids = stream_shuffle(train_ids, seed)
         sh_windows_per_seed.append(make_windows(sh_ids, args.W))
 
+    # ---- co-occurrence: build ONCE per arm and reuse across the whole variant x k x
+    # alpha grid. Previously C_real was rebuilt per cell (~28x) and C_shuf per cell x seed
+    # (~140x) inside run_variant — the dominant cost of the headline run. Now: real once,
+    # shuffle once per seed, on-device (GPU). ----
+    C_real, uni_real, total_real = build_cooccurrence(train_windows, V, special, device=args.device)
+    real_arm = (C_real, uni_real, total_real)
+    C_shuf_per_seed = [build_cooccurrence(sh_windows_per_seed[si], V, special, device=args.device)
+                       for si in range(args.seeds)]
+
     # ---- pin k by density (on the real arm) unless --k given ----
-    C_real, uni_real, total_real = build_cooccurrence(train_windows, V, special)
     if args.k is not None:
         k_chosen = args.k
         dens = sppmi_density(build_sppmi(C_real, uni_real, total_real, k_chosen))
@@ -866,8 +882,8 @@ def run(args):
         v_kgrid = [k_chosen] if variant == "A" else k_grid
         for k in v_kgrid:
             for a0 in alpha_grid:
-                res = run_variant(args, variant, k, a0, pair_words, vocab, train_windows,
-                                  sh_windows_per_seed, special, V, fallback_used)
+                res = run_variant(args, variant, k, a0, pair_words, vocab, real_arm,
+                                  C_shuf_per_seed, special, V, fallback_used)
                 grid_results.append(res)
 
     # ---- pick the headline cell per primary variant (B') for the verdict ----
