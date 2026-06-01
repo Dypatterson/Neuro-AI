@@ -683,11 +683,21 @@ def run_variant(args, variant, k, alpha0, pair_words, vocab, real_arm, C_shuf_pe
     # real - shuffle per seed per pair
     headline_per_seed = [real_dmm[s] - shuf_dmm[s] for s in range(len(real_dmm))]
     h_mean, h_lo, h_hi = hierarchical_bootstrap_ci(headline_per_seed, seed=31)
-    # GAUGE-FREE headline (precommit §GR): para-vs-random specificity on the REAL arm only
-    # (demeaned for contraction = the §10 oracle's gauge-free read). The stream-shuffle gauge
-    # is RETIRED for 2nd-order operators (it leaks ~0.79: SPPMI is frequency-dominated, and
-    # frequency survives the shuffle). Used when --gate gauge_free.
-    gf_mean, gf_lo, gf_hi = hierarchical_bootstrap_ci(real_dmm, seed=34)
+    # GAUGE-FREE headline (precommit §GR): para-vs-random specificity on the REAL arm =
+    # mean(para_drift) - mean(random_drift), matching the §10 SVD oracle's gauge-free read.
+    # NOTE (2026-06-01 fix): the matched-RANDOM arm is the contraction control here, so do NOT
+    # ALSO subtract the global-mean drift (`real_dmm` does both -> a DOUBLE-subtraction that
+    # biased the gauge-free headline negative whenever the codebook contracts). Contraction is
+    # handled by the SEPARATE collapse floor, not by the headline. The stream-shuffle gauge is
+    # RETIRED for 2nd-order operators (it leaks ~0.79: SPPMI is frequency-dominated).
+    def matched_only(per_seed_para, per_seed_rand):
+        out = []
+        for s in range(len(per_seed_para)):
+            rand_mean = float(per_seed_rand[s].mean()) if per_seed_rand[s].numel() else 0.0
+            out.append(per_seed_para[s] - rand_mean)     # para - random (NO glob double-subtract)
+        return out
+    real_para_vs_rand = matched_only(para_real_drift, rand_real_drift)
+    gf_mean, gf_lo, gf_hi = hierarchical_bootstrap_ci(real_para_vs_rand, seed=34)
     # also the flat version for reporting
     if headline_per_seed and headline_per_seed[0].numel() > 0:
         flat_vals = torch.stack(headline_per_seed).mean(dim=0)
