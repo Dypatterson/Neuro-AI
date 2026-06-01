@@ -61,6 +61,38 @@ drift-artifact — do NOT re-chase it.**
    under shuffle. Explains *why* the headline moves; not a competing definition.
 5. **RETIRED:** the atom-relabel shuffled-token control (gauge-vacuous) — must not appear.
 
+## §Headline + §Controls — RATIFIED REVISION for the second-order re-scope (experiment 61, 2026-06-01)
+
+*The as-run 3b headline above (raw related-pair drift CI > 0) was proven by the
+2026-06-01 red-team grill to **PASS ON GLOBAL COLLAPSE** (a contracted codebook lifts
+every pair, clearing the CI without any paradigmatic structure). For the second-order
+growth re-scope — experiment 61, precommit
+[phase-3-second-order-growth-precommit.md](phase-3-second-order-growth-precommit.md) —
+the headline + controls are extended below. **Ratified with user agreement 2026-06-01.**
+The original text is retained above as the as-run 3b design; this revision governs
+experiment 61 (which grows a separate **paradigmatic codebook G** and reads 3b on it).*
+
+- **HEADLINE (exp 61) = demeaned matched specificity, real − stream-shuffle,
+  hierarchical-bootstrap CI > 0.** Per-pair paradigmatic drift **minus the per-token
+  global-mean drift** (so a global contraction cancels) **minus the matched random-pair
+  arm** (random pairs at the *same* low-cooc + frequency regime), real minus shuffle.
+  Raw drift is **NON-DIAGNOSTIC** and is reported only alongside the collapse panel.
+- **Collapse floor (HARD gate, co-equal with the CI):** `d_eff_end / d_eff_init ≥ 0.5`
+  AND `max-off-diag cosine < 0.99` AND global off-diag mean-cosine drift below a frozen
+  ceiling. Failing any → NOT a pass, regardless of the CI.
+- **Decorrelation gate (wired + numbered):** `corr(log cooc, paradigmatic drift)`
+  bootstrap 95 % CI upper bound `< +0.15` (> 60 % drop from the +0.41 incumbent), added
+  to the pass conjunction.
+- **Gauge-validity gate:** `corr(S_real_offdiag, S_shuffle_offdiag) < 0.40`; above it the
+  stream-shuffle control is leaking marginal structure and the run is **INVALID (not a
+  null)** → re-run at a `(W, k)` that separates.
+- **Pair source:** **SimLex-999** (Hill et al. 2015) filtered to similarity ≥ 5.0,
+  in-vocab, within-window cooc ≤ `paradigmatic_max_cooc`; frozen + hashed (precommit §5).
+  The original hand-curated `SEMANTIC_PAIRS` list is a separately-reported secondary arm.
+- **Pre-registered NULL (exp 61):** if **no** `(k, α)` grid point satisfies the
+  specificity CI AND the collapse floor *simultaneously*, that is a NULL → latent-layer
+  fork (the signal is in `S` but the FHRR growth cannot read it without collapse).
+
 ## Anti-homunculus check (PASSES)
 
 - **Local dynamic:** codebook atoms drift under the fixed Hebbian/error two-pathway
