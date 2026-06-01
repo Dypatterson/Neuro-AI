@@ -157,9 +157,15 @@ untouched); pure-Python reference backend retained (the module ships a reference
 > invoked). **Anti-homunculus reviewer: PASS** (2026-05-31, all 7 points + all 3 conditions).
 > Tests: `tests/test_hetero_consolidation_integration.py` (7/7). Report 057.
 >
-> **DENSE H; MESH-scaffold scaling form DEFERRED (open user decision — see §"Open scaling
-> question" below + memory `neuro_ai_mesh_scaling_decision_open`). Trigger to revisit: dense
-> `H`'s O(D²) memory (~128 MB at D=4096) becoming a bottleneck at scale.**
+> **DENSE H now; MESH-scaffold scaling RESOLVED → DEFER (Report 120, 2026-05-31).** The
+> graduated `H` is intrinsically low-rank (effective rank ≈ value-space diversity: 8 on the
+> topic-toy = L, ≈126 on real text ≪ D); a **rank-`r` factored / SVD-truncated `H` reproduces
+> recall BYTE-IDENTICALLY** (measured ratio 1.000 at r ≈ D/16) at 4–130× less memory with ZERO
+> validation risk (same linear map, stored as its dominant factors). So the cost fallback is
+> **factored `H`, NOT MESH**; MESH's catastrophic-forgetting-cliff property is for an N ≫ D
+> regime the project does not hit (it runs at N ≤ D). Trigger to implement factored `H`: dense
+> `H`'s O(D²) memory (~134 MB at D=4096 — currently fine) becoming a bottleneck (D ≥ 8192, or
+> many concurrent `H`'s). See §"Open scaling question" below + memory `neuro_ai_mesh_scaling_decision_open`.
 
 1. Module `src/energy_memory/phase4/hetero_write.py` — the delta/swap heteroassociative
    write over a **closed, seed-fixed buffer** of precommitted `(k, v, v⁻)` tuples; the
@@ -179,9 +185,22 @@ untouched); pure-Python reference backend retained (the module ships a reference
 write-gating or branch-selection (that re-imports the thermostat in a new costume); do
 not promote the adaptive/self-mined negative back in under the banner of "improvement."
 
-## Open scaling question (for the user)
+## Open scaling question — RESOLVED (Report 120, 2026-05-31)
 
-The dense `H` rescue is established; the **MESH-scaffold form must be validated to
-match it** before the production commitment (the corpus run answers this). If the
-scaffold form underperforms, the cost/efficiency trade-off (dense vs scaffold) returns
-to the user.
+**Resolved: ship dense `H`; defer MESH; the cost fallback is factored low-rank `H`, not
+the MESH scaffold.** [Report 120](../../reports/120_mesh_scaling_decision/report.md)
+measured the load-bearing fact the docs only asserted: `H` is a delta-rule accumulation
+(rank ≤ N) and is in practice **highly low-rank** — effective (participation-ratio) rank
+= **8 on the topic-toy (= L, the value-codebook size)** and **≈126 on real text** (eff/D ≈
+0.12), with 99% of spectral energy in the top ~8 / ~159 components. **Recall saturates at
+rank ≈ D/16: an SVD-truncated `H_r` gives byte-identical recall (ratio 1.000) at r = D/16,
+4–130× smaller than dense.**
+
+This separates the two things line 87 conflated: (a) a **low-rank factored `H`** is the
+cheap win — behaviorally identical, pure storage/compute, no validation, no
+anti-homunculus surface; (b) the **MESH fixed scaffold** is a different mechanism for the
+N ≫ D capacity-cliff, which the project (N ≤ D) does not hit, is unvalidated, primary-
+unopened, and card-flagged as conflicting with emergent-codebook goals. So the cost
+concern that motivated the MESH question never required MESH. Trigger to *implement*
+factored `H`: dense cost biting (D ≥ 8192, or many concurrent `H`'s) — currently it does
+not (~134 MB @ D=4096). `H`'s rank is bounded by **value-space diversity, not D or N**.
