@@ -160,7 +160,7 @@ def main():
     G0 = sub.random_vectors(V)
     S = exp61.build_S(sppmi)                                # rownorm(SPPMI@SPPMIᵀ)
     Sp = exp61.row_center(S)                                # B′ operator: S − rowmean
-    M = Sp.to(dtype=G0.real.dtype)
+    M = Sp.to(dtype=G0.real.dtype, device=G0.device)      # move operator to G's device (CUDA-safe)
     centroid = (M @ G0.real) + 1j * (M @ G0.imag)          # single real-weighted bundle
     Gp = sub.normalize(centroid)
     Gp = Gp.cpu()
