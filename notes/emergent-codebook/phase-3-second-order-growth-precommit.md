@@ -71,14 +71,20 @@ drop-to-pass; ratify into the 3b spec.)*
 CueDecorrelator full-ZCA on G (the FORBIDDEN-line control — measured to locate the
 rank-1-vs-global boundary, NOT adopted). Per-arm fresh-random G; k pinned by density.
 
-*η_sep SCALE (smoke-measured, `experiments/61` H_anti arm built 2026-06-01):* the d_eff
-gradient is ~1e-4 per coordinate for unit-modulus phasors, so **`η_sep` lives at ~1e3–5e4,
-not ~0.1** (`α_anti=0` OR `η_sep=0` → byte-identical to B′, verified: planted
-`drift_king_queen=0.12719…` unchanged). The smoke shows a clear trade-off on a collapsing
-schedule (B′ alone → d_eff_ratio 0.05): too-high `η_sep` decorrelates king/queen *with*
-everything (specificity lost, e.g. 1e3 → kq +0.19 ≈ random +0.19); a specificity-preserving
-anti-collapse regime exists (1e4 → d_eff_ratio 0.05→0.26, kq +0.40 > random −0.06,
-distractor −0.28). **Sweep `α_anti × η_sep` on WikiText.**
+*η_sep — FORCE-NORMALIZED, scale-invariant (smoke-measured, `experiments/61` H_anti arm,
+2026-06-01):* the raw d_eff gradient is ~1e-4/coord for unit-modulus phasors and its scale
+shifts with D and N, so the H_anti step is **force-normalized** —
+`G ← normalize(G + η_sep · force/mean|force|)` — making `η_sep` a *relative* step that
+transfers across D (a fixed normalization, anti-homunculus-clean like normalized-gradient
+SGD). **Sweep `η_sep ∈ {0, 0.02, 0.05, 0.1, 0.2, 0.4}`** (with `α_anti=1` fixed — only the
+product `α_anti·η_sep` enters in this experiment, where G never feeds settling/energy
+elsewhere). `η_sep=0` → byte-identical to B′ (verified: planted `drift_king_queen=0.12719…`).
+Smoke trade-off on a collapsing schedule (B′ alone → d_eff_ratio 0.05): sweet spot at the
+LOW end (η_sep=0.05 → d_eff_ratio 0.20, king/queen +0.58 ≫ random +0.14); too-high
+(η_sep ≥ 0.1) lifts d_eff to ~1.0 but decorrelates king/queen *with* everything (specificity
+lost). **GATE = gauge_free** (`--gate gauge_free`); **CTRL-global = the exp-62 SVD oracle**
+(the global-whitening reference the local H_anti approaches). Sweep notebook:
+`notebooks/062_growth_redesign_sweep_wikitext_colab.ipynb` (D=4096).
 
 **PRE-REGISTERED NULL DISPOSITION:** if no (`α_anti`, `η_sep`, k, α) point clears the
 para-vs-random gate AND the collapse floor for B′+H_anti, then *local common-mode removal

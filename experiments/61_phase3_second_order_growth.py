@@ -338,9 +338,11 @@ def grow_G(sub, G_init, operator_matrix, epochs, alpha0, alpha_decay, device, et
     a large speedup on GPU, where this matmul is the dominant cost of the headline run.
     (CPU path is numerically identical to the prior CPU-forced version: float32 either way.)
 
-    H_anti KEEP-APART (precommit §GR): if eta_sep > 0 AND sub.alpha_anti > 0, after each
-    pull step apply the substrate's energy-native anti-collapse force
-    G <- normalize(G + eta_sep * sub.repulsion_force(G)) — the -alpha*log(d_eff) gradient on
+    H_anti KEEP-APART (precommit §GR): if eta_sep > 0 AND sub.alpha_anti > 0, after each pull
+    step apply the substrate's energy-native anti-collapse force, FORCE-NORMALIZED so eta_sep
+    is a scale-invariant RELATIVE step (the toy's absolute scale won't transfer to D=4096):
+    G <- normalize(G + eta_sep * force/mean|force|), force = sub.repulsion_force(G) — the
+    -alpha*log(d_eff) gradient on
     the CENTERED Gram (torch_fhrr.py:141,166-182), which removes the common-mode the bundle
     injects (the diagnosed smush cause). alpha_anti is fixed at substrate construction (the
     gradient IS the actuator, not a feedback loop on d_eff) -> anti-homunculus clean.
@@ -360,7 +362,9 @@ def grow_G(sub, G_init, operator_matrix, epochs, alpha0, alpha_decay, device, et
         centroid_norm = sub.normalize(centroid)
         G = sub.normalize(alpha * centroid_norm + (1.0 - alpha) * G)  # B' pull-similar
         if eta_sep > 0.0:                                             # H_anti keep-apart
-            G = sub.normalize(G + eta_sep * sub.repulsion_force(G))
+            force = sub.repulsion_force(G)
+            fmag = force.abs().mean().clamp(min=1e-12)                # FORCE-NORMALIZE: scale-invariant
+            G = sub.normalize(G + eta_sep * (force / fmag))           # eta_sep = relative step size
         alpha *= alpha_decay
     return G
 
@@ -679,6 +683,11 @@ def run_variant(args, variant, k, alpha0, pair_words, vocab, real_arm, C_shuf_pe
     # real - shuffle per seed per pair
     headline_per_seed = [real_dmm[s] - shuf_dmm[s] for s in range(len(real_dmm))]
     h_mean, h_lo, h_hi = hierarchical_bootstrap_ci(headline_per_seed, seed=31)
+    # GAUGE-FREE headline (precommit §GR): para-vs-random specificity on the REAL arm only
+    # (demeaned for contraction = the §10 oracle's gauge-free read). The stream-shuffle gauge
+    # is RETIRED for 2nd-order operators (it leaks ~0.79: SPPMI is frequency-dominated, and
+    # frequency survives the shuffle). Used when --gate gauge_free.
+    gf_mean, gf_lo, gf_hi = hierarchical_bootstrap_ci(real_dmm, seed=34)
     # also the flat version for reporting
     if headline_per_seed and headline_per_seed[0].numel() > 0:
         flat_vals = torch.stack(headline_per_seed).mean(dim=0)
@@ -733,9 +742,18 @@ def run_variant(args, variant, k, alpha0, pair_words, vocab, real_arm, C_shuf_pe
     # retaining real co-occurrence structure). Strong negative corr is not leakage.
     gauge_valid = bool(gauge_corr == gauge_corr and gauge_corr < 0.40)
 
-    # ---------- PASS CONJUNCTION (all four) ----------
-    headline_ci_pos = bool(h_lo == h_lo and h_lo > 0.0)
-    variant_pass = bool(headline_ci_pos and collapse_ok and decorr_ok and gauge_valid)
+    # ---------- PASS CONJUNCTION ----------
+    # --gate shuffle (legacy): demeaned-matched real-MINUS-shuffle headline + gauge-validity.
+    # --gate gauge_free (precommit §GR, the growth-redesign default): para-vs-random
+    #   specificity on the REAL arm; the stream-shuffle gauge is RETIRED (it leaks ~0.79 for
+    #   the 2nd-order operator), so the headline drops the shuffle subtraction and the
+    #   gauge-validity gate is dropped from the conjunction (still reported).
+    if getattr(args, "gate", "shuffle") == "gauge_free":
+        headline_ci_pos = bool(gf_lo == gf_lo and gf_lo > 0.0)
+        variant_pass = bool(headline_ci_pos and collapse_ok and decorr_ok)
+    else:
+        headline_ci_pos = bool(h_lo == h_lo and h_lo > 0.0)
+        variant_pass = bool(headline_ci_pos and collapse_ok and decorr_ok and gauge_valid)
 
     # ---------- planted-smoke probe summary ----------
     planted_summary = None
@@ -766,11 +784,17 @@ def run_variant(args, variant, k, alpha0, pair_words, vocab, real_arm, C_shuf_pe
         "n_random_matched_pairs": int(rand_t.shape[0]),
         "sppmi_density_real": density_real,
         "fallback_pairs_used": fallback_used,
-        # GATE 1
+        "gate_used": getattr(args, "gate", "shuffle"),
+        # GATE 1a (legacy shuffle headline — gauge-INVALID for SPPMI, reported only)
         "HEADLINE_demeaned_matched_real_minus_shuffle": {
             "hierarchical_mean": h_mean, "hierarchical_ci": [h_lo, h_hi],
             "flat_mean": hf_mean, "flat_ci": [hf_lo, hf_hi],
-            "CI_gt_0": headline_ci_pos,
+            "CI_gt_0": bool(h_lo == h_lo and h_lo > 0.0),
+        },
+        # GATE 1b (gauge_free, precommit §GR — the growth-redesign HEADLINE)
+        "HEADLINE_gauge_free_para_vs_random": {
+            "hierarchical_mean": gf_mean, "hierarchical_ci": [gf_lo, gf_hi],
+            "CI_gt_0": bool(gf_lo == gf_lo and gf_lo > 0.0),
         },
         "raw_drift_real_minus_shuffle_NONDIAGNOSTIC": {
             "mean": raw_mean, "ci": [raw_lo, raw_hi],
@@ -922,7 +946,7 @@ def run(args):
             "k_chosen_by_density": k_chosen, "density": dens,
             "density_target": [args.density_lo, args.density_hi],
             "offdiag_drift_ceiling": args.offdiag_drift_ceiling,
-            "alpha_anti": args.alpha_anti, "eta_sep": args.eta_sep,
+            "alpha_anti": args.alpha_anti, "eta_sep": args.eta_sep, "gate": args.gate,
             "variants": variants, "k_grid": k_grid, "alpha_grid": alpha_grid,
         },
         "pair_source": simlex_status,
@@ -986,7 +1010,13 @@ def main():
                          "construction (anti-homunculus: not adapted from observed d_eff). "
                          "0.0 -> inert -> byte-identical to B' alone (precommit §GR).")
     ap.add_argument("--eta-sep", type=float, default=0.0, dest="eta_sep",
-                    help="step size for the H_anti keep-apart force in grow_G; 0.0 -> off.")
+                    help="FORCE-NORMALIZED relative step for the H_anti keep-apart in grow_G "
+                         "(scale-invariant: the step has mean magnitude eta_sep relative to "
+                         "the atom magnitude ~1); 0.0 -> off. Sweep ~{0.02..0.4} (precommit §GR).")
+    ap.add_argument("--gate", choices=["shuffle", "gauge_free"], default="shuffle",
+                    help="shuffle (legacy): real-minus-shuffle headline + gauge-validity. "
+                         "gauge_free (precommit §GR): para-vs-random specificity on the REAL "
+                         "arm; the stream-shuffle gauge is retired (it leaks ~0.79 for SPPMI).")
     ap.add_argument("--device", default="cpu")
     ap.add_argument("--out", default="")
     run(ap.parse_args())
