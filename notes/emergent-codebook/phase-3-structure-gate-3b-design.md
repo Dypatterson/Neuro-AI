@@ -1,10 +1,6 @@
 # Phase-3 Structure-Gate "3b" — design spec
 
-> Status: **ACTIVE** (opened 2026-05-31, user-approved). This is the **single genuine
-> next build** per the 2026-05-31 dependency analysis (the re-grounding chain:
-> [CONTEXT.md](../../CONTEXT.md) §5, [RE-GROUNDING-MAP.md](../RE-GROUNDING-MAP.md),
-> and the 5-agent dependency verdict). It is the citation target for the experiment
-> preamble.
+> Status: **RESOLVED — NULL on the meaningful (paradigmatic) gate → RE-SCOPE** ([Report 121](../../reports/121_phase3_structure_gate_3b/report.md), 2026-05-31; `experiments/60_phase3_structure_gate_3b.py`). The codebook develops corpus-specific **collocational** structure (co-occurring words cluster, ~by construction for a co-occurrence learner) but **NOT paradigmatic/semantic** structure (similar, non-co-occurring words do not cluster — WikiText paradigmatic subset −0.0084 CI [−0.013,−0.004]; corr(log cooc, drift)=+0.41/+0.82). Adversarial verification caught that the overall-semantic "pass" was a 93%-collocation-contaminated artifact. The pre-registered prior is honored: this is a **re-scope signal** (the first-order Hebbian co-occurrence-centroid growth dynamic is the wrong shape for paradigmatic structure → redesign the growth mechanism for **context-similarity / second-order** structure), **NOT a retry**. Phase 5 remains un-founded. Spec retained below as the as-run design.
 
 ## The question
 

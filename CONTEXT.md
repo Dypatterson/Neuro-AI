@@ -105,32 +105,34 @@ surgical heteroassociative write + L2 decorrelator recalls role→target binding
 role-selectively at the information ceiling, multi-seed, integrated bit-identically
 (Reports 055/056/057/058), scaling settled (dense H; Report 120).
 
-**THE CRUX — Phase-3 structure-gate "3b" is the genuine open question, and it is
-the load-bearing test for the whole "more than memory" thesis.** Does the codebook
-actually develop *corpus-specific emergent structure* ("similar tokens → similar
-hypervectors," vs a **gauge-safe** control)? Everything Phase 5 needs depends on it:
-bind-vs-bundle discovery needs a *learned* role (current roles are fixed position
-vectors); atom-splitting needs a real persistently-bimodal population (the
-diagnostic returns empty/noise on every codebook trained to date); analogical
-retrieval needs emergent structure. The original Phase-3 control was proven
-**gauge-vacuous** (permuting i.i.d. atoms → E[Δ]=0 by construction), so the gate as
-written was never validly evaluated; the Frame-B corpus-specificity DiD that chased
-it is a **closed drift-artifact — do not re-chase it.**
+**THE CRUX — structure-gate "3b" RAN (Report 121, 2026-05-31) → the meaningful
+(paradigmatic) gate is a NULL → RE-SCOPE the codebook-growth dynamics.** 3b asked:
+does the codebook develop corpus-specific structure ("similar tokens → similar
+hypervectors," vs a gauge-safe corpus-stream-shuffle control)? Decomposed answer:
+- **COLLOCATIONAL** (co-occurring words cluster): **YES** — small (+0.010 real−shuffle
+  on WikiText, ~12% of the drift; the rest is corpus-independent) — but a co-occurrence
+  learner produces this ~by construction. It is the floor, not the thesis signal.
+- **PARADIGMATIC / semantic** (similar, *non-co-occurring* words cluster — the king/queen
+  test; the substrate Phase 5's bind-vs-bundle discovery / atom-splitting / analogical
+  retrieval operate on): **NO** — WikiText paradigmatic subset −0.0084, CI [−0.013, −0.004]
+  (*negative*); repo_sample null; corr(log co-occurrence, drift) = +0.41/+0.82 → the effect
+  scales with co-occurrence, i.e. it is collocational, not similarity-based.
 
-> **HONEST PRIOR:** the C.3 evidence (consolidation change ≈ corpus-independent;
-> atoms collapse spread→tight ~90% rather than bifurcating) is a real prior that 3b
-> **may FAIL** at current scale. **A null 3b is a re-scope signal** (the emergent
-> codebook does not yet exist → rethink the growth dynamics), **NOT a "run it
-> bigger" signal.** This is the most important open question in the project.
+So the **first-order Hebbian distributional-centroid growth dynamic is the wrong shape**
+for the thesis: it captures syntagmatic (co-occurrence) structure, not paradigmatic
+(substitutional / second-order) structure. (An adversarial verification caught that a
+tempting statistical "pass" on the overall semantic arm was an artifact of a 93%-collocation-
+contaminated pair list — the genuinely paradigmatic pairs, including king/queen itself, do
+not cluster.) The original Phase-3 control was gauge-vacuous; the Frame-B DiD is a closed
+drift-artifact — neither is re-chased here.
 
-**The single genuine next build** (per the 2026-05-31 dependency analysis): clear
-Phase-3 structure-gate 3b with a **gauge-safe corpus-stream-shuffle control** +
-**related-pair-cosine-drift** headline (+ NC1/separability drill-down) + a
-no-consolidation difference-in-differences baseline. Cheap (re-trains the Hebbian
-codebook via `experiments/03_phase3a_hebbian_codebook.py`); passes the
-anti-homunculus filter (offline batch statistics; the control is a data
-manipulation, not a mechanism). **A Phase-5 build is gated behind 3b** (and behind
-de-arbitrating the paused Phase-5′ `min_branch` aggregator).
+> **RE-SCOPE (per the pre-registered prior — honored, NOT a retry):** **Phase 5 remains
+> un-founded** (its mechanisms need paradigmatic structure, which does not emerge). The
+> genuine next move is a **Phase-3 growth-mechanism redesign** — a candidate that clusters
+> by **context similarity** (second-order: tokens with similar *neighborhoods*, not tokens
+> that are *neighbors*) — e.g. a context-vector / SQHN / predictive-coding-style update,
+> replacing the first-order co-occurrence centroid. This is NOT a Phase-5 build and NOT a
+> larger-scale re-run of this null. **This is now the most important open question.**
 
 ## 6. Session-start read order (with this file)
 
