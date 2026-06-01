@@ -1,80 +1,68 @@
-# HANDOFF — 2026-05-31 (fresh-session orientation)
+# HANDOFF — 2026-06-01 (end of night; fresh-session orientation)
 
-**Branch:** `consolidation/role-structure` · **HEAD:** `6e55e81`
-**One line:** A major re-grounding + the genuine next gate (Phase-3 structure-gate **3b**) **ran and resolved to a NULL on the meaningful axis → RE-SCOPE the codebook-growth mechanism.** Phase 5 remains un-founded. No active build; clean stopping point.
+**Branch:** `consolidation/role-structure` · **HEAD:** `dc642a0`
+**One line:** The Phase-3 second-order growth re-scope ran end-to-end → **NULL** at every
+stage that matters, but each null was *earned* (signal confirmed to exist; two metric traps
+caught before banking) and the failures converged on one decisive finding → the genuine next
+move is **R3 (a predictive/successor LOCAL growth)**, un-built. Clean stopping point.
 
----
+## 0. Read first (in order)
+1. **[CONTEXT.md](CONTEXT.md)** — the charter (the bet, the gates, the invariants).
+2. **[STATUS.md](STATUS.md)** — the bookmark (Active deliverable + Recent updates).
+3. This file.
+4. The load-bearing reports for the next move: **[Report 123](reports/123_growth_redesign_sweep_null/report.md)**
+   (the sweep NULL + the subdominant-modes finding + the R3 disposition) and
+   **[Report 122](reports/122_phase3_second_order_growth_oracles/report.md)** (the oracle
+   reopen + the pressure-test that killed the basin-read rescue). Plus the design spec:
+   **[precommit §GR](notes/emergent-codebook/phase-3-second-order-growth-precommit.md)**.
 
-## 0. Read first (in this order)
+## 1. Where we are RIGHT NOW
+Report 121 (first-order centroid) was a paradigmatic NULL → re-scope to a second-order
+growth. This session built and ran that, exhaustively:
+- **The signal EXISTS** — the §10 SVD-of-SPPMI oracle (`experiments/62`) shows WikiText-2's
+  SPPMI carries paradigmatic structure (king/queen 0.222; specificity +0.109). So no Option-B
+  capitulation: the corpus has the signal.
+- **But the LOCAL growth can't write it.** The B′ (row-centered SPPMI) + energy-native
+  `H_anti` anti-collapse sweep (`experiments/61`, D=4096, gauge-free gate) is a NULL — 0/60
+  cells pass. H_anti prevents collapse, but the surviving clustering is **collocational, not
+  paradigmatic** (Report 123).
+- **THE DECISIVE FINDING:** paradigmatic ("substitutability") structure lives in the
+  **subdominant modes** of SPPMI — the *global* SVD isolates them; *local* iterative
+  pull+repulsion (which runs to the dominant collocational modes) **cannot reach them**.
+  Local best +0.021 clean vs global +0.109. A real local-vs-global bound.
 
-1. **[CONTEXT.md](CONTEXT.md)** — NEW this session. The stable charter: the bet, the three senses of "memory", the original six-phase gates, the bio North Star, and **the current crux** (§5). It is now read #1 in the CLAUDE.md session-start protocol. Read it before STATUS so STATUS is interpreted *against* the gates.
-2. **[STATUS.md](STATUS.md)** — current bookmark (Active phase / headline / deliverable / blockers + Recent updates).
-3. **This file.**
-4. The load-bearing report + spec for the next move: **[Report 121](reports/121_phase3_structure_gate_3b/report.md)** + **[3b spec](notes/emergent-codebook/phase-3-structure-gate-3b-design.md)**; and the deep snapshot **[RE-GROUNDING-MAP.md](notes/RE-GROUNDING-MAP.md)**.
+## 2. The genuine next move — R3 (un-built)
+**A predictive / successor-context LOCAL growth** — model *which contexts follow from a token*
+(a slowly-drifting FHRR context vector / successor representation), richer than the symmetric
+co-occurrence centroid; it may promote the subdominant substitutability axis locally. Reuse the
+graduated heteroassoc write (055–058) + FHRR bind/bundle/permute. **Needs its own grounding +
+pre-commit** (don't build from first principles — the codebook-framing + anti-smush workflows
+this session carded much of the relevant literature; check `docs/ground-truth/` + Reports 017/018
+(error-driven/reconstruction = already-killed first-order) before treating a mechanism as new).
+- **Honest contingency:** if R3 also can't reach the subdominant structure → paradigmatic
+  structure needs a **latent/hierarchical layer** (PCN/SFA grounding said this) — bigger, but
+  still local. NOT more `S'@G` knobs — that shape is bounded.
 
----
+## 3. Invariants the user holds (do not violate)
+- **Local growth is NON-NEGOTIABLE.** No global SVD/PCA/word2vec shortcut as the *mechanism*
+  (global computations are diagnostics/flashlights only — the SVD oracle is used that way).
+  "If we're going to do something, we're going to do it right." [[memory: do-it-right]]
+- **Anti-homunculus** (local geometric dynamic, never an `if-metric-then` arbiter);
+  **batch-offline only** (sleep/wake); **FHRR-native**; **floor (055–058) untouched**.
+- **Anti-rationalization:** two metric traps were caught this session before banking a verdict
+  (the stream-shuffle gauge LEAKS 0.79 for 2nd-order operators → retired; the gauge-free
+  headline double-subtracted contraction → fixed `dc642a0`). Stay this suspicious of any metric.
 
-## 1. Where we are RIGHT NOW (the single most important thing)
+## 4. Banked side-findings (don't relitigate)
+- High static cosine ≠ merged Hopfield basin at β=30 (β-decoupling; Report 122). The
+  basin-read reframe (R1) was pressure-tested and KILLED as a rescue — do not revive it.
+- The gauge-free para-vs-random gate is the right paradigmatic test (the stream-shuffle gauge
+  is invalid for SPPMI). `corr(log cooc, drift) < 0.15` is the collocational-vs-paradigmatic
+  discriminator.
 
-The project's **"more than memory" thesis** comes down to one question — *does the codebook develop **paradigmatic** structure (similar words cluster), grown from experience?* — and **3b just answered it: NO, not under the current growth dynamics.**
-
-- The graduated consolidation write (Reports 055–058) is the **Phase-3 contextual-completion FLOOR** (role-selective recall from sparse cues). It is real, multi-seed, integrated bit-identically, scaling settled (dense H, Report 120). **It is the floor, not the project's ceiling.** ("Memorization is the target" was a drift, now corrected everywhere — see §2.)
-- **3b (Report 121):** the Hebbian codebook develops corpus-specific **COLLOCATIONAL** structure (co-occurring words cluster — ~by construction for a co-occurrence learner) but **NOT PARADIGMATIC** structure (similar, *non-co-occurring* words — the king/queen test — do **not** cluster; WikiText paradigmatic subset −0.0084, CI [−0.013, −0.004]; corr(log-cooc, drift) = +0.41/+0.82). → **The first-order Hebbian co-occurrence-centroid growth dynamic is the wrong SHAPE.**
-- **Phase 5 (bind-vs-bundle discovery, atom-splitting, analogical retrieval) is UN-FOUNDED** — its mechanisms need paradigmatic structure, which does not emerge. Building Phase 5 now = a phase-order violation.
-
----
-
-## 2. This session's arc (newest first)
-
-| Commit | What |
-|---|---|
-| `6e55e81` | **Report 121** — Phase-3 structure-gate **3b RAN → paradigmatic NULL → re-scope.** |
-| `0ddc240` | **Re-grounding** — corrected the "memorization is the target" **drift** (it mislabeled the Phase-3 floor as the project ceiling, brushing "not a vector DB"); stood up **`CONTEXT.md`** charter (read #1 in session-start). |
-| `bf745ac` | **Report 120** — MESH scaling RESOLVED → **defer MESH**; H is intrinsically low-rank (factored-H is the cost fallback). |
-| `cd277c0` | **Report 119** — WS-InfoNCE Stage-1 built + run → **F-COMPOSE FAIL, memory-not-learner** (held-out margin ≤ 0; value-codebook-shaping is a dead end for generalization). |
-| `2dd0783` | Generalization-axis grounding — Dorrell doesn't port; within-scene JEPA does (design-only). |
-
-The throughline: a sequence of grounded-before-built investigations that, via **pre-registration + adversarial verification**, turned three tempting "wins" into honest negatives — and surfaced that the project drifted into calling its Phase-3 floor the whole building. The re-grounding fixed the framing; 3b then tested the real thesis question and returned a clean re-scope signal.
-
----
-
-## 3. The genuine next move (the re-scope target)
-
-**Redesign the Phase-3 codebook-growth mechanism to cluster by CONTEXT SIMILARITY (second-order), not co-occurrence (first-order).** I.e. tokens with *similar neighborhoods* should cluster (paradigmatic), not just tokens that are *neighbors* (syntagmatic). Candidate directions named in CONTEXT.md §5 / the 3b spec: a **context-vector / SQHN / predictive-coding-style** update, replacing the co-occurrence centroid in `phase2/codebook_learner.py`.
-
-**How to approach it (honor the disciplines that worked this session):**
-- This is a **Phase-3 mechanism redesign**, NOT a Phase-5 build and NOT a larger re-run of the 3b null. (The pre-registered prior was explicit: a null = re-scope, not retry.)
-- **Reuse the 3b harness** (`experiments/60_phase3_structure_gate_3b.py`) to evaluate any new growth mechanism: it already has the gauge-safe corpus-stream-shuffle control, the paradigmatic/collocational co-occurrence split, the random-pair specificity arm, and the d_eff collapse guard. The headline stays the **PARADIGMATIC** real-vs-shuffle gate (CI > 0). Don't reinvent it.
-- **Ground before building** (grep `reports/` + read the design docs): the SQHN / predictive-coding / second-order-distributional literature is partly carded under `docs/ground-truth/`; check what's already been tried (e.g. `error_driven_learner` / `reconstruction_learner` are second-order-ish — see Reports 017/018) before treating a mechanism as new.
-- **Anti-homunculus + gauge-safe controls are non-negotiable.** Any structure read must be an offline batch statistic; any control must be a data manipulation (the gauge-vacuous atom-relabel control is RETIRED).
-
-**Alternative framing worth considering first:** is paradigmatic structure achievable from *this* substrate at all, or is the honest conclusion that the codebook is a *collocational* memory and the architecture's "more than memory" должен come from a different layer (e.g. Phase-4 hierarchy or the energy-term coupling)? That's a strategic fork for the user, not a foregone build.
-
----
-
-## 4. Invariants to hold (the disciplines that paid off)
-
-- **Memorization = the Phase-3 FLOOR, not the project ceiling/identity.** Never let "it's a memory" become "the project is a memory" (that's the forbidden vector-DB, `PROJECT_PLAN.md:276`). Compositional/paradigmatic structure is the Phase-5 deliverable (a 3→5 gradient, `experimental-progression.md §"What to test against"`).
-- **Phase order.** Don't build a later phase on an unverified earlier gate. Phase 5 is gated behind a paradigmatic-structure foundation that does not yet exist.
-- **Pre-register the interpretation** (especially "what does a null mean?") *before* a run, and **adversarially verify a PASS** — both caught false positives this session.
-- **Bio North Star:** the bet is that data-hungry/backprop/autoregressive AI is wrong and biology (continuous learning, no homunculus, replay-as-sleep, energy-frugal) is the answer. Every mechanism must be brain-analogous and anti-homunculus-clean.
-- **Mechanics:** `STATUS.md` < 20480 B (pre-commit hook); cite `experimental-progression.md` by **section anchor**, not line number (they shift); heavy `*.pt`/results JSON are gitignored; commit/push only when asked; the 3 untracked artifacts (`brainstorm-workspace/.../_wf1,2_raw.json`, `reports/gate0_2026-05-28/`) are pre-existing — leave them.
-
----
-
-## 5. Open decisions (for the user)
-
-1. **The re-scope itself** (the main one): pursue a context-similarity / second-order growth mechanism (§3), OR accept the codebook as collocational and seek "more than memory" from a different layer. **User's strategic call.**
-2. **Pre-existing Phase-5′ `min_branch` aggregator** still FAILS anti-homunculus — must be de-arbitrated *before any Phase-5 reopen* (independent of 3b).
-3. Minor: the 3b spec's NC1/inter-basin-separability drill-down (control #4) was not implemented — moot for the null verdict, but worth adding if a re-scoped mechanism produces a non-null paradigmatic signal.
-
----
-
-## 6. Key artifacts
-
-- **Charter:** `CONTEXT.md` (+ `docs/agents/domain.md`, `CLAUDE.md` session-start updated to read it first).
-- **Deep snapshot:** `notes/RE-GROUNDING-MAP.md`.
-- **Next-move spec:** `notes/emergent-codebook/phase-3-structure-gate-3b-design.md` (RESOLVED).
-- **3b harness (reuse it):** `experiments/60_phase3_structure_gate_3b.py`.
-- **Reports this session:** 119 (WS-InfoNCE), 120 (MESH), 121 (3b).
-- **Memory (cross-session):** `neuro_ai_regrounding_2026_05_31`, `neuro_ai_memory_not_learner` (re-scoped), `neuro_ai_mesh_scaling_decision_open` (resolved), `neuro_ai_generalization_track_grounding` (resolved).
+## 5. Artifacts
+- Reports **121/122/123**; precommit **§GR**; `experiments/61` (gauge-free gate + force-normalized
+  H_anti, both fixed), `experiments/62` (oracles, CUDA-fixed); notebooks **061** (first headline
+  run) / **062** (the D=4096 sweep). Sweep JSON on Drive (`_sweep_all.json`, `_oracle_d4096.json`).
+- Nothing is mid-run; tree is committed + pushed. The 3 pre-existing untracked artifacts
+  (`brainstorm-workspace/.../_wf1,2_raw.json`, `reports/gate0_2026-05-28/`) are pre-existing — leave them.
