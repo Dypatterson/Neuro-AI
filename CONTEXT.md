@@ -66,6 +66,15 @@ benchmarked result.)*
   `notes/notes/2026-05-09-...:93`). No supervisor picks a winner; no
   metric-triggered branch. Runtime error-driven codebook writes are **BANNED**
   (batch-offline only — the sleep/wake split; `STATUS.md` live policy).
+  **Structural priors are not homunculi** (clarified 2026-06-01). A *fixed, problem-generic*
+  architecture — number of layers, the wiring, the operation each layer runs, the precommitted k-WTA cap,
+  the dimensionality D — is an evolution-style **scaffold** (set in advance, identical across problems)
+  and is **LEGAL**. The ban is only on (a) a **supervisor that arbitrates outcomes** (reads a metric →
+  picks a winner / routes content), and (b) a **global error signal** (backprop) reshaping the scaffold
+  toward a global objective. Brain-analogy: evolution fixes the layered/compartmentalized architecture;
+  *local* plasticity fills it from experience. **Boundary:** the scaffold must stay problem-GENERIC (it
+  discovers whatever differentiating axes the data has) — a scaffold *hand-shaped to the target answer*
+  is a **design-time homunculus**, the structural cousin of tuning-to-pass.
 - **Memory is the self** — identity is the learned landscape + its trajectories
   (`PROJECT_PLAN.md:19-20`).
 - **Contextual completion over token prediction** (`PROJECT_PLAN.md:21-22`).

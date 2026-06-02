@@ -1,100 +1,85 @@
-# HANDOFF — 2026-06-01 (PM-7; end of day; fresh-session orientation)
+# HANDOFF — 2026-06-01 (PM-9; end of a long session; fresh-session orientation)
 
-**Branch:** `consolidation/role-structure` · **HEAD:** today's commits 061683e (Report 126) + b7396f0
-(exp67 + Step-2 precommit) + the about-to-be-committed Report 127 work. Memory edits live in `~/.claude/`.
-Oracle `_*.json` are gitignored (data); `.stderr`/report.md committed. Pre-existing untracked left alone (§5).
+**Branch:** `audit/coupled-null-reeval`. Memory edits live in `~/.claude/`. Oracle/experiment `_*.json` and
+`reports/**/*.json` are gitignored (data); the markdown docs + experiment `.py` are the durable record.
 
-**One line:** A long disciplined string of nulls (121–126: the flat-code/linear-local family exhausted,
-the bound CAPABILITY-level) gave way to the day's **one positive — then the adversarial verification
-narrowed it**: assembly **k-WTA** on the SPPMI 2nd-order operator clears the gate, BUT a plain global
-**k-means** reproduces it ⇒ the real finding is **a NONLINEAR-PARTITION escapes the LINEAR-local read**
-(operative bound = linear-projection-vs-nonlinear-partition, **not** global-vs-local, **not**
-competition-specific). **NEXT = an online-local k-WTA vs offline global k-means head-to-head, headlined
-on the label-shuffle B-KILL** (the only surviving competition-specific signal; locality+online is the
-genuine differentiator over Lloyd k-means). Clean stopping point; nothing mid-run.
+**One line:** Two things happened. (1) The **coupled null-audit** (the session's task) is DONE — 64 nulls
+re-classified under the §4 capability-DAG, triage table + short list in
+[null-audit-coupled.md](notes/emergent-codebook/null-audit-coupled.md). (2) The audit's #1 lead (CE-1 ⊗ 127)
+was pursued through a frozen grilled precommit → built experiments → an exciting "a local writer reaches
+paradigmatic structure past the LINEAR bound" screen positive → **a 7-agent adversarial verification + a
+same-operator diagnostic CAUGHT it as a 1st-order-representation artifact (the 3rd false positive the
+discipline has caught this year, after 126/127) → RETRACTED.** The clean banked finding (n=10): on the
+CORRECT operator `build_S`, **127 replicates** (nonlinear partition reaches it, linear ~0) but **locality
+is NOT free** — a genuinely bounded-memory LOCAL writer falls short of the global one → the GLOBAL pass is
+load-bearing → **replay / the Oracle-E TEM writer re-enter as the gap-closers with a MEASURED gap
+(+0.179 → +0.224).** The durable win is the methodology, not a graduation.
 
 ## 0. Read first (in order)
-1. **[CONTEXT.md](CONTEXT.md)** — charter (bet, gates, invariants).
-2. **[STATUS.md](STATUS.md)** — bookmark (Active deliverable = the full 121→127 chain).
+1. **[CONTEXT.md](CONTEXT.md)** — charter (note the new §3 **"structural priors are not homunculi"** clause:
+   a fixed problem-generic scaffold is legal; only outcome-arbitration + global backprop + answer-shaped
+   scaffolds are banned).
+2. **[STATUS.md](STATUS.md)** — bookmark (PM-9 = the CE-1 arc; PM-8 = the audit).
 3. This file.
-4. **[Report 127 §0.5](reports/127_nonlinear_competition/report.md)** (the verification update — the
-   k-means refutation + the surviving claim) and **[Report 126](reports/126_behavioral_substitutability/report.md)**
-   (the behavioral NULL). The Step-2 precommit (grill-hardened, Q1-Q6):
-   [phase-3-nonlinear-competition-kill-test-precommit.md](notes/emergent-codebook/phase-3-nonlinear-competition-kill-test-precommit.md).
+4. **[null-audit-coupled.md](notes/emergent-codebook/null-audit-coupled.md)** (the audit + short list) and the
+   **§7 run-log of [the CE-1 ⊗ 127 precommit](notes/emergent-codebook/phase-3-ce1x127-replay-nonlinear-partition-precommit.md)**
+   (the full exp69→72 arc, the verification verdict, the retraction, the banked locality-cost).
 
-## 1. Where we are RIGHT NOW (today, PM-7 — a long session)
-- Verified Reports 124/125 reproduce bit-identically (re-ran). Built+ran the **Reframe-B behavioral probe**
-  → NULL (Report 126): the bound is capability-level, not a codebook-cosine artifact (the within-para
-  label-shuffle caught a single-seed false-PASS).
-- **Step 1 (exp67):** the Idea-1 static inverse-recall = Report 126 as a static cosine → lands on the 126
-  NULL. Idea-1/2/3/7 cluster CLOSED.
-- **Grilled the Step-2 precommit** (/grill-with-docs, Q1-Q6). Q1 = the prior upgrade: nonneg
-  similarity-matching escapes PCA → manifold-tiling part-based (Sengupta 2018), the class NMF/E used.
-- **Built+ran the nonlinear-competition kill-test (Report 127, exp68):** k-WTA on `build_S` clears the
-  gate (label-shuffle 4-5/5, beats `grow_G` +0.002). A **6-agent adversarial verification** then showed
-  **global Lloyd k-means one-hot reproduces it** (+0.250 ≈ +0.248) → the gate headline is a NONLINEAR-
-  PARTITION property, NOT competition. **Survives:** any nonlinear partition of `build_S` beats the
-  linear-local read (build_S-specific; k-means-on-random-Gram = +0.010; cosine-independent co-membership
-  +0.300, perm-p 0.0000, broad 30/40 pairs; grow_G +0.002 fails on the SAME operator). NSM (soft
-  competition) genuinely null. M_trans control-contaminated (inconclusive). Magnitude low-dim-inflated.
-- **The single best thing all session: the discipline kept paying off.** The label-shuffle caught 126's
-  false-PASS; the k-means control caught 127's overclaim. Without either, we'd have banked a false escape.
+## 1. Where we are RIGHT NOW
+- **The audit is the solid deliverable.** 64 nulls → 47 NO (73%) on three route-invariant bound families
+  (paradigmatic subdominant-mode; 1/√D FHRR crosstalk floor; bind(k,v) algebra); short list of MAYBE/UNTESTED
+  led by CE-1 ⊗ 127, then Oracle-E TEM local writer (#2), 052 Pair-#2 drift-pressure, 013 tag_count→u_k,
+  Oracle-C eligibility×surprise.
+- **CE-1 ⊗ 127 arc CLOSED (banked at n=10):** on `build_S` (the precommit/127 operator, anchor-valid
+  +0.1092/0.222): offline k-WTA ≈ k-means ≈ **+0.22** (127 REPLICATED at the hubness-immune B-KILL + breadth
+  22/40), `grow_G` linear floor ≈ **0**. The accumulating/global online writer reaches the ceiling (1.01);
+  the genuinely **bounded-memory LOCAL writer falls short** (bounded +0.179, ratio 0.80; converged−bounded
+  across-seed CI **[+0.042,+0.055]>0** = locality cost ROBUST; bounded−frozen lo +0.104 = learning matters).
+  → **locality is NOT free; the global pass is load-bearing.**
+- **What was RETRACTED:** exp70's screen positive ("local writer past the linear bound") — it ran the
+  partition arms on the WRONG (1st-order `l2rows(sppmi)`) operator while the floor/ceiling used `build_S`;
+  on `build_S` the locality cost appears. Caught pre-banking by the verification.
 
-## 2. The next move (un-built) — RE-RANKED after a throwaway `/prototype` (PM-7b)
-A rough **3-seed `/prototype`** (since deleted; verdict captured here) head-to-headed, on `build_S`, the
-OFFLINE global k-means vs an ONLINE/STREAMING local k-WTA vs a **Kanerva-SDM** random-hard-location read,
-on the label-shuffle B-KILL. **Result: locality / online / SDM LOSES the margin — it does NOT buy it.**
-kill(para-shuf) point estimates: **offline k-means +0.208 > online-local k-WTA +0.088 > SDM-random +0.038**.
-Random-address SDM ≈ a random projection (samples the DOMINANT modes, exactly as the bound predicts). So
-the "LOCALITY + ONLINE STREAMING is the genuine differentiator over global k-means" hope is **provisionally
-DOWNGRADED** (3-seed, rough — a fuller multi-seed test with a non-naive online rule + ADAPTIVE/content-
-derived SDM addresses could revisit, but do NOT expect locality to help). **The re-ranked queue:**
-1. **(LEAD) the iterated-TEM local-reachability oracle** — the slot-binding LOCAL writer for Oracle E's
-   structure×content factorization (Report 125 §5). The one local-writer route NOT yet tested and NOT
-   reducible to k-means; its dynamic (not just operator) differs. Write a frozen precommit; reuse
-   `experiments/65/68`.
-2. **The eligibility×surprise two-timescale family** (`whats_missing.md` §1) — attacks the failing
-   `corr(cooc,drift)` quantity by construction (surprise = anti-correlated with frequency).
-3. **(DEMOTED) online-local-k-WTA-vs-offline-k-means** — rough-probe-says-unpromising; only revisit with
-   more seeds + a non-naive online rule + adaptive (content-derived, not random) SDM addresses + a fix for
-   the collapse (§4). If pursued, wire the **k-means control** in-harness and headline the B-KILL.
+## 2. The next move (un-built) — the GAP-CLOSER
+The locality cost gives replay a **measured target**: can a mechanism make a bounded-memory LOCAL writer
+close **+0.179 → +0.224** on `build_S`? Two candidates (the user wants replay kept alive):
+1. **The emergent-replay-schedule experiment** (CE-1's actual premise, now well-motivated): a *local*
+   replay-priority (surprise/novelty × settling-residual) + pattern-separation re-orders/re-weights which
+   windows the bounded-memory writer consolidates — does it close the gap? Reuse exp72; the anti-homunculus
+   rule (priority must EMERGE from a local scalar; random-reorder gauge must NOT reproduce) is in the precommit §1.
+2. **The Oracle-E TEM local writer** (short-list #2): an online Hebbian path-integration slot-factorization
+   writer (NOT reducible to k-means; its *dynamic* differs), per Report 125 §5.
+Optional remaining verification controls (now low-priority — the headline is a locality-COST, not a positive
+needing defense): single-pass locality, the 127 permutation-breadth battery.
 
 ## 3. Invariants the user holds (do not violate)
-- **LOCAL growth is the MECHANISM, NON-NEGOTIABLE.** Global SVD/NMF/k-means/word2vec = DIAGNOSTIC
-  FLASHLIGHTS only (the k-means here is a CONTROL, not the mechanism). "Do it right — no shortcuts." [[do-it-right]]
-- Anti-homunculus (the k-WTA cap is a fixed precommitted top-k = clean; the reads are pure measurement);
-  batch-offline (online TD/error-driven banned; Hebbian/anti-Hebbian + a fixed cap are allowed);
-  FHRR-native (the kill-test is substrate-free; the FHRR-port is the deferred Stage-1 = fence); the
-  055-058 FLOOR untouched.
-- **Phase fence:** a competitive/TEM/latent BUILD is Phase-5 — the user's to lift; substrate-free oracles
-  + grounding in-scope.
-- **Anti-rationalization (the load-bearing habit):** the within-set label-shuffle + the competent-control
-  (k-means, not just frozen-random noise) + multi-seed caught TWO false positives today. The verdict-bearer
-  is the adversarial control, never the headline arm.
+- **LOCAL growth is the MECHANISM, non-negotiable.** Global SVD/NMF/k-means = diagnostics/controls only.
+- **Anti-homunculus, sharpened (CONTEXT.md §3, new):** a fixed problem-GENERIC scaffold (layers, k-WTA cap,
+  D) is LEGAL; banned = a supervisor arbitrating outcomes, global backprop, or a scaffold hand-shaped to the
+  answer (a design-time homunculus).
+- **Substrate-free oracles + combination experiments are in-scope** (rung-1, no gate); a new-substrate BUILD
+  is the Abstraction-node build-gate, the user's to lift. The fidelity ladder (precommit §4.5): a screen-pass
+  ≠ a behavior claim; escalate rung-1 → FHRR-port → integrated, with the over-claim guards.
+- **The load-bearing habit (paid off 3× this year):** the verdict-bearer is the adversarial control, never
+  the headline arm. The within-set label-shuffle B-KILL + the competent (k-means) AND incompetent
+  (frozen-random) controls + across-seed CIs caught 126, 127, and now exp70.
 
 ## 4. Banked side-findings (don't relitigate)
-- The operative bound is **LINEAR-PROJECTION-vs-NONLINEAR-PARTITION** (grow_G power-iteration → dominant
-  collocational mode; ANY hard partition of `build_S` reaches the paradigmatic structure) — NOT
-  global-vs-local, NOT competition-vs-not. Magnitude is low-dim partition-inflated (recoverE 1.67; k-means
-  inflates identically) → do NOT claim "k-WTA/partition beats SVD."
-- The frozen-random no-learning control is an INCOMPETENT clustering — it does not exclude a competent
-  non-assembly clustering (k-means). Always include a competent control.
-- NSM de-collapse via rank-1-common-mode removal is itself a no-learning artifact generator (the same
-  M_trans-style contamination). M_trans rows are peaky (top-1 = 36% of row energy) → frozen-random cap
-  inflates; build_S rows are dense (top-1 = 1.5%) → clean.
-- Literature: Sengupta-2018 manifold-tiling is UNCARDED (not in manifest); sparse-Hopfield primaries are
-  link_only → motivating-only (Hard Rule 3), NOT load-bearing for a build.
-- **(PM-7b prototype, since deleted) Locality/online/SDM-random LOSES the B-KILL margin** (offline
-  k-means +0.208 > online-local k-WTA +0.088 > SDM-random +0.038, 3 seeds) → random-address Kanerva-SDM ≈
-  a random projection (dominant modes). Online/soft competitive writers COLLAPSE to rank-1 without a
-  DeSieno conscience term (same collapse as the NSM writer in Report 127) — collapse-proneness is a
-  recurring obstacle for any online-local competitive mechanism. SDM was never a built/tested substrate
-  (design-time candidate only; the FHRR+MHN substrate took the VSA/HDC fork, not SDM addressing).
+- **127 replicates on `build_S`** at the hubness-immune B-KILL level (k-WTA ≈ k-means ≈ +0.22; grow_G ~0).
+  The operative bound is LINEAR-PROJECTION-vs-NONLINEAR-PARTITION (k-WTA NOT special vs k-means on `build_S`).
+- **Locality is NOT free** on `build_S` (bounded-memory local writer < global, n=10, robust). The global/
+  accumulated pass is load-bearing.
+- **Operator/representation matters:** on 1st-order `l2rows(sppmi)`, k-means FAILS the B-KILL (CI-lo<0) while
+  k-WTA succeeds (a 1st-order quirk); on the correct 2nd-order `build_S` they tie (127). Always run the
+  partition on `build_S`, with grow_G/NMF on the SAME operator.
+- Magnitudes are partition-inflated — never claim "k-WTA/partition beats SVD/NMF."
 
-## 5. Artifacts (uncommitted — today, PM-7)
-- Report **127** (`reports/127_nonlinear_competition/report.md` + `_kill_test_wikitext.json`).
-- `experiments/68_nonlinear_competition_kill_test.py` (k-WTA validated; NSM collapses — flagged).
-- The grill-hardened Step-2 precommit (edited since b7396f0: Q1-Q6 + the 3a correction).
-- STATUS (Active-deliverable walk-back + PM-7; two oldest entries migrated to the archive), this HANDOFF,
-  memory (`~/.claude/`).
-- Pre-existing untracked (leave them): `brainstorm-workspace/2026-05-30-research-grounded-plan/_wf{1,2}_raw.json`, `reports/gate0_2026-05-28/`.
+## 5. Artifacts (uncommitted — this session)
+- Docs: [null-audit-coupled.md], the [CE-1 ⊗ 127 precommit] (FROZEN + §7 run-log), CONTEXT.md §3 clause,
+  STATUS.md (PM-9 + Active-deliverable update; PM/PM-2 migrated to [status-log/2026-05.md]), this HANDOFF.
+- Experiments: `experiments/69` (planted smoke), `70` (WikiText head-to-head + verification target),
+  `71` (operator/representation diagnostic), `72` (decisive online-on-`build_S`, n=10).
+- Data (gitignored): `reports/_exp69_planted_smoke.json`, `_exp70_wikitext_headtohead.json`,
+  `_exp71_operator_repr.json`, `_exp72_online_build_s.json`, `_exp72_online_build_s_n10.json`.
+- Pre-existing untracked (leave): `brainstorm-workspace/2026-05-30-research-grounded-plan/_wf{1,2}_raw.json`,
+  `reports/gate0_2026-05-28/`.
