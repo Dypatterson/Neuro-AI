@@ -40,23 +40,24 @@ genuine differentiator over Lloyd k-means). Clean stopping point; nothing mid-ru
 - **The single best thing all session: the discipline kept paying off.** The label-shuffle caught 126's
   false-PASS; the k-means control caught 127's overclaim. Without either, we'd have banked a false escape.
 
-## 2. The genuine next move (un-built)
-The corrected finding hands a SHARP, cheap next experiment. The project's genuine differentiator over a
-global Lloyd k-means is NOT "partition vs projection" (k-means already proves that) — it is **LOCALITY +
-ONLINE STREAMING** (no global Gram pass, brain-analogous = the non-negotiable). So:
-- **An ONLINE/STREAMING local k-WTA vs an OFFLINE global k-means head-to-head on `build_S`**, both read
-  with the static para-vs-random + label-shuffle, **headlined on the B-KILL margin** (the only surviving
-  competition-specific signal: k-WTA's pair-specificity was modestly cleaner than k-means'). If the
-  online-local writer **preserves** the B-KILL pair-specificity margin that the offline global k-means
-  lacks → THAT is the load-bearing, novel, anti-homunculus-clean result worth opening + CARDING the
-  assembly / sparse-Hopfield primaries (then a competitive-writer grounding precommit; build behind the
-  fence). If it does not → competition adds nothing beyond global clustering; the partition-vs-projection
-  reframe of the bound is the bankable finding, and the queue reverts to the iterated-TEM oracle.
-- Write a frozen precommit first. Reuse `experiments/68` + `exp65`. Wire the **k-means control** into the
-  harness (the verification ran it in /tmp; it must be in-harness for the next run).
-- **Queued (unchanged):** the iterated-TEM local-reachability oracle; the eligibility×surprise
-  two-timescale family (`whats_missing.md` §1). NSM (soft competition) needs a stable de-collapse that
-  does NOT use rank-1 removal (which manufactures a no-learning artifact) before it can be re-tested.
+## 2. The next move (un-built) — RE-RANKED after a throwaway `/prototype` (PM-7b)
+A rough **3-seed `/prototype`** (since deleted; verdict captured here) head-to-headed, on `build_S`, the
+OFFLINE global k-means vs an ONLINE/STREAMING local k-WTA vs a **Kanerva-SDM** random-hard-location read,
+on the label-shuffle B-KILL. **Result: locality / online / SDM LOSES the margin — it does NOT buy it.**
+kill(para-shuf) point estimates: **offline k-means +0.208 > online-local k-WTA +0.088 > SDM-random +0.038**.
+Random-address SDM ≈ a random projection (samples the DOMINANT modes, exactly as the bound predicts). So
+the "LOCALITY + ONLINE STREAMING is the genuine differentiator over global k-means" hope is **provisionally
+DOWNGRADED** (3-seed, rough — a fuller multi-seed test with a non-naive online rule + ADAPTIVE/content-
+derived SDM addresses could revisit, but do NOT expect locality to help). **The re-ranked queue:**
+1. **(LEAD) the iterated-TEM local-reachability oracle** — the slot-binding LOCAL writer for Oracle E's
+   structure×content factorization (Report 125 §5). The one local-writer route NOT yet tested and NOT
+   reducible to k-means; its dynamic (not just operator) differs. Write a frozen precommit; reuse
+   `experiments/65/68`.
+2. **The eligibility×surprise two-timescale family** (`whats_missing.md` §1) — attacks the failing
+   `corr(cooc,drift)` quantity by construction (surprise = anti-correlated with frequency).
+3. **(DEMOTED) online-local-k-WTA-vs-offline-k-means** — rough-probe-says-unpromising; only revisit with
+   more seeds + a non-naive online rule + adaptive (content-derived, not random) SDM addresses + a fix for
+   the collapse (§4). If pursued, wire the **k-means control** in-harness and headline the B-KILL.
 
 ## 3. Invariants the user holds (do not violate)
 - **LOCAL growth is the MECHANISM, NON-NEGOTIABLE.** Global SVD/NMF/k-means/word2vec = DIAGNOSTIC
@@ -83,6 +84,12 @@ ONLINE STREAMING** (no global Gram pass, brain-analogous = the non-negotiable). 
   inflates; build_S rows are dense (top-1 = 1.5%) → clean.
 - Literature: Sengupta-2018 manifold-tiling is UNCARDED (not in manifest); sparse-Hopfield primaries are
   link_only → motivating-only (Hard Rule 3), NOT load-bearing for a build.
+- **(PM-7b prototype, since deleted) Locality/online/SDM-random LOSES the B-KILL margin** (offline
+  k-means +0.208 > online-local k-WTA +0.088 > SDM-random +0.038, 3 seeds) → random-address Kanerva-SDM ≈
+  a random projection (dominant modes). Online/soft competitive writers COLLAPSE to rank-1 without a
+  DeSieno conscience term (same collapse as the NSM writer in Report 127) — collapse-proneness is a
+  recurring obstacle for any online-local competitive mechanism. SDM was never a built/tested substrate
+  (design-time candidate only; the FHRR+MHN substrate took the VSA/HDC fork, not SDM addressing).
 
 ## 5. Artifacts (uncommitted — today, PM-7)
 - Report **127** (`reports/127_nonlinear_competition/report.md` + `_kill_test_wikitext.json`).
