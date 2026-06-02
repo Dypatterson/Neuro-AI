@@ -124,12 +124,13 @@ the source of record.
 
 ## `pdf:sqhn-2024`
 
-- **Claim:** Sparse quantized Hopfield networks can learn online-continual
-  memory with local rules.
-- **Neuro-AI relevance:** External continual-memory baseline and possible
-  quantization comparison.
-- **Principle link:** Supports local learning and local-first constraints.
-- **Caution:** Substrate differs from FHRR; use as benchmark, not drop-in proof.
+- **UPGRADED 2026-06-02 → see [2026-06-02-sqhn-card.md](2026-06-02-sqhn-card.md)** (primary PDF +
+  official code read; full load-bearing card). Summary: hierarchical one-hot Hopfield tree with a
+  genuinely LOCAL non-backprop write (Eq. 4) + neurogenesis — fills the local-write gap HAM lacks.
+  CAVEAT: its native write IS the PCN free-energy gradient (Eq. 9, reconstructive top-down) → port
+  the kwta-CAPTURE + GHA-deflation, not Eq. 4 through a downward weight. It is the `kwta` arm of the
+  frozen `experiments/77`, NOT a new architecture. Transfer = with-caveats; depth-beyond-SVD UNSHOWN
+  (R127 k-means equivalence). Substrate-free oracle authorized; an FHRR build is the user's fence.
 
 ## `pdf:mir-2019`
 
