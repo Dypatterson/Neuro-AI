@@ -75,71 +75,89 @@ benchmarked result.)*
   (`PROJECT_PLAN.md:27-28`).
 - **Energy efficiency / local-first** — compact latent ops, MacBook-class
   (`PROJECT_PLAN.md:29-32`; aspirational, unbenchmarked).
-- **Headline-vs-drill-down** — each phase has ONE headline gate; the rest explain
-  it, they don't redefine success.
-- **Phase order** — Phase-N work presupposes Phase N-1's gate is cleared; skipping
-  is allowed but must be acknowledged, and **building a later phase on an
-  unverified earlier gate is the drift this file exists to prevent.**
+- **Headline-vs-drill-down** — each capability/experiment has ONE headline gate;
+  the rest explain it, they don't redefine success.
+- **Dependency order, not an exclusive sequence** — a capability presupposes its
+  *dependencies'* gates are cleared (the DAG in §4), but capabilities are NOT worked
+  one-at-a-time-to-completion. **Any capability whose dependencies are met is
+  workable, and cross-capability *combination* experiments are first-class**;
+  testing a mechanism in isolation when the real one is an *interaction* is itself a
+  failure mode (it produces false negatives — see §4). The one hard rule that
+  survives the reframe: **building an abstraction capability on an unverified floor
+  is the drift this file exists to prevent.**
 
-## 4. The original six-phase plan + per-phase gates
+## 4. The capability map (dependency DAG + gates) — *was "the six-phase plan"*
 
-*Source of truth: `notes/emergent-codebook/experimental-progression.md` (2026-05-04;
-metrics added 2026-05-09). Phase 3 is the FOUNDATION; Phase 5 is where
-"more-than-memory" lives.*
+*Reframed 2026-06-01. The six "phases" were really a set of **coupled capabilities over one
+substrate**, not a linear curriculum — and the linear framing forced isolation-testing + the
+recurring phase-boundary drift this file keeps fighting. **The GATES below are unchanged** (source
+of truth: `experimental-progression.md`, 2026-05-04; metrics 2026-05-09); only the **structure**
+changed — a ladder → a dependency graph that licenses combination experiments. The historical
+`notes/emergent-codebook/phase-<N>-*` design docs remain the per-capability design records (Substrate
+= P1, Static-codebook = P2, Codebook-growth = P3, Replay = P4, Abstraction = P5).*
 
-| Phase | Goal | Original headline gate | Current status |
-|---|---|---|---|
-| **1 Substrate** | FHRR bind/unbind/role-filler recovery at D=4096 (§Phase 1) | Clean recovery, no surprises at scale | **CLEARED** |
-| **2 Static codebook** | Masked- vs next-token as a design comparison (§Phase 2) | Recall@1 vs bigram, ≥1 objective above chance, CI-disjoint (§Phase 2) | **CLEARED** (masked-token chosen → vindicates contextual-completion) |
-| **3 Codebook growth (FOUNDATION)** | Two-pathway hybrid update (§Phase 3) | Regime-stratified masked Recall@K vs a **valid** control; **"similar tokens → similar hypervectors"; structure ABSENT in the control** (§Phase 3; §"How to know it's actually working") | **PARTIAL** — see §5 (floor cleared; structure-gate OPEN) |
-| **4 Hierarchical compression** | L1 bundles → L2 atoms (§Phase 4) | Interpretable L2 atoms emerge; longer-range retrieval improves (§Phase 4) | **PARTIAL** (replay stabilizes substrate; L2-emergence never measured, deferrable) |
-| **5 Binding discovery + atom-splitting + analogical retrieval (THE CEILING)** | Learned bind-vs-bundle + split persistently-bimodal atoms (§Phase 5) | Bind-vs-bundle **emerges from data**; **analogical retrieval works** ("similar structural shape, different content"); polysemy splits (§Phase 5; §"How to know it's actually working") | **UNBUILT** (mechanisms absent from `src/`) / energy headline PAUSED |
-| **6 Integration** | LLM-in-workspace; replay re-encode (§Phase 6) | SONAR-replacement non-regressive; structural reasoning measurable | **UNBUILT** (correctly downstream) |
+**The DAG** ( `→` = "depends on the gate of" ):
+`Substrate → Static-codebook → Consolidation-write (FLOOR) → { Codebook-growth ⇄ Replay } → Abstraction (CEILING) → Integration`
 
-*(Citations to `experimental-progression.md` are by section header, which is stable across edits — the line numbers shifted once already and broke the references they fed.)*
+- **Codebook-growth** and **Replay** are **siblings that COUPLE** (`⇄`): replay shapes what growth
+  consolidates; growth supplies what replay interleaves. **They must be testable in COMBINATION, not
+  only in isolation** — the 121-127 arc tested growth alone and may have produced false negatives for
+  exactly this reason.
+- A capability is workable the moment its *dependencies'* gates clear — NOT after the prior "phase"
+  finishes. **Cross-capability combination experiments are first-class.**
+- The **build fence** (don't commit a new substrate / Abstraction architecture without a decision) is
+  a **build-gate on the Abstraction node**, not a phase-number rule.
+
+| Capability (was Phase) | Goal | Original headline gate | Depends on | Status |
+|---|---|---|---|---|
+| **Substrate** (P1) | FHRR bind/unbind/role-filler recovery at D=4096 | Clean recovery at scale | — | **CLEARED** |
+| **Static codebook** (P2) | Masked- vs next-token design comparison | Recall@1 vs bigram, ≥1 objective above chance, CI-disjoint | Substrate | **CLEARED** (masked-token chosen → vindicates contextual-completion) |
+| **Consolidation-write = the FLOOR** (P3/P4 write) | Surgical heteroassoc write + L2 decorrelator | Value-codebook Selectivity-Δ at the info ceiling, multi-seed (055-058) | Substrate, Static-codebook | **CLEARED** |
+| **Codebook-growth** (P3 structure) | Grow paradigmatic (substitutional) structure | "similar tokens → similar hypervectors"; structure ABSENT in a **valid** control (§"How to know it's working") | Consolidation-write | **OPEN/STUCK** — §5 (flat-code/linear-local family EXHAUSTED) |
+| **Replay-consolidation** (P4) | Replay turns settling paths into grooves; interleaving may *manufacture* structure | Replayed trajectories improve retrieval; (CLS) interleaving builds shared abstraction; L2 atoms emerge | Consolidation-write | **PARTIAL** (stabilization only; **structure-generation UNTESTED — the untapped lever**) |
+| **Abstraction = THE CEILING** (P5) | Bind-vs-bundle discovery + atom-splitting + analogical retrieval | Bind-vs-bundle **emerges from data**; **analogical retrieval works**; polysemy splits (§"How to know it's working") | Codebook-growth ⇄ Replay (needs paradigmatic structure) | **UNBUILT** (mechanisms absent from `src/`; energy headline PAUSED) |
+| **Integration** (P6) | LLM-in-workspace; replay re-encode | SONAR-replacement non-regressive; structural reasoning measurable | Abstraction | **UNBUILT** (correctly downstream) |
+
+*(Gate citations to `experimental-progression.md` are by section header — stable across edits; line numbers shifted once and broke the references.)*
 
 ## 5. Where we are — and the current crux
 
-The contextual-completion **floor** (Phase 3, sense #2) is **cleared**: the
-surgical heteroassociative write + L2 decorrelator recalls role→target bindings
-role-selectively at the information ceiling, multi-seed, integrated bit-identically
-(Reports 055/056/057/058), scaling settled (dense H; Report 120).
+The **Consolidation-write FLOOR** (contextual completion, sense #2) is **cleared**: the surgical
+heteroassociative write + L2 decorrelator recalls role→target bindings role-selectively at the
+information ceiling, multi-seed, integrated bit-identically (Reports 055-058), scaling settled
+(dense H; Report 120).
 
-**THE CRUX — structure-gate "3b" RAN (Report 121, 2026-05-31) → the meaningful
-(paradigmatic) gate is a NULL → RE-SCOPE the codebook-growth dynamics.** 3b asked:
-does the codebook develop corpus-specific structure ("similar tokens → similar
-hypervectors," vs a gauge-safe corpus-stream-shuffle control)? Decomposed answer:
-- **COLLOCATIONAL** (co-occurring words cluster): **YES** — small (+0.010 real−shuffle
-  on WikiText, ~12% of the drift; the rest is corpus-independent) — but a co-occurrence
-  learner produces this ~by construction. It is the floor, not the thesis signal.
-- **PARADIGMATIC / semantic** (similar, *non-co-occurring* words cluster — the king/queen
-  test; the substrate Phase 5's bind-vs-bundle discovery / atom-splitting / analogical
-  retrieval operate on): **NO** — WikiText paradigmatic subset −0.0084, CI [−0.013, −0.004]
-  (*negative*); repo_sample null; corr(log co-occurrence, drift) = +0.41/+0.82 → the effect
-  scales with co-occurrence, i.e. it is collocational, not similarity-based.
+**THE CRUX (updated 2026-06-01) — Codebook-growth is STUCK against a now-characterized wall, and
+Replay is the one untapped lever.** Structure-gate 3b (Report 121) nulled the paradigmatic gate, and
+the 121-127 arc then **exhausted the entire flat-code / linear-local growth family**: paradigmatic
+(substitutional, king/queen) structure lives in the **SUBDOMINANT modes** of the co-occurrence
+operator; it is reachable by **GLOBAL** computation (SVD / NMF / k-means, +0.11-0.25) but by **NO
+LOCAL single-projection dynamic over a flat code** (route-invariant across 7 operators; confirmed
+*capability*-level by an independent behavioral probe (126); the one nonlinear-partition "escape"
+(127) reduces to global k-means). **Every working read is a GLOBAL computation — which the
+no-homunculus / local-growth invariant forbids.** That is itself the finding: **the flat code gives
+the floor and NOT paradigmatic structure; the latter needs a different lever or substrate, not
+another local-growth oracle.**
 
-So the **first-order Hebbian distributional-centroid growth dynamic is the wrong shape**
-for the thesis: it captures syntagmatic (co-occurrence) structure, not paradigmatic
-(substitutional / second-order) structure. (An adversarial verification caught that a
-tempting statistical "pass" on the overall semantic arm was an artifact of a 93%-collocation-
-contaminated pair list — the genuinely paradigmatic pairs, including king/queen itself, do
-not cluster.) The original Phase-3 control was gauge-vacuous; the Frame-B DiD is a closed
-drift-artifact — neither is re-chased here.
-
-> **RE-SCOPE (per the pre-registered prior — honored, NOT a retry):** **Phase 5 remains
-> un-founded** (its mechanisms need paradigmatic structure, which does not emerge). The
-> genuine next move is a **Phase-3 growth-mechanism redesign** — a candidate that clusters
-> by **context similarity** (second-order: tokens with similar *neighborhoods*, not tokens
-> that are *neighbors*) — e.g. a context-vector / SQHN / predictive-coding-style update,
-> replacing the first-order co-occurrence centroid. This is NOT a Phase-5 build and NOT a
-> larger-scale re-run of this null. **This is now the most important open question.**
+> **THE LIVE DIRECTION (2026-06-01):**
+> 1. **Replay-consolidation is the untapped lever.** The CLS reframe: paradigmatic structure may be
+>    *manufactured by interleaved, pattern-separated REPLAY* (a **Codebook-growth ⇄ Replay
+>    combination**), not grown by any static operator — never tested, and the cheapest decisive next
+>    probe. The interleaving must EMERGE from a local replay-priority dynamic, not a hand-set
+>    curriculum — else it is the banned homunculus.
+> 2. **Bank-the-bound decision:** a clean null on the replay combination would *close* the
+>    flat-code-from-small-text program and point at a substrate/data change — an **Abstraction-node
+>    build-gate** decision (the user's to make).
+> 3. **Why the §4 reframe happened:** the old linear-phase framing forced the isolation-testing that
+>    produced the arc's likely false negatives. The blow-by-blow lives in [STATUS.md](STATUS.md).
 
 ## 6. Session-start read order (with this file)
 
-0. **This file (`CONTEXT.md`)** — the thesis, the gates, the invariants, the crux.
+0. **This file (`CONTEXT.md`)** — the thesis, the §4 capability map + gates, the invariants, the crux.
 1. [STATUS.md](STATUS.md) — current position (volatile bookmark).
-2. The active phase checklist under `notes/emergent-codebook/`.
-3. The §Headline + §Required-controls of the active phase's design doc (cite line
+2. The active *capability's* gate/checklist under `notes/emergent-codebook/` (the `phase-<N>-*`
+   files are the per-capability design records; see the §4 map for which is which).
+3. The §Headline + §Required-controls of the active *capability's* design doc (cite line
    numbers — STATUS banners drift; the design spec + §4 gates above are the truth).
 4. `docs/PROJECT_PLAN.md` + relevant dated `notes/notes/`.
 

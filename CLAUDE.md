@@ -23,21 +23,22 @@ Before doing anything else in a session — before reading reports, before
 planning, before answering a question that involves project state — read:
 
 1. **[CONTEXT.md](CONTEXT.md)** at the repo root — the stable charter: the
-   bet, the thesis (**memorization is the Phase-3 *floor*, not the project
-   ceiling**; not a vector DB), the **original per-phase gates**, the
+   bet, the thesis (**memorization is the Codebook-write *floor*, not the
+   project ceiling**; not a vector DB), the **§4 capability map + gates**, the
    invariants, and the current crux. Read FIRST so STATUS is interpreted
    *against* the gates, not in place of them. *(This read exists because the
    original gates went unread while STATUS drifted — CONTEXT.md §"Why this
    file exists.")*
 2. [STATUS.md](STATUS.md) at the repo root. This is the bookmark. It names
-   the active phase, the current headline metric, the last verified result,
-   and the active blockers.
-3. The exit checklist for the active phase (e.g.
-   [notes/emergent-codebook/phase-4-checklist.md](notes/emergent-codebook/phase-4-checklist.md))
-   if one exists for the active phase. Every line item with a non-✅ status
+   the active capability/front, the current headline metric, the last verified
+   result, and the active blockers.
+3. The active capability's gate/checklist (e.g.
+   [notes/emergent-codebook/phase-4-checklist.md](notes/emergent-codebook/phase-4-checklist.md);
+   the `phase-<N>-*` files are the per-capability records — see CONTEXT.md §4)
+   if one exists. Every line item with a non-✅ status
    is potentially relevant to the current session.
 4. **The §"Headline metric" + §"Required controls" sections of the active
-   phase's design document** (e.g.
+   capability's design document** (e.g.
    [notes/emergent-codebook/phase-5-unified-design.md](notes/emergent-codebook/phase-5-unified-design.md)).
    Cite the exact line numbers — STATUS.md banners can drift away from
    the design spec over multiple sessions, and the design spec is the
@@ -53,7 +54,7 @@ planning, before answering a question that involves project state — read:
 
 `STATUS.md` and the active checklist are *binding*, not advisory. If you
 catch a contradiction between them and another document mid-session
-— **including the active phase's design spec** — that is itself a
+— **including the active capability's design spec** — that is itself a
 finding to surface, not paper over.
 
 **Don't trust a "never built / never run" flag without grepping
@@ -96,9 +97,10 @@ became unreadable for both humans and the Read tool.
 ## Experiment preamble requirement
 
 Before running any experiment that produces a numbered report or that
-informs a phase-graduation decision, the agent must state, in plain text:
+informs a capability-gate decision, the agent must state, in plain text:
 
-> **Active phase:** [N]
+> **Active capability:** [name — from the CONTEXT.md §4 map; note if it's a
+>   *combination* of two capabilities, e.g. Codebook-growth × Replay]
 > **Headline metric per [spec file:line]:** [exact metric, e.g. "Δ Recall@K
 > + Δ cap-coverage with active drift"]
 > **Required controls per [spec file:line]:** [list]
@@ -107,7 +109,7 @@ informs a phase-graduation decision, the agent must state, in plain text:
 > blocker or checklist line item]
 
 The `[spec file:line]` citation is **mandatory**, not optional. It must
-point at the active phase's design document (typically under
+point at the active capability's design document (typically under
 [notes/emergent-codebook/](notes/emergent-codebook/)) — NOT at STATUS.md
 and NOT at the most recent report's "what we're measuring" framing.
 If the experiment is measuring something that does NOT appear as the
@@ -136,13 +138,13 @@ skipping it is hours of work against the wrong metric.
 **Mandatory check order** — do this *before* writing a spec, before writing
 code, and before recommending an approach:
 
-1. Read [STATUS.md](STATUS.md) and the active phase checklist (see
+1. Read [STATUS.md](STATUS.md) and the active capability's gate/checklist (see
    session-start protocol above).
-2. Read [docs/PROJECT_PLAN.md](docs/PROJECT_PLAN.md) for the current phase
-   and non-negotiable design rules.
+2. Read [docs/PROJECT_PLAN.md](docs/PROJECT_PLAN.md) + the [CONTEXT.md](CONTEXT.md) §4
+   capability map for the active capability/front and non-negotiable design rules.
 3. Search [notes/](notes/) for any document that names or specifies what
-   you're about to build. Phase 4 work has a Phase 4 design note; Phase 3 work
-   has a Phase 3 deep-dive; etc. **A design document existing for a feature
+   you're about to build. The Replay capability has the `phase-4-*` notes; Codebook-growth
+   has the `phase-3-*` growth notes; etc. **A design document existing for a feature
    is the strongest signal that someone already thought hard about it.**
    `grep -rln "<keyword>" notes/` is your friend.
 4. Skim relevant dated notes under [notes/notes/](notes/notes/) — these
@@ -269,8 +271,15 @@ A phase result is not "done" until:
   notes first. (This rule exists because it has been violated.)
 - **Optimizing the wrong metric.** Check whether the project has specified
   *the* metric for this phase before picking one yourself.
-- **Sneaking past phase order.** If you're doing Phase N work, verify Phase
-  N-1 is done. Skipping ahead is allowed but should be acknowledged.
+- **Building a capability on an unverified dependency.** Check the CONTEXT.md §4
+  DAG: a capability's dependencies' gates must be cleared first. (This is the only
+  ordering rule — capabilities are NOT a linear sequence; see next.)
+- **Testing in isolation what is really an interaction (the false-negative trap).**
+  The §4 reframe exists because the linear-phase framing forced single-mechanism,
+  single-capability tests — which can NULL on a mechanism that would work *in
+  combination* (e.g. Codebook-growth × Replay). Combination experiments are
+  first-class; when a mechanism nulls in isolation, ask whether its faithful form is
+  a coupled dynamic before banking the null.
 - **Shared random state between conditions.** Save and restore RNG state
   when comparing across conditions, or use independent substrates per
   condition.

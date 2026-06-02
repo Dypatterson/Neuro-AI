@@ -100,6 +100,16 @@ Current backend status:
 
 ## Phased Roadmap
 
+> **Reframed 2026-06-01 — read as a CAPABILITY DAG, not a linear curriculum.** The
+> sections below are the per-**capability** definitions (Build + Exit criteria); the
+> dependency graph + live gates are in [CONTEXT.md](../CONTEXT.md) §4. "Phase N" names a
+> capability *node* (Substrate=1, Static-codebook=2, Codebook-growth=3, Replay=4,
+> Abstraction=5, Integration=6), **not** a stage to finish before the next. A capability is
+> workable once its *dependencies'* gates clear, and **cross-capability *combination*
+> experiments are first-class** (notably Codebook-growth ⇄ Replay — see
+> `notes/emergent-codebook/combination-experiments.md`). The Build/Exit content below is
+> unchanged; only the linear-sequence framing was retired.
+
 ### Phase 0 - Energy Memory Kernel
 
 Purpose: prove the smallest memory-first substrate can retrieve by lived
