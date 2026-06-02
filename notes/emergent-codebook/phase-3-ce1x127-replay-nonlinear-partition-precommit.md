@@ -157,6 +157,37 @@ are **FROZEN before the run — NONE swept-to-pass.** If parallelized across pri
 never "iterate over reorder schemes and accept whichever shows a signal" (the false-positive generator
 the audit's two caught false positives warn against).
 
+### 3.5 Gate RE-ANCHORING (2026-06-01, user-approved — supersedes the stale ABSOLUTE rails in §3)
+
+*Why this revision exists.* §3's **absolute** magnitude rails (`Δ_AB ≥ +0.05`, `beat-static ≥ +0.02`)
+were frozen against *believed* numbers (online-A ≈ +0.088, offline ceiling ≈ +0.208 → a **+0.120** gap).
+**exp72 then MEASURED the real gap on the correct operator `build_S`** (the §7 banking run, n=10):
+bounded-memory Arm-A = **+0.179** [CI +0.174,+0.184], global/offline ceiling = **+0.224** → the gap is
+**+0.045**, *2.7× smaller* than believed. So `Δ_AB ≥ +0.05` now **exceeds the entire gap** (Arm B would
+have to beat the global ceiling to clear it — impossible by construction) and `beat-static ≥ +0.02` is
+~half the whole gap. The absolute rails are **superseded**; the rails are re-expressed against the
+**measured** gap, using exp72's precision instrument (the **across-seed bootstrap CI** that resolved
++0.045 cleanly). **This is re-anchoring to superseded INPUTS (exp72's +0.045, a number independent of
+exp73's result), done BEFORE the run — NOT sweep-to-pass** (which would tune thresholds to exp73's
+output). The **B-KILL headline + the g-gauge tripwire are UNCHANGED** (they are magnitude-immune /
+sign-based, so the false-positive guardrails are untouched).
+
+The re-anchored gate (`gap := ceiling − ArmA`, measured per-run; **everything switches to across-seed CIs**):
+
+| Rail | §3 frozen (stale, superseded) | Re-anchored (to the measured +0.045 gap) |
+|---|---|---|
+| **g-interaction headline** | B-KILL CI-lo>0 in ≥4/5 seeds | **UNCHANGED** (magnitude-immune; the verdict-bearer) |
+| **g-close** | close fraction f ≥ 0.5 of gap | **UNCHANGED in spirit**: `(ArmB−ArmA)/(ceiling−ArmA) ≥ 0.5` (across-seed means) |
+| **Δ_AB** | ≥ +0.05 absolute *(now exceeds the ceiling!)* | **`(ArmB−ArmA)` across-seed CI-lo > 0** (drop the stale absolute) |
+| **beat-static** | ≥ +0.02 absolute *(~half the gap)* | **`(ArmB−static)` across-seed CI-lo > 0** |
+| **g-gauge** | gauge−ArmA specificity < +0.02 | **`(gauge−ArmA)` across-seed CI-lo NOT > 0** (random reorder does not close the gap) |
+| **g4 no-collapse** | d_eff_ratio ≥ 0.5 (Arm-B codes) | **UNCHANGED**: `d_eff(ArmB)/d_eff(ArmA) ≥ 0.5` (relative-to-baseline form) |
+| **calibration** | SVD anchor +0.109/0.222 | **UNCHANGED** |
+
+The trajectory drill-down (§3) and the **NULL-BUT-RISING** escalation outcome (§4) are **UNCHANGED**. All
+hyperparameters remain FROZEN-before-run, none swept-to-pass; the replay-strength is frozen by principle
+(documented in exp73), not tuned. n=10, independent bootstrap seeds, per-seed persisted (the exp72 bar).
+
 ## 4. Disposition (frozen) — decisive either way
 
 - **SCREEN-PASS** (Arm B clears g-interaction ∧ g-gauge ∧ g-close, anchor valid): the replay-interleaving
@@ -445,3 +476,117 @@ kill). A CE-1 *behavioral* claim requires rung 3.
   build_S?) OR the Oracle-E TEM local writer (short-list #2). The remaining verification controls
   (single-pass, 127 breadth battery) are now OPTIONAL — the headline is a locality-COST, not a positive
   needing defense.
+- **2026-06-02 — exp73 GAP-CLOSER run (the experiment this precommit specifies; n=10, build_S, anchor-valid
+  +0.1092/0.222; re-anchored gate §3.5) → NULL-BUT-RISING. [Report 128.](../../reports/128_emergent_replay_gapcloser/report.md)**
+  The emergent replay = a LOCAL per-pair priority (novelty×surprise, recomputed each epoch vs current codes)
+  re-presenting OBSERVED co-occurrence PAIRS (SPPMI cancels per-row reweights → must be pair/episode-level).
+  **6 of 7 gate conditions PASS:** Arm B +0.225 vs Arm A +0.179 closes **102%** of the +0.045 gap (reaches
+  the offline ceiling +0.224), B-KILL lo>0 **10/10**, (B−A) CI [+0.036,+0.056], **gauge (random reorder)
+  does NOT close it** ((gauge−A) CI [−0.017,−0.002] → the *targeting* is the lever, anti-homunculus tripwire
+  fires), no collapse (d_eff ratio 1.50). **The ONE failure = `g-static`:** Arm B does NOT robustly beat the
+  **static one-shot surprise-reweight** ((B−static) CI **[−0.010,+0.055]**, mean +0.021) → by §1's own
+  surprise≈PMI guard ("B must beat both A AND static or it's a reweighting in disguise"), the **two-timescale
+  LOOP is NOT established at n=10**. The loop's benefit is **stability + anti-contraction** (trajectory: Arm A
+  contracts 0.215→0.179 over epochs, Arm B holds 0.215→0.225, B−A rises 0.000→+0.046, `rising=True`), not a
+  higher mean (k-WTA codes mature within ~1 epoch → epoch-1 static priority already captures most targeting).
+  **NET:** a LOCAL surprise-targeted **pair-replay closes the measured gap to the global pass** (first time a
+  local mechanism does so on the paradigmatic axis; gauge-discriminated) — but whether the LOOP is essential
+  vs a one-shot reweight is **unresolved**. **Disposition (frozen §4, NULL-BUT-RISING):** trajectory-rising
+  → **ONE pre-registered escalation** (heavier/longer budget → more A-contraction → larger loop advantage; +
+  a 2nd dataset w/ its own anchor → generality). If it crosses g-static → SCREEN-PASS; else bank the NULL at
+  power (one-shot reweight is the operative lever). **The user's call** (heavier compute; Colab/A100; the
+  one-shot is the bankable alternative). Magnitudes partition-inflated — NOT "beats SVD/NMF". RUNG-1, NOT
+  graduation. `experiments/73_ce1_emergent_replay_gapcloser.py` (fast path: streams once, reproduces exp72
+  mode=none to <1e-9, asserted in --smoke).
+- **2026-06-02 — exp74 ESCALATION Phase A (pre-registered §8; n=10, anchor-valid) → RUNG-2 PASS + g-static
+  STILL FAILS → RESOLVES Report 128. [Report 128 §6.](../../reports/128_emergent_replay_gapcloser/report.md)**
+  **(A) Rung-2 FHRR single-shot context-bundle port (D-sweep):** B robustly beats A THROUGH the substrate —
+  at D=4096 ported B-KILL +0.227 ≈ exact +0.226 (near-zero degradation), (B−A) across-seed CI [+0.011,+0.036],
+  B-KILL lo>0 **10/10**; (B−A) CI-lo>0 at D∈{1024,2048,4096}; only at **D=512** does it straddle 0 = the
+  **1/√D crosstalk floor** (§4.5 divergence protocol = a finding, NOT a kill). → **verdict-level agreement
+  with rung-1: the gap-close is REAL on the FHRR substrate, not an idealized-Euclidean artifact.** (Side-note:
+  ported global ceiling drops below ported-A at D=4096 — FHRR bundling differentially degrades the *denser*
+  full-corpus operator; doesn't touch the same-density B−A headline.) **(B) Heavier budget (40 epochs):**
+  (B−static) CI [−0.023,+0.044] → `g-static` **STILL FAILS**; B at 40ep (+0.213) ≤ 20ep (+0.225) → more
+  epochs do NOT rescue the loop (B still beats A [+0.022,+0.047]; gauge inert). **DISPOSITION (frozen §8):
+  rung-2 PASS + g-static still fails → BANK the ONE-SHOT surprise-targeted pair-replay as a real,
+  substrate-expressible LOCAL gap-closer; the two-timescale LOOP is inessential.** Honest deflation: a
+  one-shot surprise reweight ≈ a PMI-style reweight (§1 guard) → the banked claim is MODEST (magnitudes
+  partition-inflated, NOT "beats SVD"). **NEXT (user-gated):** §8 Phase B = generality on a 2nd
+  different-domain corpus (now IN-SCOPE, rung-2 passed; needs own anchor, likely Colab) OR rung-3 integrated
+  OR pivot. Sharpening if pushed: a frequency-targeting control (is "surprise" > inverse-frequency?).
+  `experiments/74_ce1_escalation_fhrr_port.py`.
+- **2026-06-02 — §8 Phase B GENERALITY (user-chosen "2nd corpus"; `experiments/75` probe → `experiments/73`
+  on TinyStories, n=10) → CORE FINDING GENERALIZES, one honest gauge caveat. [Report 128 §7.](../../reports/128_emergent_replay_gapcloser/report.md)**
+  Probe screened different domains for whether they INDEPENDENTLY carry the paradigmatic signal: PTB dead (HF
+  loading-script removed), ag_news VALID-but-weak (own anchor +0.062), **TinyStories VALID + STRONG** (own
+  anchor +0.234/kq0.350, 49 pairs). Ran the rung-1 gate on TinyStories (narrative vs encyclopedic; its OWN
+  calib band; `--fast-arms`). **GENERALIZES:** (B−A) CI **[+0.134,+0.194]** 10/10 (gap-close ~3× WikiText's
+  +0.045); `g-static` fails AGAIN → one-shot-suffices/loop-inessential is **domain-robust**. **CAVEAT:** the
+  gauge's INERTNESS is WikiText-specific — on TinyStories random replay ALSO helps ((gauge−A) [+0.042,+0.074]>0)
+  because the corpus is paradigmatically SATURATED; **but targeting still wins ~3:1** (B−A +0.165 vs gauge−A
+  +0.058). So "targeting beats random" + "gap closes" hold across domains; "*only* targeting matters" is
+  corpus-dependent (clean on sparse-signal corpora). **Predicted clean test (not run):** ag_news (sparse) →
+  gauge inert again. Additive infra: `exp61.load_corpus` tinystories/ag_news branches + per-corpus calib args
+  in exp73 (+ `--fast-arms`, proven == exp72). NEXT (user-gated) = rung-3 integrated / ag_news gauge test /
+  frequency-targeting control / commit.
+- **2026-06-02 — SHARPENING controls (user-chosen "cheap sharpening, then commit"; `experiments/73` freq arm,
+  n=10) → the mechanism DEFLATES to a FREQUENCY reweight. [Report 128 §8-9.](../../reports/128_emergent_replay_gapcloser/report.md)**
+  **(a) Frequency-targeting control = DECISIVE + DEFLATIONARY.** A codes-INDEPENDENT `freq` arm (re-weight
+  OBSERVED pairs by inverse co-occurrence frequency; no novelty/surprise/codes) on WikiText: `freq` +0.222 ≈
+  B +0.225; **(freq−A) CI [+0.034,+0.052]** (freq ALONE closes the gap) and **(B−freq) CI [−0.009,+0.012]**
+  (B ≈ freq → codes-derived "surprise" adds NOTHING over rare-pair up-weighting). **⇒ every distinctive CE-1
+  ingredient is INESSENTIAL** (loop = g-static; surprise/novelty/pattern-sep = this control). The §1
+  surprise≈PMI guard is empirically CONFIRMED: the gap-close = re-weighting toward the rare pairs the
+  recency-bias drops ≈ re-applying SPPMI's PMI. The gauge (random) still fails → it IS *targeting* (rare
+  pairs), not mass — but the targeting is FREQUENCY, not surprise. **(b) ag_news gauge test = INCONCLUSIVE**
+  (partition signal degenerate: ceiling −0.017, all arms ≈0; a valid SVD anchor +0.062 does NOT guarantee a
+  partition signal — partition≠SVD). **FINAL CE-1 VERDICT (fully controlled): the locality gap-close is REAL,
+  substrate-confirmed (rung-2), domain-general (TinyStories) — but its MECHANISM is a MUNDANE frequency/PMI
+  reweight, NOT the distinctive emergent-surprise-replay hypothesis (deflated). The discipline (freq control)
+  caught the over-attribution — 4th narrowing this year (after 126/127/exp70).** NEXT (user-gated) = commit /
+  pivot (Oracle-E TEM writer) / rung-3 (if the modest claim is worth integrating).
+
+## 8. Escalation PRE-REGISTRATION (frozen 2026-06-02, user-approved "escalate the working mechanism")
+
+The exp73 result (Report 128) is **NULL-BUT-RISING + a clean working gap-closer**. Per the §4 disposition
+("ONE pre-registered escalation, then commit") AND the §4.5 fidelity ladder (build-gate pressure now OFF —
+user 2026-06-02 — so rung-2 is in-scope), the escalation is **pre-registered here BEFORE any run**, so the
+result is reported either way (no treadmill, no run-until-pass). The "working mechanism" being escalated =
+**emergent LOCAL surprise-targeted PAIR-replay** (exp73 Arm B; the one-shot `static` variant is the
+co-escalated control, since g-static is the open question). Frozen, none swept-to-pass.
+
+**Phase A (local, now): rung-2 FHRR port + heavier budget — `experiments/74`.**
+- **Rung-2 FHRR single-shot port (the §4.5 substrate-reality headline).** For each arm (A/B/gauge/static/
+  ceiling/floor), take the arm's FINAL `build_S`-class operator `L` (V×V) and **project its rows into the
+  FHRR substrate**: `G_i = sub.normalize((L @ E)_i)`, `E = sub.random_vectors(V)` (random unit-modulus FHRR
+  context atoms, D-dim), then rebuild the substrate-noisy FHRR-cosine Gram `L_fhrr[i,j]=fcos(G_i,G_j)` and
+  **re-run the SAME k-WTA partition** (`exp70.kwta_offline`) on `l2rows(L_fhrr)`; read the hubness-immune
+  B-KILL. The 1/√D crosstalk (audit bound family #2) is the substrate floor. **D-SWEEP {512,1024,2048,4096}**
+  so the §4.5 divergence protocol is built in: a higher-D PASS that collapses at low D = the 1/√D floor
+  (a finding, not a kill); a uniform NULL across D = the substrate genuinely does not express it.
+- **Verdict-level agreement (NOT bit-identical; §4.5 rung-1→2):** rung-2 PASSES iff at D=4096 the port
+  reproduces **(a)** the SIGN + the ≥4/5-seed B-KILL pair-specificity of Arm B, and **(b)** the Arm-B − Arm-A
+  margin SURVIVING within the port's contraction factor (across-seed (B−A) CI-lo > 0 on the ported reads).
+  Re-check g-static on the ported reads as a secondary read (not the rung-2 headline).
+- **Heavier budget (the NULL-BUT-RISING re-test of g-static):** re-run the rung-1 (exact-operator) arms at
+  **online-epochs = 40** (FROZEN, doubled from 20 — more epochs → more Arm-A contraction → larger loop
+  advantage IF the loop is real). Same arms/seeds/anchor. d_eff collapse-guard = circuit-breaker; A and B
+  compared at the SAME budget. NOT extended-until-pass.
+- **Frozen gate (Phase A):** rung-2 PASS = verdict-level agreement (a)+(b) at D=4096 + a coherent D-sweep;
+  heavier-budget re-test of g-static reported as-is (cross g-static at 40 epochs → the loop strengthens with
+  budget; still fails → bank the one-shot as the operative lever). n=10, anchor-valid, across-seed CIs.
+
+**Phase B (deferred, user-gated): generality on a 2nd dataset.** `load_corpus` supports only `wikitext` +
+`repo_sample`; a GENUINE generality check needs a **different-DOMAIN** corpus (wikitext-103 is the same
+domain as wikitext-2 → NOT a generality check). Candidate = a books/news corpus (e.g. `ptb_text_only` or a
+BookCorpus slice) added as a new `load_corpus_splits` source; it MUST derive its **OWN** raw-SPPMI-SVD
+calibration anchor (the +0.109/0.222 band is WikiText-specific → re-derive per corpus or the run is INVALID).
+Likely Colab/A100 (heavier corpus). **Run Phase B only if Phase A's rung-2 port does NOT null** (a substrate
+NULL makes generality moot). Corpus choice = a user decision.
+
+**Disposition after the escalation (frozen):** rung-2 PASS + g-static crosses at 40 epochs → SCREEN-PASS
+(escalate to rung-3 integrated confirm). rung-2 PASS + g-static still fails → bank the **one-shot
+surprise-targeted pair-replay** as a real, substrate-expressible LOCAL gap-closer (the loop is inessential),
+then Phase B for generality. rung-2 NULL (uniform across D) → the gap-closing was an idealized-Euclidean
+artifact the substrate does not express → bank that (a trustworthy kill at rung-2), the bound stands.

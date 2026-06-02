@@ -191,6 +191,20 @@ def load_corpus(source: str, args, seed: int):
         text = make_planted_corpus(seed)
         # one big doc; held-out PMI not used in the planted smoke
         return {"train": [text], "validation": [text], "test": [text]}
+    if source in ("tinystories", "ag_news"):
+        # Phase-B generality corpora (different domains from encyclopedic WikiText). ADDITIVE — existing
+        # wikitext/repo_sample/synthetic_planted paths unchanged. Only splits["train"] is used downstream
+        # (exp73/74). n_docs slice from args.corpus_docs (default 40000 = the exp75 probe slice).
+        import itertools
+        from datasets import load_dataset
+        n = int(getattr(args, "corpus_docs", 40000))
+        if source == "tinystories":
+            ds = load_dataset("roneneldan/TinyStories", split="train", streaming=True)
+            texts = [r["text"] for r in itertools.islice(ds, n)]
+        else:
+            ds = load_dataset("fancyzhx/ag_news", split=f"train[:{n}]")
+            texts = [r["text"] for r in ds]
+        return {"train": texts, "validation": texts[:1], "test": texts[:1]}
     return load_corpus_splits(source, REPO, wikitext_name=args.wikitext_name)
 
 
