@@ -80,9 +80,9 @@ The Bet-B architecture sketch (a hypothesis to test, not a result):
   error-driven). **It is direction-blind** (a scalar can't pick *which*
   structure to build), so it allocates; it does **not** manufacture.
 - **The structure-MANUFACTURER is an offline, iterative-global consolidation
-  pass** (the "sleep" step), now a legal mechanism. A fast online episodic store
-  (the floor) feeds a slow offline consolidator that distills replayed episodes
-  into paradigmatic structure.
+  pass** (the consolidation step — *not* "sleep"; see §8 *Terminology*), now a
+  legal mechanism. A fast online episodic store (the floor) feeds a slow offline
+  consolidator that distills replayed episodes into paradigmatic structure.
 
 ## 4. The honest current state (cleaned of dead-rule contamination)
 
@@ -213,6 +213,38 @@ is what a continual, sparse learner is **forced** to grow.*
 build. Target the **behavior**: learn → retain → abstract → transfer. Whatever
 passes the behavioral test, passes — no "but does it *really* understand."
 
+**Terminology & the framing fix (2026-06-06) — drop "sleep," and the question was mis-posed.**
+*Drop the word "sleep"* (a biological metaphor that conflates two separable things
+and violates the vitalism rule just above). Use precise terms:
+- **Replay** = *re-presentation* of stored or self-generated experience to the
+  learner — interleaved rehearsal, dedicated offline replay passes, surprise-weighted
+  replay, generative/pseudo-replay. **All of these are replay**, including the
+  offline "consolidation pass" of Reports 134–138 (it was SGD over the buffer =
+  *offline replay*, not restructuring).
+- **Consolidation** = an offline operation that does **more than re-presentation**:
+  it *restructures* the representation toward a compact shared schema (alignment,
+  compression, decorrelation, factorization) via a **non-reconstruction objective**
+  that must itself be a fixed local loss (anti-homunculus). Replay may feed it; it
+  is not the same as replaying examples.
+- *Historical note:* **every** "sleep"/"pseudo-sleep"/"consolidation" mechanism in
+  Reports 134–138 was a **replay variant** — which is exactly why "sleep ≈ replay"
+  recurred as a near-tautological null. The restructuring operation is still unbuilt.
+
+*The question was mis-posed.* "Does consolidation beat replay?" treats them as
+competitors, but **replay is the substrate and consolidation is an operation on
+replayed data** — not alternatives. The right question is the **interaction**:
+*does **replay + consolidation** produce forward transfer that **neither
+replay-alone nor consolidation-alone** produces?* Design = a **2×2 factorial**
+(replay {off,on} × consolidation {off,on}); headline = the **superadditive
+interaction** (R+C beats *both* R-only and C-only on new-alphabet x-block FTSR,
+CI-disjoint), with consolidation a genuine non-reconstruction operation — else
+C-only ≈ floor and R+C ≈ R-only, merely reproducing Report 138. *Recipe caveat:* a
+**data-space** consolidation (objective computed over replayed examples) cannot run
+without replay → its C-only cell is degenerate and the test collapses to **R+C vs
+R-only** (= Report 138's Δ_structure, but with a real restructuring objective); a
+**weight-space** consolidation (e.g. iterative low-rank/modular distillation of the
+circuit) is cleanly separable → the full 2×2 applies.
+
 **THE TRACER BULLET (the smallest thing with the essential property).** A single
 small model, on a laptop, that learns 3 tasks in sequence and **(1) retains** them
 (no catastrophic forgetting), **(2) does them genuinely** (model produces answers
@@ -222,32 +254,38 @@ on *held-out* inputs; no external solver), **(3) compounds** — each task learn
 *The grounding sharpened the open niche (Report 134 spec):* retention is
 solved (a replay buffer); positive forward transfer is **usually zero/negative**
 in the literature, and the cases that work (joint training; embedding transfer)
-are published. **The unclaimed, genuinely-open niche:** does an **emergent local
-consolidation ("sleep") dynamic manufacture positive forward transfer on a single
-sequential model, beating a plain replay buffer at equal retention, where the
-transfer is provably structural (not a confound)?**
+are published. **The unclaimed, genuinely-open niche:** does **replay + an emergent
+local consolidation (restructuring) operation manufacture positive forward transfer
+that replay alone does not** on a single sequential model at equal retention, where
+the transfer is provably structural (not a confound)? (The interaction — see
+*Terminology*.)
 
 - **Tasks (modular arithmetic, for verifiability + a scramble control):**
   T1 `a+b mod p`; T2 `a−b mod p` (shares the number-circle); T3 `a+b mod p` over a
   **disjoint symbol alphabet** (shares structure, not surface tokens); **T3′
   scrambled** (no shared structure — speedup MUST vanish here).
 - **Headline (one, falsifiable):** **Forward-Transfer Speedup Ratio** FTSR_k =
-  (from-scratch steps-to-95%-held-out on task k) / (sequential-with-sleep
-  steps-to-criterion on task k). **PASS = compounding (FTSR_3 > FTSR_2 > 1.0,
-  CI-disjoint from 1) AND FTSR strictly beats the replay-only arm (CI-disjoint)
-  AND T1+T2 retention ≥ 90% at end-of-stream.** Multi-seed (≥8), bootstrap CIs.
+  (from-scratch steps-to-95%-held-out on task k) / (sequential-stream steps-to-
+  criterion on task k). **PASS = compounding (FTSR_3 > FTSR_2 > 1.0, CI-disjoint
+  from 1) AND the replay+consolidation arm strictly beats *both* the replay-only
+  and consolidation-only arms (CI-disjoint — the superadditive interaction; see
+  *Terminology*) AND T1+T2 retention ≥ 90% at end-of-stream.** Multi-seed (≥8),
+  bootstrap CIs (log-FTSR scale — speedups are heavy-tailed/multiplicative, per
+  Report 138).
 - **Controls (all mandatory):** (1) from-scratch per task = the denominator;
   (2) joint-train-all-3 = ceiling, our sequential final-acc must match it;
-  (3) **plain replay-only (no sleep restructuring)** = isolates consolidation as
-  the manufacturer — the load-bearing control; (4) **scrambled T3′** = speedup
-  must die; (5) frozen-model-in-context on T3 = guards the "frozen model already
-  does it few-shot" escape.
+  (3) **the 2×2 factorial — replay-only (no consolidation) and consolidation-only
+  (no replay)** = isolates the interaction (the load-bearing controls; data-space
+  consolidation makes C-only degenerate → R+C vs R-only, see *Terminology*);
+  (4) **scrambled T3′** = speedup must die; (5) frozen-model-in-context on T3 =
+  guards the "frozen model already does it few-shot" escape.
 - **Anti-homunculus (KEPT):** what gets replayed is set by a **local surprise
   signal** (prediction-error weighting, Report 128), NOT a supervisor picking
-  tasks. The slow/fast split + replay schedule is a fixed dynamic, legal.
-- **The consolidation mechanism is a SWAPPABLE part.** If surprise-replay NULLs
-  on the FTSR-beats-replay-only headline, that is **iterate-fuel, not a dead end**
-  (user-binding) — swap in the next "sleep" recipe and re-run the same harness.
+  tasks; likewise the consolidation objective must be a **fixed local loss**, not a
+  metric-reading arbiter. The slow/fast split + replay schedule is a fixed dynamic, legal.
+- **The consolidation mechanism is a SWAPPABLE part.** If one consolidation recipe
+  NULLs on the interaction headline, that is **iterate-fuel, not a dead end**
+  (user-binding) — swap in the next consolidation recipe and re-run the same harness.
   A clean null here is a few hours, not a year.
 
 *Honest bar:* the field mostly gets zero forward transfer; the likeliest single
