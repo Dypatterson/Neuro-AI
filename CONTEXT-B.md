@@ -311,3 +311,25 @@ unfrozen stream captures ~0): a TWO-TIMESCALE split — slow/protected shared "�
 embeddings, with a gentle offline consolidation that still lets the circuit improve. Headline = manufacture
 new-alphabet FTSR>1 beating plain replay, retention held. Guard (§5): win = a measured delta vs plain-replay
 / single-timescale; the slow circuit must still IMPROVE (a permanently-frozen circuit is not consolidation).**
+
+**STAGE-2 GRADUATION ATTEMPT → NO GRADUATION, but the BASELINE shows the on-target behavior (Report 137,
+`exp83`, 2026-06-06, n=8).** Built the two-timescale split (freeze the shared ±circuit during fast per-task
+learning; consolidate it offline) and tested the §8 headline: new-alphabet FTSR, protect vs a plain
+replay+consolidation baseline, retention held. **FAILS:** transfer-gain CI-lo +0.95≈0, **retention LOST**
+(protect 0.932 vs plain 0.978, Δ−0.045), and a **crossover** — protect transfers great early (k2≈24×) but
+DEGRADES to failure over the stream (k8≈2.8×, often hits the step cap; 7/8 seeds slower at k8 than k2) while
+the baseline IMPROVES (k2 1.6×→k8 10.4×). The frozen circuit + a fixed 400-step consolidation spread ever
+thinner over a growing buffer can't stay clean. **So the brain-distinctive two-timescale FREEZE nulls AND
+hurts late** (a sharper echo of 134-main, sleep≈replay). **CORRECTION to 136:** its "ordinary training
+destroys the circuit" was measured on a NO-REPLAY warm-start; in the actual stream **interleaved replay
+implicitly protects the circuit**, so explicit freezing is unnecessary and over-constrains. **THE ROBUST,
+ON-TARGET POSITIVE LIVES IN THE BASELINE: plain replay+consolidation COMPOUNDS** — new alphabets learned ~6×
+faster by end-of-stream (FTSR 1.6→10.4, 7/8 seeds; scratch flat ⇒ genuine accumulated transfer, not
+difficulty). This is the **first clear, robust appearance of the actual target behavior** (experience
+compounding into faster learning) in the whole arc — carried by the SIMPLE mechanism, not a brain add-on.
+Discipline: an n=2 smoke gave a FALSE "GRADUATES" (lucky seeds + stopped before the crossover) → caught by
+n=8 + absolute-step + per-k drill-downs. **NEXT (the higher-value redirect): characterize the baseline's
+compounding** — is it driven by replay or by the offline consolidation (add a replay-only / no-consol arm)?
+does it saturate past K=10? is it abstraction-reuse or just a bigger circuit? The honest contribution would be
+characterizing/strengthening this baseline behavior, since no brain-distinctive mechanism has yet beaten a
+simple baseline on the continual target (133 redundant, 134-main null, 135 known+non-scaling, 137 null).
