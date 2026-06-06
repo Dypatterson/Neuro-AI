@@ -1,5 +1,17 @@
 # CONTEXT — Neuro-AI (read at session start)
 
+> **⚑ TWO BETS (added 2026-06-05).** This file is the charter for **Bet A** —
+> *"the data-hungry / backprop / autoregressive path is the wrong bet; biology
+> IS the answer"* (no-backprop, no-global-as-mechanism, local-only). A parallel
+> line, **Bet B** — *"biology is the spotlight, not the box; use whatever
+> mechanism works, held to the same discipline"* — has its own binding charter at
+> **[CONTEXT-B.md](CONTEXT-B.md)**. **For Bet-B work, CONTEXT-B.md governs**, and
+> the **mechanism bans below (the no-backprop / no-global / local-only invariants
+> in §1 and §3) are Bet A's — NOT binding for Bet B.** The **discipline** (§3
+> headline-vs-drill-down, multi-seed, controls, anti-homunculus-as-no-supervisor,
+> "do it right / no shortcuts") is binding for **both** bets. Do not read Bet A's
+> mechanism bans back onto Bet B (that re-import is exactly why CONTEXT-B exists).
+
 *The stable charter: what this project IS, the original phase gates, and the
 invariants that keep the work from drifting. This file changes slowly. For
 **where we are right now**, read [STATUS.md](STATUS.md) (the volatile bookmark).

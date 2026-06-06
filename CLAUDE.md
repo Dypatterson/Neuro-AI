@@ -17,6 +17,26 @@ emergent-codebook subsystem has its own multi-phase plan under
 and synthesis from cross-paper reviews live in dated notes under
 [notes/notes/](notes/notes/).
 
+## Two bets (read before the session-start protocol)
+
+As of 2026-06-05 this repo holds **two parallel bets** with **different
+mechanism rules but the same discipline**:
+
+- **Bet A** — charter [CONTEXT.md](CONTEXT.md). *Biology is the answer:*
+  no backprop, no global-computation-as-mechanism, local-only. Produced the
+  durable 121–132 local-vs-global bound.
+- **Bet B** — charter [CONTEXT-B.md](CONTEXT-B.md). *Biology is the spotlight,
+  not the box:* backprop / global-as-mechanism / multi-layer are **allowed**
+  (the one still-fenced shortcut is a one-shot closed-form SVD/eig). Forked
+  because Bet A's mechanism bans kept being re-imported as binding after they
+  were explicitly lifted.
+
+**Before doing Bet-related work, know which bet you're in.** For Bet-B work,
+**CONTEXT-B.md is the binding charter** and Bet A's mechanism bans do NOT apply.
+The **discipline in this file** (experiment preamble, headline-vs-drill-down,
+multi-seed + controls, grep-before-rerun, anti-homunculus-as-no-supervisor,
+"do it right / no shortcuts") is binding for **both** bets, unchanged.
+
 ## Session-start protocol (read first, every session)
 
 Before doing anything else in a session — before reading reports, before
