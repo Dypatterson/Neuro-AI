@@ -280,3 +280,34 @@ brain-shaped mechanism beats the simple baseline — **but a KNOWN mechanism, pa
 The validated strategy: **test the brain mechanism where the baseline FAILS, not where it already wins.**
 Next: push pseudo→full retention (interleave generation during learning), longer streams
 (loss-of-plasticity), redesign scramble, then a harder domain.
+
+**DRILL-DOWN → the ADDENDUM positive does NOT scale (Report 135, `exp81`, 2026-06-06, K=10, n=8).**
+Stretched from 3 to 10 tasks, **chronic pseudo-sleep ROTS toward chance** (end retention 0.21, oldest task
+0.86→0.10; advantage over the starved buffer collapses ~6× to +0.058 [+0.016,+0.104] — the script's
+"survives" gate is a misleading near-miss, **over-claim caught**). A **snapshot control** (dream each task
+once when fresh, freeze it) isolates the cause: it removes essentially all the rot (snapshot 0.68, oldest
+task FLAT ~0.65; snapshot−chronic +0.465 [+0.380,+0.538]) — so the rot is a **re-dreaming death-spiral, not
+fundamental** — **BUT** snapshot still trails store-everything by 0.30 AND stores 128 *synthetic*/task,
+forfeiting pseudo's only unique niche (zero storage; real replay at equal count dominates). FTSR shows only
+local within-pair transfer, **zero compounding**. **DECISIVE: rehearsing surface examples (real or dreamed)
+is the retention FLOOR — it manufactures no transfer and the cheap variants miss the ceiling. Re-confirms,
+from the continual side, the Bet-A wall: structure must be BUILT by an iterative/restructuring consolidation,
+not read off the surface.** → **The next experiment is Stage 2 (§5): a two-timescale / restructuring
+consolidator that distills a compact shared SCHEMA, headline = manufacture FTSR-beats-plain-replay (the bar
+surface rehearsal cannot clear).** `exp81` is now a sharded+merge parallel harness; Stage-2 recipes swap in as arms.
+
+**GAP DIAGNOSTIC → STAGE-2 TARGET CONFIRMED, the GOOD outcome (Report 136, `exp82`, 2026-06-06, n=8).**
+Before building Stage 2 the user chose "diagnose the gap first" (why is new-alphabet transfer ≈0?). A
+frozen-MLP transfer ladder answers it cleanly: **(1) a reusable "+" circuit EXISTS** — freeze the stream's
+shared MLP onto a NEW alphabet → groks **3.3× faster than scratch [1.94,4.94], 5.2× faster than a frozen
+RANDOM MLP [3.21,7.14]** (the random-frozen control is *slower* than scratch, 0.65× → the speed-up is MLP
+content, not a freezing trick); **(2) ORDINARY TRAINING DESTROYS IT** — the same MLP left *trainable*
+(warm-start) transfers only 1.13× ≈ scratch; **freezing beats warm-start 2.91× [1.90,4.06].** So the Report-135
+zero transfer is a **PROTECTION FAILURE, not a missing abstraction** (fresh random embeddings dump big early
+gradients into the shared circuit and pull it off its clean "+" before they converge). Nuance: the *plain*
+no-replay MLP ≈ random → the circuit needs **replay to survive the stream AND protection during new-task
+learning.** **DECISIVE → Stage 2 is now precisely specified + pre-validated with headroom (3.3× available,
+unfrozen stream captures ~0): a TWO-TIMESCALE split — slow/protected shared "±circuit", fast-adapting
+embeddings, with a gentle offline consolidation that still lets the circuit improve. Headline = manufacture
+new-alphabet FTSR>1 beating plain replay, retention held. Guard (§5): win = a measured delta vs plain-replay
+/ single-timescale; the slow circuit must still IMPROVE (a permanently-frozen circuit is not consolidation).**
