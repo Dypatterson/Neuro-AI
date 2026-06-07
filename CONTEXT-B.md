@@ -235,10 +235,14 @@ competitors, but **replay is the substrate and consolidation is an operation on
 replayed data** — not alternatives. The right question is the **interaction**:
 *does **replay + consolidation** produce forward transfer that **neither
 replay-alone nor consolidation-alone** produces?* Design = a **2×2 factorial**
-(replay {off,on} × consolidation {off,on}); headline = the **superadditive
-interaction** (R+C beats *both* R-only and C-only on new-alphabet x-block FTSR,
-CI-disjoint), with consolidation a genuine non-reconstruction operation — else
-C-only ≈ floor and R+C ≈ R-only, merely reproducing Report 138. *Recipe caveat:* a
+(replay {off,on} × consolidation {off,on}); the **gate is the interaction**: R+C
+beats *both* R-only and C-only on new-alphabet x-block FTSR, CI-disjoint. (This is a
+**"beats both parents" / additive** test — what the code gates and what Report 139
+met. Formal **super-additivity** [R+C's gain over floor > the *sum* of R's and C's]
+is a *separate* metric, `d_super`, which was **inconclusive/sub-additive** in 139 —
+do NOT call the gate "super-additive".) With consolidation a genuine
+non-reconstruction operation — else C-only ≈ floor and R+C ≈ R-only, merely
+reproducing Report 138. *Recipe caveat:* a
 **data-space** consolidation (objective computed over replayed examples) cannot run
 without replay → its C-only cell is degenerate and the test collapses to **R+C vs
 R-only** (= Report 138's Δ_structure, but with a real restructuring objective); a
@@ -268,8 +272,9 @@ the transfer is provably structural (not a confound)? (The interaction — see
   (from-scratch steps-to-95%-held-out on task k) / (sequential-stream steps-to-
   criterion on task k). **PASS = compounding (FTSR_3 > FTSR_2 > 1.0, CI-disjoint
   from 1) AND the replay+consolidation arm strictly beats *both* the replay-only
-  and consolidation-only arms (CI-disjoint — the superadditive interaction; see
-  *Terminology*) AND T1+T2 retention ≥ 90% at end-of-stream.** Multi-seed (≥8),
+  and consolidation-only arms (CI-disjoint — RC beats both parents, the **additive**
+  interaction gate; formal super-additivity `d_super` is separate & often
+  inconclusive, see *Terminology*) AND T1+T2 retention ≥ 90% at end-of-stream.** Multi-seed (≥8),
   bootstrap CIs (log-FTSR scale — speedups are heavy-tailed/multiplicative, per
   Report 138).
 - **Controls (all mandatory):** (1) from-scratch per task = the denominator;
