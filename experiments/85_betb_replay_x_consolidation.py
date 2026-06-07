@@ -106,6 +106,27 @@ class BennaFusi:
             p.copy_(u[0]); s.copy_(u[1:])
 
 
+class EWCAnchor:
+    """Frozen-reference L2 weight anchor (EWC-lite, uniform / no Fisher) — the CONTROL recipe for the Report 139
+    attribution. At engage time, snapshot theta* = current shared-MLP weights (FROZEN). After each optimizer step,
+    pull live weights toward theta* by lam: theta -= lam*(theta - theta*). Single knob lam (anchoring strength),
+    tunable INDEPENDENTLY of any equilibration so protection can be matched to Benna-Fusi's C-FTSR. KEY CONTRAST vs
+    BennaFusi: the reference is FROZEN and does NOT track the live weight, so the circuit is pinned toward its
+    engage-time state and cannot keep improving (the predicted 137-style late-degradation), whereas BF's
+    bidirectional multi-timescale chain lets the protected circuit keep improving. Exposes .diffuse() so it plugs
+    into train_task_bf unchanged. Anti-homunculus (fixed local pull), fence-clean (no SVD)."""
+
+    def __init__(self, params, lam, device):
+        self.params = list(params)
+        self.lam = lam
+        self.ref = [p.detach().clone() for p in self.params]   # frozen snapshot at engage time
+
+    @torch.no_grad()
+    def diffuse(self):
+        for p, r in zip(self.params, self.ref):
+            p.add_(r - p, alpha=self.lam)                       # p -= lam*(p - r)
+
+
 def train_task_bf(model, opt, bf, task_idx, tr, te, *, max_steps, crit, eval_every, buf, replay_frac, gen, device):
     """Per-task fast learning with a Benna-Fusi consolidation step after every optimizer step. Mirrors
     exp83.train_task (interleaved replay identical) + bf.diffuse(). MLP is NEVER frozen (BF protects gradedly)."""
@@ -131,8 +152,11 @@ def consolidate_restructure(model, opt, buf, cfg, gen, device):
     return
 
 
+DURING_LEARNING_MODES = ("bennafusi", "ewc")   # consolidation recipes that run as a per-step weight dynamic
+
+
 def run_arm(arm, p, K, frac, *, embed, hidden, max_steps, crit, eval_every, replay_frac, lr, weight_decay,
-            consol_mode, bf_m, bf_g, bf_start_task, consol_cfg, seed, device):
+            consol_mode, bf_m, bf_g, ewc_lambda, bf_start_task, consol_cfg, seed, device):
     g = torch.Generator().manual_seed(seed * 104729 + 7)
     stream, bases, vocab = build_stream(p, K, frac, g)
     steps = [None] * K
@@ -148,20 +172,22 @@ def run_arm(arm, p, K, frac, *, embed, hidden, max_steps, crit, eval_every, repl
 
     do_replay = arm in ("replay_only", "replay_plus_consol")
     do_consol = arm in ("consol_only", "replay_plus_consol")
-    use_bf_recipe = do_consol and consol_mode == "bennafusi"
+    use_consol_recipe = do_consol and consol_mode in DURING_LEARNING_MODES
     m = ContinualNet(vocab, p, K, embed, hidden, seed).to(device)
     opt = torch.optim.AdamW(m.parameters(), lr=lr, weight_decay=weight_decay)
-    # Benna-Fusi attaches to the SHARED MLP only (embeddings + heads stay fast) and ENGAGES at task
-    # bf_start_task (default 1): the bootstrap forms the circuit with plain training, THEN BF's slow chain is
-    # initialized to the FORMED circuit and protects it (protect-a-circuit-that-exists, the 136/137 framing;
-    # avoids over-protecting random init). C-off arms use plain exp83.train_task throughout → reproduce exp84
-    # byte-identically (the anchor). bf_start_task=0 recovers continuous-from-init (over-protects — see sweep).
+    # The consolidation recipe attaches to the SHARED MLP only (embeddings + heads stay fast) and ENGAGES at task
+    # bf_start_task (default 1): the bootstrap forms the circuit with plain training, THEN the consolidator's
+    # reference is initialized to the FORMED circuit (protect-a-circuit-that-exists; avoids over-protecting random
+    # init). C-off arms use plain exp83.train_task throughout → reproduce exp84 byte-identically (the anchor).
     bf = None
     buf = []
     for k in range(K):
-        if use_bf_recipe and k == bf_start_task:
-            bf = BennaFusi(m.mlp.parameters(), bf_m, bf_g, device)   # slow chain := the post-bootstrap circuit
-        if do_consol and consol_mode != "bennafusi" and buf:        # offline-pass recipes (future: GERM/CANON)
+        if use_consol_recipe and k == bf_start_task:
+            if consol_mode == "bennafusi":
+                bf = BennaFusi(m.mlp.parameters(), bf_m, bf_g, device)        # multi-timescale chain := formed circuit
+            else:  # "ewc" — frozen-reference L2 anchor (the attribution CONTROL)
+                bf = EWCAnchor(m.mlp.parameters(), ewc_lambda, device)
+        if do_consol and consol_mode not in DURING_LEARNING_MODES and buf:    # offline-pass recipes (future: GERM/CANON)
             consolidate_restructure(m, opt, buf, consol_cfg, g, device)
         rf = replay_frac if do_replay else 0.0
         if bf is not None:
@@ -195,7 +221,8 @@ def collect(args, seed_start, seeds):
                                   max_steps=args.max_steps, crit=args.crit, eval_every=args.eval_every,
                                   replay_frac=args.replay_frac, lr=args.lr, weight_decay=args.weight_decay,
                                   consol_mode=args.consol_mode, bf_m=args.bf_m, bf_g=args.bf_g,
-                                  bf_start_task=args.bf_start_task, consol_cfg=cc, seed=seed, device=args.device))
+                                  ewc_lambda=args.ewc_lambda, bf_start_task=args.bf_start_task,
+                                  consol_cfg=cc, seed=seed, device=args.device))
 
         def xf(a):
             return sum(res["scratch"][-1]["steps"][k] / res[a][-1]["steps"][k] for k in XBLOCK) / len(XBLOCK)
@@ -293,9 +320,10 @@ def main():
     ap.add_argument("--crit", type=float, default=0.90)
     ap.add_argument("--eval-every", type=int, default=100, dest="eval_every")
     ap.add_argument("--consol-steps", type=int, default=400, dest="consol_steps")   # for future offline recipes
-    ap.add_argument("--consol-mode", default="bennafusi", dest="consol_mode")        # recipe 1 = bennafusi
+    ap.add_argument("--consol-mode", default="bennafusi", dest="consol_mode")        # bennafusi | ewc (control)
     ap.add_argument("--bf-m", type=int, default=4, dest="bf_m")                      # Benna-Fusi chain length
     ap.add_argument("--bf-g", type=float, default=0.03, dest="bf_g")                 # Benna-Fusi coupling
+    ap.add_argument("--ewc-lambda", type=float, default=0.01, dest="ewc_lambda")     # EWC-lite frozen-anchor strength
     ap.add_argument("--bf-start-task", type=int, default=1, dest="bf_start_task")    # engage BF after bootstrap
     ap.add_argument("--replay-frac", type=float, default=0.5, dest="replay_frac")
     ap.add_argument("--equiv-log", type=float, default=0.22, dest="equiv_log")
@@ -317,8 +345,10 @@ def main():
            "max_steps": args.max_steps, "crit": args.crit, "consol_steps": args.consol_steps,
            "replay_frac": args.replay_frac, "equiv_log": args.equiv_log, "lr": args.lr,
            "weight_decay": args.weight_decay, "consol_mode": args.consol_mode, "bf_m": args.bf_m,
-           "bf_g": args.bf_g, "bf_start_task": args.bf_start_task,
-           "recipe_note": f"RECIPE 1 = Benna-Fusi consolidation on shared MLP (m={args.bf_m}, g={args.bf_g}, engages@task{args.bf_start_task})"}
+           "bf_g": args.bf_g, "ewc_lambda": args.ewc_lambda, "bf_start_task": args.bf_start_task,
+           "recipe_note": (f"RECIPE = Benna-Fusi (m={args.bf_m}, g={args.bf_g}, engages@task{args.bf_start_task})"
+                           if args.consol_mode == "bennafusi" else
+                           f"CONTROL = frozen-EWC anchor (lambda={args.ewc_lambda}, engages@task{args.bf_start_task})")}
 
     if args.merge:
         res = {a: [] for a in ARMS}

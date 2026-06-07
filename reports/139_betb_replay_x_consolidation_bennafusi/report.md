@@ -1,8 +1,11 @@
 # Report 139 — Bet B: replay × CONSOLIDATION interaction, recipe 1 = Benna-Fusi (graduation attempt)
 
-**Status:** COMPLETE (n=48 × 3-g; adversarially verified `wuybsd91u` + matched-protection control). **Verdict:**
-**FIRST PASS of the §8 interaction gate** — additive, recombinant, scope-limited (RC beats both parents at all 3 g;
-*not* "consolidation manufactures structure replay can't"). **Type:** GRADUATION ATTEMPT for the CONTEXT-B §8
+**Status:** COMPLETE + **AMENDED by the EWC control (see ADDENDUM at end)**. **Verdict:** **FIRST PASS of the §8
+interaction gate** — additive, recombinant, scope-limited (RC beats both parents at all 3 g) — **BUT the EWC control
+OVERTURNS the Benna-Fusi-specific / "multi-timescale load-bearing" claim: a plain frozen-L2 weight anchor (EWC-lite)
+reproduces the entire PASS at matched protection. The graduating mechanism is "soft weight-anchoring of the shared
+circuit + replay" (fully recombinant); Benna-Fusi's multi-timescale machinery adds nothing.** Not "consolidation
+manufactures structure replay can't." **Type:** GRADUATION ATTEMPT for the CONTEXT-B §8
 interaction headline (the first real test of Bet B's distinctive thesis). **Charter:** [CONTEXT-B.md](../../CONTEXT-B.md)
 §5/§8 + the Terminology block. **Experiment:**
 [experiments/85_betb_replay_x_consolidation.py](../../experiments/85_betb_replay_x_consolidation.py) (`exp85`).
@@ -86,7 +89,9 @@ crossover**); retention held (RC ~0.98). **Anchor:** `replay_only` x-FTSR = 6.07
 shards and reproduced every headline at atol < 1e-9; the harness is fence-clean and anti-homunculus-clean (only
 metric-driven control flow is the eval early-stop, identical to exp83; `bf_start_task` is a fixed schedule).
 
-**Attribution — multi-timescale depth IS load-bearing (matched-protection control, g=0.03 then higher g):**
+**Attribution — multi-timescale depth IS load-bearing [⚠ OVERTURNED by the EWC control — see ADDENDUM; a plain
+frozen anchor reaches the protection regime smoothly and reproduces the PASS, so the m=2-collapse below was a
+BF-bidirectional artifact, NOT evidence that depth is needed] (matched-protection control, g=0.03 then higher g):**
 m=1 (no slow chain) is a provable no-op (RC = R byte-identical, d1 = 0 — validates the harness). For a single
 slow store (m=2), **increasing g does not increase protection — it collapses it** (C-FTSR 4.53→2.30→1.61 at
 g=0.03/0.1/0.3; d1 +0.20→−0.02→−0.26): one slow variable at strong coupling equilibrates fast and destabilizes
@@ -111,8 +116,10 @@ the strength the data + adversarial verification (`wuybsd91u`) support:
   Report 136's frozen-reusable-circuit effect (C-only x-FTSR rises with protection: 4.6→8.5→11.0). **The one
   genuinely-new piece over 136/137: graded protection delivers that transfer multiplier *without* 137's
   hard-freeze late-degradation crossover** (RC per-k grows to end-of-stream).
-- **Depth is load-bearing** (single slow store can't reach the protection regime — see Attribution), within the BF
-  family.
+- ~~**Depth is load-bearing** (single slow store can't reach the protection regime), within the BF family.~~
+  **[OVERTURNED by the EWC control — see ADDENDUM. Depth is NOT load-bearing: a plain frozen-L2 anchor reproduces
+  the PASS at matched protection. The graduating mechanism is "soft weight-anchoring + replay," and Benna-Fusi is
+  not required.]**
 - **g=0.1's d2 is a marginal convergence-rescue**, not a speed win (CI-lo +0.09; on converged-only cells RC≈C at
   g=0.1; the leg is carried by cells where C-only hits the step cap while RC succeeds — a conservative direction).
 - **Retention is replay's**, not a synergy: R alone is already ~0.978 (near ceiling) and RC−R is ~+0.005; the only
@@ -134,3 +141,52 @@ late-stability as the novel piece.*
 - A **hard-freeze (137) bracket arm** in this harness, so BF's gain reads explicitly as "delta over a hard freeze"
   (the late-stability novelty), n=48.
 - Then **GERM** (the design workflow's #1 pick) as the second swappable recipe, same 2×2 harness.
+
+---
+
+## ADDENDUM — the matched-protection EWC control OVERTURNS the Benna-Fusi-specific claim (2026-06-06)
+
+The verification's one load-bearing open control (run as the immediate NEXT): is the §8 PASS *Benna-Fusi/
+multi-timescale specifically*, or does **any weight regularizer replay lacks** reproduce it? Implemented
+`consol_mode="ewc"` — a **frozen-reference L2 anchor** (EWC-lite, uniform/no-Fisher): snapshot the shared-MLP
+weights at engage time (the same post-bootstrap point BF engages), then each step pull the live weights toward
+that frozen reference by λ. Single knob λ, tunable **independently** of any equilibration → protection (C-FTSR)
+can be matched to BF's. Anti-homunculus + fence-clean (a fixed local pull, no SVD).
+
+**Result (n=48, K=10), at protection matched to BF m=4 g=0.03 (C-FTSR ≈ 8.45):**
+
+| arm | C-FTSR | RC | d1 (RC−R) | d2 (RC−C) | compounds (last−first) | per-k RC | ret(RC) |
+|---|---|---|---|---|---|---|---|
+| **EWC λ=0.01** | 8.19 | 14.63 | **+1.28 [+1.12,+1.43]** | +0.52 [+0.38,+0.65] | **True** (+0.74) | 9.0→13.3→16.7→19.6 | 0.99 |
+| EWC λ=0.005 | 5.11 | 13.41 | +1.03 [+0.86,+1.21] | +0.66 [+0.52,+0.79] | True (+1.02) | 5.4→10.6→19.6→18.0 | 0.99 |
+| BF m=4 g=0.03 | 8.45 | 14.10 | +0.96 [+0.78,+1.14] | +0.56 [+0.29,+0.82] | True (+1.16) | 6.0→14.1→16.8→19.5 | 0.99 |
+
+**The frozen-L2 anchor reproduces the ENTIRE graduation at matched protection — and exceeds BF on d1** (+1.28 vs
++0.96). d2, compounding (per-k grows to the same ~19.6 endpoint), and retention all match. Even at *lower*
+protection (λ=0.005, C=5.11) it clears every leg. So:
+
+1. **"Multi-timescale depth is load-bearing" is OVERTURNED.** The earlier m=2-collapse (single slow store can't
+   reach the regime at any g) was an artifact of Benna-Fusi's *bidirectional* coupling, **not** evidence that depth
+   is required — a frozen anchor with a tunable strength reaches (and exceeds) BF's protection smoothly. **Benna-Fusi's
+   multi-timescale machinery adds nothing over a plain EWC-lite anchor.** (The 127 pattern: a competent simpler
+   control reproduces the fancy mechanism.)
+2. **Even the "graded protection avoids 137's late-degradation" novelty is not BF-specific** — the frozen-L2 anchor
+   also compounds (per-k grows, no late crossover). The real lever over 137 is **soft vs hard** protection: 137
+   hard-froze the MLP (couldn't adapt → degraded late); *any* soft anchor (EWC or BF) lets gradient+replay keep
+   improving the circuit while it stays anchored.
+3. **Honest final mechanism:** the §8 interaction gate graduates via **soft weight-anchoring of the shared circuit
+   (a plain frozen-L2 anchor suffices; neither Benna-Fusi's multi-timescale nor a tracking reference is needed) +
+   replay.** Fully recombinant: replay supplies compounding+retention (138), the anchor supplies a protected-circuit
+   transfer multiplier (graded 136), soft-not-hard is the only delta over 137. **No brain-distinctive ingredient is
+   load-bearing.**
+
+**What still stands:** the §8 interaction gate genuinely PASSES (weight-consolidation + replay beats *both*
+parents, robustly, additively) — the first time the gate has cleared in the arc. What does **not** stand: that a
+*brain-distinctive / multi-timescale* consolidation was responsible. The graduation is a recombinant EWC+replay
+result, with "soft circuit-protection supplies forward-transfer on top of replay" as the (largely known) content.
+
+**NEXT (revised):** the open question is no longer "which consolidation recipe" (a plain anchor suffices) but
+whether *any* consolidation can do something **replay + a soft anchor cannot** — i.e. a genuinely *restructuring*
+(not protecting) consolidation, and/or a **less-toy / compositional** domain where soft-anchoring+replay does NOT
+already saturate. The hard-freeze (137) bracket arm and GERM are now lower priority (the mechanism question is
+largely answered: protection, not restructuring, and the simplest protection works).
