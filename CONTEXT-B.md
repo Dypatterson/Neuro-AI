@@ -184,9 +184,13 @@ which is exactly the wall Bet A mapped, now to be re-asked under the lifted rule
 
 0. **This file (`CONTEXT-B.md`)** — the bet, the lifted rules, the kept
    discipline, the cleaned state, the gated experiment.
-1. [CONTEXT.md](CONTEXT.md) §4 — Bet A's capability map (the shared target +
+1. **[notes/RETROSPECTIVE-two-bets-2026-06-06.md](notes/RETROSPECTIVE-two-bets-2026-06-06.md)
+   — the honest two-bet big-picture reckoning (post-139): what is DURABLE vs
+   SUGGESTIVE-but-confounded vs UNCONFIRMED, the false-positive catalogue, and
+   why the central thesis is untested where it matters.** Read for orientation.
+2. [CONTEXT.md](CONTEXT.md) §4 — Bet A's capability map (the shared target +
    the durable bound), read as *history/reference*, not as binding mechanism law.
-2. The relevant numbered reports (121–132) for anchors — grep by mechanism name
+3. The relevant numbered reports (121–139) for anchors — grep by mechanism name
    before re-running anything.
 
 If this file and CONTEXT.md disagree on a **mechanism rule**, CONTEXT-B wins for
