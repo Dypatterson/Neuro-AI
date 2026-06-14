@@ -2,7 +2,7 @@
 
 **Date opened:** 2026-05-15
 **Status:** **CLOSED 2026-05-16** by [report 039](../../reports/039_phase3_codebook_comparison_integrity.md). Disposition: labeling bug in `31_phase3_comparison.py`, not a data integrity issue. Phase 4 graduation unaffected (`phase3c_codebook_reconstruction.pt` is genuinely unique).
-**Severity:** HIGH (per [audit-report-2026-05-14.md §Appendix A](../../audit-report-2026-05-14.md)) — **downgraded to documentation cleanup** after investigation.
+**Severity:** HIGH (per [audit-report-2026-05-14.md §Appendix A](../audits/audit-report-2026-05-14.md)) — **downgraded to documentation cleanup** after investigation.
 **Why this note exists:** The 2026-05-14 repo audit flagged a suspicious
 result in the Phase 3 codebook comparison runs. Captured here so the
 investigation can be picked up cold in a future session.
@@ -11,7 +11,7 @@ investigation can be picked up cold in a future session.
 
 ## The finding
 
-Per [audit-report-2026-05-14.md §2.3](../../audit-report-2026-05-14.md):
+Per [audit-report-2026-05-14.md §2.3](../audits/audit-report-2026-05-14.md):
 
 > In both `phase3_comparison.json` and `phase3_comparison_6seed.json`,
 > two pairs of codebooks produce byte-identical per-seed results:

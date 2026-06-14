@@ -374,7 +374,7 @@ seeds 0..29 if the n=10 result is borderline):**
 5′ is *not* automatically reopened by this graduation — the Phase 5
 audit findings remain binding, and Phase 5′ reopening is a separate
 decision against the
-[Phase 5 audit](../../audit-phase5-2026-05-26.md) §9 failure modes.
+[Phase 5 audit](../audits/audit-phase5-2026-05-26.md) §9 failure modes.
 
 **If exactly one clause holds (CI-disjoint but per-seed paired robustness
 60–69%, or vice versa), Γ1.c is "partially-succeeded".** No graduation

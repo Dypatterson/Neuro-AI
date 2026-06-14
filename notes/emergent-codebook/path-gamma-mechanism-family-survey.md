@@ -89,7 +89,7 @@ This is geometrically "push the correct atom away from the wrongly-retrieved ato
 
 - This is the largest architectural reframe of the five candidates. Phase 3 driver, regime classifier, consolidation event interface, and Phase 4 candidate generation all change shape.
 - The previous range-shaped replay downstream work (Reports 070–074, 110–111) closed *one specific* downstream lane — bundle-first scene memory has different downstream lanes that may or may not have the same failure mode.
-- The currently paused Phase 5 ΔE bridge work has *already* localized two bridge failure modes (`raw_scene_energy_v0` saturation; `min_branch` consumer arbitration shape, per audit-phase5-2026-05-26.md §9). Γ2 Path γ work must not *re-open* the bridge — it stays in Phase 3 territory, focused on the codebook-as-scene-bundles question.
+- The currently paused Phase 5 ΔE bridge work has *already* localized two bridge failure modes (`raw_scene_energy_v0` saturation; `min_branch` consumer arbitration shape, per notes/audits/audit-phase5-2026-05-26.md §9). Γ2 Path γ work must not *re-open* the bridge — it stays in Phase 3 territory, focused on the codebook-as-scene-bundles question.
 
 **Falsifiable precommit shape.** "The bundle-first Phase 3 mechanism, at the wikitext-2 operating point, will produce Recall@K (regime-stratified) per-seed Δ > 0 in ≥ 70% of seeds at n ≥ 10. The 'regime' axis stratifies scenes (not atoms) by their bundle-MHN basin tightness, computed via a scene-MHN analog of `consolidation-geometry-diagnostic.md`." The stratification axis is non-trivial design work and must be in the precommit, not invented during the experiment.
 

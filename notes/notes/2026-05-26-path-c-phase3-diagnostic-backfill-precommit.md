@@ -20,7 +20,7 @@ Phase 4 and which was never implemented. Phase 5′ is **paused** pending Path
 C exit.
 
 Path C was chosen 2026-05-26 by the user after the
-[audit](../../audit-phase5-2026-05-26.md) surfaced that:
+[audit](../audits/audit-phase5-2026-05-26.md) surfaced that:
 
 1. The current Phase 5 ΔE bridge has **two distinct failure modes**
    (saturation + min-branch attractor collapse — audit §9 verification
