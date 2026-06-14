@@ -22,3 +22,11 @@ research/
 reports/**/*.json
 reports/**/*.csv
 reports/**/*.log
+reports/**/*.err
+reports/**/*.out
+# Sharded-merge intermediates from the Colab/parallel runners (the merged
+# result is itself *.json above; the narrative lives in report.md).
+reports/**/shards/
+
+# Workflow raw scratch dumps — the curated brief is the committed artefact.
+brainstorm-workspace/**/_*_raw.json
