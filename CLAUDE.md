@@ -241,8 +241,9 @@ file specifies how cap-coverage is calculated for this project).
 
 ## Environment
 
-- Python: `.venv/bin/python` (has torch, MPS available). The real `.git` DB **and** the 730 MB `.venv` live in the **primary** worktree `~/Desktop/Neuro-AI/` (on `main`); `Neuro-AI-main/.venv` is a symlink into it. Don't `rm` or `git worktree remove` the primary dir — it would break the repo DB and the Python env for *both* worktrees.
-- Set `PYTHONPATH="$(pwd)/src"` for imports (worktree-relative — works from either the `Neuro-AI-main/` linked worktree or the `Neuro-AI/` primary worktree without crossover)
+- Single repo + working tree at `~/Desktop/Neuro-AI` (on `main`). (The old `Neuro-AI-main` linked worktree was consolidated away 2026-06-13.)
+- Python: `.venv/bin/python` (has torch, MPS available). `.venv` is a real dir inside the repo.
+- Set `PYTHONPATH="$(pwd)/src"` for imports.
 - Run tests: `PYTHONPATH=src .venv/bin/python -m unittest tests.<module> -v`
 - Heavy artifacts (`*.pt` files >50MB) are gitignored — don't try to commit them
 
