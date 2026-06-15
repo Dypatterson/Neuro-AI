@@ -30,3 +30,7 @@ reports/**/shards/
 
 # Workflow raw scratch dumps — the curated brief is the committed artefact.
 brainstorm-workspace/**/_*_raw.json
+
+# SCAN benchmark data — public + re-downloadable via scripts/fetch_scan.sh.
+# Track the fetch script, not the ~8MB of .txt (Bet-B discriminating regime, 2026-06-15).
+data/scan/
