@@ -54,6 +54,40 @@ graduation, then the mandatory follow-ups: the GECA redundancy guard, the second
 (BUILD CONDITION 2 — byte-identical predicate on a different held-out primitive), and ≥8-seed CIs. If it stays
 unstable → characterize/fix the dead-seed factorization (init, regularization, or a cleaner role-space).
 
+## ADDENDUM (2026-06-15) — stabilization run: the HEADLINE METRIC GRADUATES CLEANLY
+
+The dead seeds were **undertraining.** Re-run at **8 seeds, 50 epochs, 1500 consol-steps**
+(`stabilization_8seed_50ep.json`):
+
+| | baseline | + consolidation | Δ |
+|---|---|---|---|
+| mean (n=8) | 0.111 | **0.868** | **+0.757** |
+| per-seed consolidation | — | 1.00, 0.90, 0.57, 1.00, 0.57, 0.98, 0.96, 0.96 | **0/8 dead** |
+
+**Every one of 8 seeds lifts massively; consolidation mean 0.868, min 0.568, Δ +0.757.** Clears the
+pre-registered 0.30 bar by a wide margin; Δ CI-disjoint from 0 trivially (all 8 ≫ 0). The architecture
+**alone** stays at 0.111 — **consolidation is unambiguously load-bearing**, lifting jump-split composition
+~8× on average, in a regime where the vanilla simple method scores 0.003 (Stage 0) and a post-hoc
+consolidation NULLED (Report 141). **This is a clean graduation of the §8 headline on a real benchmark — the
+first in the program.**
+
+**WHAT THIS LICENSES — and what it does NOT (discipline):** the *headline metric* graduated. The graduation
+**CLAIM** ("a brain-shaped restructuring consolidation manufactures composition a simple/known method cannot")
+is **NOT yet defensible** — three mandatory guards remain, none started:
+1. **GECA redundancy guard (the critical one).** GECA (good-enough compositional augmentation) is the *known*
+   SCAN fix. If GECA on this setup also reaches ~0.87, the result is REAL but REDUNDANT (the 133/139 outcome) —
+   "consolidation does it" ✓ but "...that a known method can't" ✗. Must run before any "beats known methods" claim.
+2. **Second-split generality (BUILD CONDITION 2).** Re-run with a DIFFERENT held-out primitive
+   (e.g. hold out `walk` instead of `jump`), BYTE-IDENTICAL predicate + mechanism, no jump-specific constant.
+   If it only works for `jump`, the mechanism was tuned, not general.
+3. **Output-side role-class grouping: anti-homunculus + computed-in-code.** `verb_ids` is currently HARDCODED
+   (`["I_JUMP","I_WALK","I_RUN","I_LOOK"]`) — this violates the spirit of BUILD CONDITION 1. It must be computed
+   from the buffer (the action tokens emitted by one-token commands) and re-passed through the
+   anti-homunculus reviewer (grouping verbs-as-an-output-class is a new structural read that needs vetting).
+
+Until 1–3 clear, status is **"headline graduated; claim pending the redundancy + generality + anti-homunculus
+guards."** The finding is real and large regardless; the *interpretation* is what the guards pin down.
+
 ## Discipline notes
 
 - 5 seeds; the diagnostic probes n=1 but the canonical-feedback result (0.18→1.0) is deterministic and decisive.
