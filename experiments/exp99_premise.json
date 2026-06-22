@@ -1,0 +1,111 @@
+{
+  "experiment": "99_betb_scan_mcd_factored (Lever 3: factored substrate x clause-composition consolidation)",
+  "charter": "notes/betb-mcd-lever3-factored-precommit.md",
+  "config": {
+    "role_dim": 48,
+    "fill_dim": 16,
+    "embed": 64,
+    "hidden": 200,
+    "epochs": 30,
+    "batch_size": 128,
+    "lr": 0.001,
+    "tf_ratio": 0.5,
+    "beta": 1.0,
+    "gamma": 3.0,
+    "delta": 0.1,
+    "consol_steps": 800,
+    "consol_lr": 0.001,
+    "min_shared_env": 3,
+    "seeds": 2,
+    "seed_start": 0,
+    "device": "mps",
+    "splits": "mcd1,mcd2",
+    "arms": "factored_baseline",
+    "premise": true,
+    "smoke": false,
+    "out": "experiments/exp99_premise.json"
+  },
+  "floor_ref": {
+    "vanilla": "0.17/0.14/0.02 in-house",
+    "GECA": "51/30/12 (Conklin 2021)",
+    "ceiling_structure_injecting": "AuxSeq 99.9/90/98, LeAR 100/100/100"
+  },
+  "by_split": {
+    "mcd1": {
+      "arms": {
+        "factored_baseline": {
+          "mean": 0.18708133971291865,
+          "min": 0.15023923444976076,
+          "max": 0.22392344497607655,
+          "ci95": [
+            0.15023923444976076,
+            0.22392344497607655
+          ],
+          "per_seed": [
+            0.15023923444976076,
+            0.22392344497607655
+          ]
+        }
+      },
+      "paired_deltas": {},
+      "discovered_content": {
+        "jump": "I_JUMP",
+        "left": "I_TURN_LEFT",
+        "look": "I_LOOK",
+        "right": "I_TURN_RIGHT",
+        "run": "I_RUN",
+        "walk": "I_WALK"
+      },
+      "factored_train_em": {
+        "mean": 0.9715,
+        "per_seed": [
+          0.943,
+          1.0
+        ]
+      },
+      "PREMISE_GATE": {
+        "train_em_mean": 0.9715,
+        "factored_baseline_mean": 0.18708133971291865,
+        "PASS_train>=0.90_AND_base>=0.10": true
+      }
+    },
+    "mcd2": {
+      "arms": {
+        "factored_baseline": {
+          "mean": 0.11866028708133972,
+          "min": 0.08038277511961722,
+          "max": 0.1569377990430622,
+          "ci95": [
+            0.08038277511961722,
+            0.1569377990430622
+          ],
+          "per_seed": [
+            0.08038277511961722,
+            0.1569377990430622
+          ]
+        }
+      },
+      "paired_deltas": {},
+      "discovered_content": {
+        "jump": "I_JUMP",
+        "left": "I_TURN_LEFT",
+        "look": "I_LOOK",
+        "right": "I_TURN_RIGHT",
+        "run": "I_RUN",
+        "walk": "I_WALK"
+      },
+      "factored_train_em": {
+        "mean": 0.9835,
+        "per_seed": [
+          0.967,
+          1.0
+        ]
+      },
+      "PREMISE_GATE": {
+        "train_em_mean": 0.9835,
+        "factored_baseline_mean": 0.11866028708133972,
+        "PASS_train>=0.90_AND_base>=0.10": true
+      }
+    }
+  }
+}
