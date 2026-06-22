@@ -6,6 +6,12 @@ methods included as the ceiling. Plan: [research-plan.md](research-plan.md). Bui
 06-21 frontier recon ([../2026-06-21-frontier-recon/findings.md](../2026-06-21-frontier-recon/findings.md))
 and the §4½ reframe ([../../notes/RETROSPECTIVE-program-close-2026-06-21.md](../../notes/RETROSPECTIVE-program-close-2026-06-21.md)).*
 
+> **Verified + extended (2026-06-22, 4-agent workflow):** all 9 load-bearing claims below were
+> adversarially re-verified — none refuted, headline survives ~90% (3 precision fixes applied inline).
+> New candidates (DreamCoder, grokking-as-gate-signal, energy-composition, SAE-null) and the
+> pre-training-to-initialize design live in the companion:
+> [verification-and-extensions.md](verification-and-extensions.md).
+
 ## Bottom line
 
 The grown-vs-injected arbiter cuts the literature cleanly, and the cut is sobering: **every
@@ -30,9 +36,9 @@ CFQ-MCD specifically (the bar; vanilla seq2seq ≈0–18%).
 | Candidate | grown / injected | buildable | Hard-split evidence | Verdict | Strongest disconfirmer |
 |---|---|---|---|---|---|
 | **Splitting Steepest Descent (Liu 2019)** | **grown (measured gate)** | **yes** | **untested** | **★ V-as-gate / U-on-comp-gen** | only ever grew *width for accuracy/compression*; never built a compositional level | 
-| **Firefly arch. descent (Wu 2020)** | **grown (measured gate)** | **yes** | untested | ★ V-as-gate / U | its own finding: splitting-at-stationarity *alone* can't escape local minima (needs fresh neurons) |
-| Neural Data Router (Csordás 2021) | grown (emergent routing) | yes | COGS 81%, SCAN 100%; **ducks CFQ-MCD** | V-on-easy / U-on-hard | reports output-length/COGS, silent on CFQ-MCD compound divergence |
-| CSL — induced QCFG + aug (Qiu 2022) | grown (grammar induced from data) | yes (as data-augmenter) | **CFQ-MCD ≈90–91%, COGS ↑** | V (with caveat) | grown *offline as a generator* feeding pretrained T5 — not grown inside the learner; CSL-alone < ensemble |
+| **Firefly arch. descent (Wu 2020)** | **grown (measured gate)** | **yes — grows width AND depth** | untested | ★ V-as-gate / U | its own finding: splitting-at-stationarity *alone* can't escape local minima (needs fresh neurons) |
+| Neural Data Router (Csordás 2021) | grown (emergent routing) | yes | COGS 81%, SCAN 100%, CFQ **output-length** 81%; **no CFQ-MCD** | V-on-easy / U-on-hard | reports the easy CFQ output-length split, skips MCD — metric-shopped |
+| CSL — induced QCFG + aug (Qiu 2022) | grown (grammar induced from data) | yes (as data-augmenter) | **CFQ-MCD ≈90–91%, COGS ↑** | V (with caveat) | grown *offline as a generator* feeding pretrained T5 — not grown inside the learner; T5+CSL-augmentation > T5–CSL ensemble |
 | Universal Transformer / ACT | injected (weight-tied block) | yes | **CFQ-MCD 18.9% ≈ vanilla 17.9%** | R as hierarchy-grower | tied-block recurrence is statistically indistinguishable from vanilla on MCD |
 | PonderNet / looped transformers | injected (tied block + halt) | yes | untested on hard splits (parity/addition only) | U | "more steps" = more iterations of the *same* function; no MCD number |
 | ON-LSTM / PRPN / StructFormer | grown | partly (LM-shaped) | untested | U | induced trees are restart-inconsistent & fragile (Williams 2018; Htut 2018) |
@@ -70,10 +76,12 @@ a grown mechanism has to close to matter.**
 
 2. **Neural Data Router as the *abstractor* half, paired with (1).** NDR's emergent data-dependent
    routing (COGS 81%, SCAN 100%) is the closest thing to a *grown compositional process* in the ML
-   sweep, but it ducks CFQ-MCD. Worth running NDR against CFQ-MCD directly (cheap: it's a modified UT
-   on the existing harness) and as the composition operator inside the gated-growth loop.
+   sweep, but it reports only the easy CFQ **output-length** split (81%) and skips CFQ-MCD. Worth
+   running NDR against CFQ-MCD directly (cheap: it's a modified UT on the existing harness) and as the
+   composition operator inside the gated-growth loop.
    - **Decisive control:** NDR on CFQ-MCD vs the UT 18.9% bar — does emergent routing survive compound
-     divergence, or is COGS-81% another metric-shopped easy split? Source: Csordás 2021 (arXiv 2110.07732).
+     divergence, or is COGS-81% / output-length-81% another metric-shopped easy split? Source: Csordás
+     2021 (arXiv 2110.07732).
 
 3. **CSL-style induced grammar as a *grown* augmenter (lower priority, near-ceiling already).** The one
    genuinely grown mechanism that already touches the hard splits (CFQ-MCD ~90%), but it grows the
@@ -99,8 +107,8 @@ homeostasis (Tononi–Cirelli SHY) is a subtractive renormalizer; CLS-replay int
 slow neocortical learner; the actual abstractors are *separate* (the slow cortex; the entorhinal
 structural basis in TEM, which factorizes structure while hippocampus binds specifics). The one source
 that reads as "manufacture" — Lewis & Durrant's iOtA — is a theoretical model whose "strengthen-the-
-overlap" mechanism is mathematically indistinguishable from Hebbian stabilization over interleaved
-replay, and a 2026 well-powered null-replication undercuts active sleep-driven abstraction. **Your own
+overlap" mechanism is (*our reading*) mathematically indistinguishable from Hebbian stabilization over
+interleaved replay, and a 2026 well-powered null-replication undercuts active sleep-driven abstraction. **Your own
 record agrees** (138 replay carries compounding; 136 protection; 139 soft-anchor — all stabilizers; 147/150
 manufacture-asks hurt). *Verdict: well supported.*
 
