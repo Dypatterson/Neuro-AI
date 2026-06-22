@@ -29,7 +29,9 @@ Bet B lifted the mechanism bans** (the bans were not the cause — Bet B re-deri
 times) and **even after the task-selection confound was removed** (the GECA-resistant MCD arena, §3). The
 thesis "a brain-shaped mechanism manufactures structure simple/known methods cannot" is **UNCONFIRMED, with a
 clean earned negative on the one confound-free arena** — not proven false (§4), but not supported anywhere it
-was decisively testable.
+was decisively testable. *(A 2026-06-21 framing correction — the section after §4 — sharpens this: "manufactures"
+was a mis-stated premise; the defensible biological claim is "consolidation **stabilizes**, enabling a separate
+abstractor," which the program's own positives [136/138/139] partly support.)*
 
 ## 2. The durable empirical contributions (bankable, with citations)
 
@@ -127,9 +129,49 @@ that must null, adversarial verification — which is what makes them citable.
   surviving defenses are all "we haven't tried hard/big/different enough yet" — and that asymmetry (no positive
   the controls didn't kill) is itself the signal that motivates banking.
 
+## 4½. A framing correction (2026-06-21, with the user): consolidation STABILIZES; the abstractor is HIERARCHICAL
+
+Two linked corrections, both of which *sharpen* the banked result rather than soften it.
+
+**(1) "Consolidation manufactures abstraction" is a category error.** The defensible premise is narrower:
+**consolidation STABILIZES concepts/memories enough to ENABLE a separate abstraction process — it is the
+substrate that makes abstraction possible, not the thing that does the abstracting.** Two roles the
+"manufactures" framing conflated: a **stabilizer/enabler** (replay, protection, renormalization — holds traces
+still) and an **abstractor** (a separate process that builds more-abstract representations *over* stabilized
+ones). Our own record supports the corrected premise: every place consolidation *helped*, it helped by
+**stabilizing**, never manufacturing — Report 138 (compounding carried by interleaved **replay**, not the offline
+pass), Report 136 (the reusable "+" circuit *already exists* and ordinary training **destroys** it → the fix is
+**protection**), Report 139 (the one graduation is **soft weight-anchoring** = protecting a circuit that already
+formed); and when asked to *manufacture* structure (147, 150) it **hurt**. So the nulls are *expected* under the
+corrected premise — the program kept asking the stabilizer to be the generator — and there is an under-told
+positive: **stabilization works** (136/138/139). The neuroscience favors it on the careful (genuinely debated)
+reading — synaptic homeostasis (Tononi–Cirelli) renormalizes/protects; CLS / Lewis–Durrant replay *interleaves*
+so a slow learner extracts the gist; Tse et al. schemas *gate* consolidation — and the 2026-06-21 frontier recon
+found **no primary asserting consolidation *manufactures* abstraction**; "manufacture" was this project's strawman.
+
+**(2) The abstractor is not a flat global computation — it is a HIERARCHICAL system.** The program operationalized
+"abstractor" as a *flat iterative-global* computation (SVD/NMF/k-means over one co-occurrence operator,
++0.11–0.25; Bet B's SGNS/NMF reach it legally, 133). The user's sharper, more brain-true reading: abstraction is a
+**hierarchy** — levels stacked, each composing over the *stabilized* level below (cortical hierarchy; hierarchical
+predictive coding; PFC schema over sensory detail). This is a **third category** distinct from Bet A's
+flat-local-vs-flat-global dichotomy — and it is exactly what the field's MCD winners *are* (Tree-LSTM, NeSS
+stack/grammar machines = hierarchical/recursive). The bank's own evidence on hierarchy is consistent and pointed:
+*emergent/learned* hierarchies (a vanilla deep seq2seq; the depth probe, Report 132) do **not** crack MCD;
+*injected/enforced* hierarchies (Tree-LSTM) do. So the structure-injection bind, re-read, is a
+**hierarchy-injection** bind: the missing ingredient is a *compositional hierarchy*, and the open question is
+whether it can be **grown** rather than imposed.
+
+**The two corrections unify the program and recast the open question.** Put together: *consolidation stabilizes
+level N → which enables an abstractor to build level N+1 → repeat up a grown hierarchy*, with stabilization gating
+progression at each level. The program validated the stabilizer (136/138/139) and a *flat* abstractor (133), but
+never the **grown hierarchy with per-level stabilization gating** (§5). The bank — "no brain-shaped mechanism
+*manufactures* structure as a flat operation" — **stands**; what it never tested is a *grown compositional
+hierarchy*.
+
 ## 5. What would change the bet (for a future reopen)
 
 Panel-vetted, distinct from tested-and-nulled — none of these were run, each is a legitimate reopen:
+- **★ A GROWN compositional hierarchy with per-level stabilization gating (the §4½ corrected-premise experiment — never run).** The joint forward form of both 2026-06-21 corrections: build abstraction *level-by-level*, where consolidation-as-**stabilization** holds level-N representations still and a separate abstractor composes them into level N+1 — testing whether a compositional **hierarchy can be GROWN (emergent)** rather than **injected** (Tree-LSTM). The program validated the stabilizer (136/138/139) and a *flat* abstractor (133), but never the grown hierarchy. Honest caveat: emergent/learned hierarchies have so far failed MCD (vanilla deep nets; Report 132 depth), so this is a hard, genuinely-open door — and if only an *injected* hierarchy works, it collapses back into the hierarchy-injection bind.
 - **A structure-ENFORCING substrate** (Tree-decoder / Transformer / parse-as-inference) on MCD. Honest caveat:
   this is a **thesis-weakening** — it is *where every field win lives*, so a win would vindicate "the right
   structural prior + replay generalizes," not "emergent consolidation manufactures structure." It changes the
@@ -154,5 +196,9 @@ Panel-vetted, distinct from tested-and-nulled — none of these were run, each i
 **Bottom line.** The honest, banked verdict: *across a wide, controlled search, brain-shaped mechanisms did not
 beat simple or known methods on the tasks where it would have mattered, and the one ingredient that does win on
 those tasks — injected structure — is the one the brain-distinctive thesis forbids as a mechanism.* That is a
-real, citable result and a clean place to stop. The doors in §5 remain open for anyone who wants to reopen on a
-reframed bet, a cleaner arena, or at scale.
+real, citable result and a clean place to stop. A 2026-06-21 framing correction (with the user; §4½) sharpens it
+*without* softening it: the program tested whether consolidation *manufactures* structure as a *flat* operation
+(it does not), but the defensible biological picture is **consolidation stabilizes, enabling a separate
+HIERARCHICAL abstractor to build level-on-level over stabilized representations** — a *grown compositional
+hierarchy* the program validated each half of but never ran as a whole. The doors in §5 remain open for anyone who
+wants to reopen on a reframed bet, a cleaner arena, a grown hierarchy, or at scale.
