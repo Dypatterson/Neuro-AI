@@ -11,6 +11,12 @@ and the §4½ reframe ([../../notes/RETROSPECTIVE-program-close-2026-06-21.md](.
 > New candidates (DreamCoder, grokking-as-gate-signal, energy-composition, SAE-null) and the
 > pre-training-to-initialize design live in the companion:
 > [verification-and-extensions.md](verification-and-extensions.md).
+>
+> **Round-2 re-verification (2026-06-22):** a deeper 5-agent + repo audit corrected several items here
+> — CSL ~89.9 (not 90–91); neuro "stabilizer-not-manufacturer" SOFTENED; the grokking gate is undefinable
+> on MCD; the splitting→hierarchy leap is unsupported; and our own bar (COGS-structural / MCD) is partly
+> confounded (ReCOGS / covariate-shift). Full ledger + revised next steps:
+> [verification-round-2-and-seams.md](verification-round-2-and-seams.md).
 
 ## Bottom line
 
@@ -38,7 +44,7 @@ CFQ-MCD specifically (the bar; vanilla seq2seq ≈0–18%).
 | **Splitting Steepest Descent (Liu 2019)** | **grown (measured gate)** | **yes** | **untested** | **★ V-as-gate / U-on-comp-gen** | only ever grew *width for accuracy/compression*; never built a compositional level | 
 | **Firefly arch. descent (Wu 2020)** | **grown (measured gate)** | **yes — grows width AND depth** | untested | ★ V-as-gate / U | its own finding: splitting-at-stationarity *alone* can't escape local minima (needs fresh neurons) |
 | Neural Data Router (Csordás 2021) | grown (emergent routing) | yes | COGS 81%, SCAN 100%, CFQ **output-length** 81%; **no CFQ-MCD** | V-on-easy / U-on-hard | reports the easy CFQ output-length split, skips MCD — metric-shopped |
-| CSL — induced QCFG + aug (Qiu 2022) | grown (grammar induced from data) | yes (as data-augmenter) | **CFQ-MCD ≈90–91%, COGS ↑** | V (with caveat) | grown *offline as a generator* feeding pretrained T5 — not grown inside the learner; T5+CSL-augmentation > T5–CSL ensemble |
+| CSL — induced QCFG + aug (Qiu 2022) | grown (grammar induced from data) | yes (as data-augmenter) | **CFQ-MCD ≈89.9%** (R2-corrected from "90–91"; COGS ↑) | V (with caveat) | grown *offline as a generator* feeding pretrained T5 — not grown inside the learner; T5+CSL-augmentation > T5–CSL ensemble |
 | Universal Transformer / ACT | injected (weight-tied block) | yes | **CFQ-MCD 18.9% ≈ vanilla 17.9%** | R as hierarchy-grower | tied-block recurrence is statistically indistinguishable from vanilla on MCD |
 | PonderNet / looped transformers | injected (tied block + halt) | yes | untested on hard splits (parity/addition only) | U | "more steps" = more iterations of the *same* function; no MCD number |
 | ON-LSTM / PRPN / StructFormer | grown | partly (LM-shaped) | untested | U | induced trees are restart-inconsistent & fragile (Williams 2018; Htut 2018) |
@@ -53,7 +59,7 @@ CFQ-MCD specifically (the bar; vanilla seq2seq ≈0–18%).
 ## 2. Ranked buildable shortlist (grown candidates worth an experiment)
 
 **The ceiling to approach** (so each candidate's gap is concrete): on **CFQ-MCD**, injected methods
-reach ~90% (CSL 90–91%, LeAR 90.9%) while flat/emergent sits at ~18% (UT 18.9% ≈ vanilla); on **COGS
+reach ~90% (LeAR 90.9% MCD-mean [table-confirmed]; CSL ~89.9% [R2-corrected]) while flat/emergent sits at ~18% (UT 18.9% ≈ vanilla 17.9% [table-confirmed]); on **COGS
 structural**, LeAR reaches 97.7% while plain seq2seq is 0–12%. **That ~18%→~90% / ~0%→~97% gap is what
 a grown mechanism has to close to matter.**
 
@@ -101,6 +107,13 @@ splits; hierarchical VAE / slot hierarchies — no bridge to symbolic seq2seq; c
 Progressive Nets, GradMax, DEN) — width not hierarchy; UT/PonderNet/looped — tied structure, MCD ≈ vanilla.
 
 ## 3. Neuroscience premise status (§4½, two halves)
+
+> **R2 correction (2026-06-22):** Half (1) is **SOFTENED, not cleanly shored up** — an adversarial neuro
+> re-check found genuine *manufacture* evidence (Wagner 2004 causal "restructuring"; Lewis & Durrant iOtA
+> "builds schemata"; Wittkuhn 2025 replay *forms* successor representations). Honest reframing: consolidation
+> does **both** — stabilizes existing traces AND **manufactures new abstraction by overlap-driven
+> recombination**. See [verification-round-2-and-seams.md §7](verification-round-2-and-seams.md). The text
+> below overstates the "does not manufacture" half.
 
 **Half (1): "consolidation STABILIZES, it does not MANUFACTURE abstraction" — SHORED UP.** Synaptic
 homeostasis (Tononi–Cirelli SHY) is a subtractive renormalizer; CLS-replay interleaves to *enable* a
@@ -158,7 +171,7 @@ is precisely the kind of decisive experiment the §4½ ★ reopen-door was reser
 
 ### Provenance / caveats
 - 5 angles, ~46 verified claims, adversarial claim→disconfirmer→verdict per claim. Hard numbers
-  (UT 18.9% CFQ-MCD; LeAR 97.7%/90.9%; CSL ~90–91%; COGS-structural seq2seq 0–12%) are primary-sourced.
+  (UT 18.9% CFQ-MCD [table-confirmed R2]; LeAR 97.7%/90.9%; CSL ~89.9% [R2-corrected]; COGS-structural seq2seq 0–12%) are primary-sourced.
 - Several neuroscience publisher PDFs returned HTTP 403 to direct fetch; the S-A axis, cascade framing,
   PV/E:I mechanism, SHY, CLS, Tse 2007, and the cataract dissociation were each corroborated across
   multiple independent results, but a few mechanistic quotes are excerpt-level (flagged U where so).

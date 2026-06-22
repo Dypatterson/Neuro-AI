@@ -1,6 +1,34 @@
 # PRE-COMMIT — Bet B / §4½: can a compositional hierarchy be GROWN (stabilization-gated) rather than INJECTED?
 
-*Status: DRAFT for user review + anti-homunculus check (2026-06-22). The graduation attempt
+> ## ⚠ R2 REVISIONS (2026-06-22, post-verification — supersede the body below)
+> A 5-agent re-verification + repo audit ([verification-round-2-and-seams.md](../brainstorm-workspace/2026-06-22-grown-hierarchy-mechanisms/verification-round-2-and-seams.md))
+> changed this precommit materially. **Do NOT build the body as written.** The binding revisions:
+> 1. **DEMOTED.** Two cheaper, higher-value moves come first: (a) **re-ground the bar on ReCOGS/SLOG and
+>    treat MCD as covariate-shift** — COGS-structural's 0–12% floor is partly a decoder length/format
+>    *artifact* (ReCOGS, TACL 2023), so a splitting result on raw MCD/COGS would be partly uninterpretable;
+>    (b) **test the entropy soft-prior (Wold 2025)** on the cleaned bar — the cheapest test of "grown beats
+>    injected without a tree."
+> 2. **The headline mechanism is on shaky ground.** Splitting/Firefly optimize *fit*, not systematicity;
+>    no growing-net work has ever cracked a compositional split; the parsimonious read of any gain is
+>    "growth aided optimization," not "a hierarchy was grown." → **Headline metric changes to the
+>    systematic-minus-iid GAP**, gated on three discriminators: a **tree-projection-score jump locked to
+>    the split event** (Murty et al. ICLR 2023), **grow-then-freeze + ablate-the-grown-level** (selective
+>    systematic drop), and a **capacity-matched + split-timing control** (plateau vs random-step vs
+>    born-wide). Without these, a positive is indistinguishable from capacity/optimization.
+> 3. **Gate signal: DROP the grokking progress-measure** (needs a known circuit MCD lacks). Use
+>    **descent-stationarity (primary) + Local Learning Coefficient (confirmatory)**, HTSR-α / weight
+>    intrinsic-dimension as the label-free fallback.
+> 4. **Pretrain-atoms arm is largely Report 149 `exp96` relabeled** (`--clause-aug` already gave
+>    0.158→0.297). Reframe as: *does gated-growth on top of the 0.297 atomic floor beat 0.297?* (C-vs-B).
+> 5. **Buildability:** the harness is a single-layer **GRU** enc/dec — neuron-splitting on a GRU is a
+>    substantial build, not a drop-in. Use the **Firefly gradient-grown variant** or **depth-stacking**, or
+>    a small Transformer backbone. Note Reports 122/123 (Bet-A growth NULL) and 131 (capacity NULL-MONOTONE).
+> 6. **Stronger alternative to consider first:** the neuro re-check SOFTENED "stabilizer-not-manufacturer"
+>    — the brain *does* manufacture-by-overlap-recombination → **multi-scale successor-representation
+>    replay** is a better-grounded grown mechanism, buildable on the replay substrate (caveat: Bet-A
+>    banked SR-nulls, Reports 124/125 — the multi-scale/offline form is the unexercised part).
+
+*Status: DRAFT, SUPERSEDED BY THE R2 BLOCK ABOVE — for user review + anti-homunculus check (2026-06-22). The graduation attempt
 for the **★ §4½ reopen-door** ([RETROSPECTIVE-program-close §5](RETROSPECTIVE-program-close-2026-06-21.md):174).
 Design source: [findings.md §2/§4](../brainstorm-workspace/2026-06-22-grown-hierarchy-mechanisms/findings.md)
 + [verification-and-extensions.md §4](../brainstorm-workspace/2026-06-22-grown-hierarchy-mechanisms/verification-and-extensions.md)
