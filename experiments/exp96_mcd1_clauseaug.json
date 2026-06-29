@@ -1,0 +1,79 @@
+{
+  "experiment": "96_betb_scan_mcd_oracle_ceiling (structure-injection ceiling-control)",
+  "charter": "RETROSPECTIVE-addendum-2026-06-17 \u00a74 lever 2",
+  "config": {
+    "embed": 64,
+    "hidden": 200,
+    "epochs": 30,
+    "batch_size": 128,
+    "lr": 0.001,
+    "tf_ratio": 0.5,
+    "seeds": 3,
+    "seed_start": 0,
+    "device": "mps",
+    "splits": "mcd1",
+    "clause_aug": true,
+    "smoke": false,
+    "out": "experiments/exp96_mcd1_clauseaug.json"
+  },
+  "by_split": {
+    "mcd1": {
+      "arms": {
+        "vanilla": {
+          "mean": 0.29728867623604466,
+          "min": 0.20478468899521532,
+          "max": 0.37799043062200954,
+          "ci95": [
+            0.20478468899521532,
+            0.3779904306220095
+          ],
+          "per_seed": [
+            0.20478468899521532,
+            0.3090909090909091,
+            0.37799043062200954
+          ]
+        },
+        "oracle": {
+          "mean": 0.0,
+          "min": 0.0,
+          "max": 0.0,
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "per_seed": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "single_clause_em": {
+          "mean": 0.0,
+          "min": 0.0,
+          "max": 0.0,
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "per_seed": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      },
+      "oracle_minus_vanilla": {
+        "delta_mean": -0.29728867623604466,
+        "ci95": [
+          -0.3779904306220095,
+          -0.20478468899521532
+        ],
+        "per_seed": [
+          -0.20478468899521532,
+          -0.3090909090909091,
+          -0.37799043062200954
+        ]
+      }
+    }
+  }
+}
