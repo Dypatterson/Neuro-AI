@@ -1,0 +1,173 @@
+{
+  "mcd1": {
+    "split": "mcd1",
+    "n_train": 8365,
+    "n_test": 1045,
+    "n_test_multiclause": 1028,
+    "pct_multiclause": 98.4,
+    "covariate_shift": {
+      "atom_unigram": {
+        "tv": 0.0949,
+        "test_novel_mass": 0.0,
+        "test_novel_types": 0,
+        "test_distinct_types": 13
+      },
+      "input_bigram": {
+        "tv": 0.1347,
+        "test_novel_mass": 0.0475,
+        "test_novel_types": 2,
+        "test_distinct_types": 46
+      },
+      "clause_template": {
+        "tv": 0.9378,
+        "test_novel_mass": 0.9378,
+        "test_novel_types": 12,
+        "test_distinct_types": 17
+      },
+      "prim_clause_template": {
+        "tv": 0.9994,
+        "test_novel_mass": 0.9994,
+        "test_novel_types": 28,
+        "test_distinct_types": 29
+      },
+      "whole_command_compound": {
+        "tv": 1.0,
+        "test_novel_mass": 1.0,
+        "test_novel_types": 326,
+        "test_distinct_types": 326
+      }
+    },
+    "clause_aug": {
+      "n_aug_forms": 102,
+      "n_aug_distinct_cmds": 102,
+      "n_aug_distinct_templates": 39,
+      "test_cmds_all_clauses_exact_covered_pct": 100.0,
+      "test_cmds_all_clauses_template_covered_pct": 100.0,
+      "per_clause_exact_covered_pct": 100.0,
+      "per_clause_template_covered_pct": 100.0
+    },
+    "leakage_0297_floor": {
+      "n_aug_forms_only_from_test_simple": 18,
+      "mcd_test_cmds_handed_verbatim_by_aug": 17,
+      "per_clause_gold_decode_handed_over_pct": 100.0
+    },
+    "template_leakage_invariant": {
+      "aug_whole_templates_matching_a_test_whole_template": 11,
+      "note": "0 = clause-aug is whole-command-template-safe (single-clause vs multi-clause test); the leak is CLAUSE-level gold-decode, not whole-command-template."
+    }
+  },
+  "mcd2": {
+    "split": "mcd2",
+    "n_train": 8365,
+    "n_test": 1045,
+    "n_test_multiclause": 1041,
+    "pct_multiclause": 99.6,
+    "covariate_shift": {
+      "atom_unigram": {
+        "tv": 0.1093,
+        "test_novel_mass": 0.0,
+        "test_novel_types": 0,
+        "test_distinct_types": 13
+      },
+      "input_bigram": {
+        "tv": 0.1918,
+        "test_novel_mass": 0.0,
+        "test_novel_types": 0,
+        "test_distinct_types": 56
+      },
+      "clause_template": {
+        "tv": 0.8651,
+        "test_novel_mass": 0.8643,
+        "test_novel_types": 12,
+        "test_distinct_types": 19
+      },
+      "prim_clause_template": {
+        "tv": 0.8569,
+        "test_novel_mass": 0.8526,
+        "test_novel_types": 24,
+        "test_distinct_types": 44
+      },
+      "whole_command_compound": {
+        "tv": 1.0,
+        "test_novel_mass": 1.0,
+        "test_novel_types": 300,
+        "test_distinct_types": 300
+      }
+    },
+    "clause_aug": {
+      "n_aug_forms": 102,
+      "n_aug_distinct_cmds": 102,
+      "n_aug_distinct_templates": 39,
+      "test_cmds_all_clauses_exact_covered_pct": 100.0,
+      "test_cmds_all_clauses_template_covered_pct": 100.0,
+      "per_clause_exact_covered_pct": 100.0,
+      "per_clause_template_covered_pct": 100.0
+    },
+    "leakage_0297_floor": {
+      "n_aug_forms_only_from_test_simple": 18,
+      "mcd_test_cmds_handed_verbatim_by_aug": 4,
+      "per_clause_gold_decode_handed_over_pct": 100.0
+    },
+    "template_leakage_invariant": {
+      "aug_whole_templates_matching_a_test_whole_template": 4,
+      "note": "0 = clause-aug is whole-command-template-safe (single-clause vs multi-clause test); the leak is CLAUSE-level gold-decode, not whole-command-template."
+    }
+  },
+  "mcd3": {
+    "split": "mcd3",
+    "n_train": 8365,
+    "n_test": 1045,
+    "n_test_multiclause": 1026,
+    "pct_multiclause": 98.2,
+    "covariate_shift": {
+      "atom_unigram": {
+        "tv": 0.0967,
+        "test_novel_mass": 0.0,
+        "test_novel_types": 0,
+        "test_distinct_types": 13
+      },
+      "input_bigram": {
+        "tv": 0.1288,
+        "test_novel_mass": 0.0486,
+        "test_novel_types": 2,
+        "test_distinct_types": 53
+      },
+      "clause_template": {
+        "tv": 0.9367,
+        "test_novel_mass": 0.9367,
+        "test_novel_types": 12,
+        "test_distinct_types": 20
+      },
+      "prim_clause_template": {
+        "tv": 0.994,
+        "test_novel_mass": 0.994,
+        "test_novel_types": 30,
+        "test_distinct_types": 37
+      },
+      "whole_command_compound": {
+        "tv": 0.9996,
+        "test_novel_mass": 0.999,
+        "test_novel_types": 333,
+        "test_distinct_types": 334
+      }
+    },
+    "clause_aug": {
+      "n_aug_forms": 102,
+      "n_aug_distinct_cmds": 102,
+      "n_aug_distinct_templates": 39,
+      "test_cmds_all_clauses_exact_covered_pct": 100.0,
+      "test_cmds_all_clauses_template_covered_pct": 100.0,
+      "per_clause_exact_covered_pct": 100.0,
+      "per_clause_template_covered_pct": 100.0
+    },
+    "leakage_0297_floor": {
+      "n_aug_forms_only_from_test_simple": 18,
+      "mcd_test_cmds_handed_verbatim_by_aug": 19,
+      "per_clause_gold_decode_handed_over_pct": 100.0
+    },
+    "template_leakage_invariant": {
+      "aug_whole_templates_matching_a_test_whole_template": 10,
+      "note": "0 = clause-aug is whole-command-template-safe (single-clause vs multi-clause test); the leak is CLAUSE-level gold-decode, not whole-command-template."
+    }
+  }
+}
