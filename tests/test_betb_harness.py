@@ -39,78 +39,156 @@ class TestTaskFamilies(unittest.TestCase):
         b1 = {tok for t in s.tasks[2:] for (inp, _) in t.train + t.test for tok in inp}
         self.assertEqual(b0 & b1, set())
 
-    def test_composition_label_is_the_affine_composition(self):
+    def test_permutation_family_shape_matches_the_validated_spec(self):
+        """Report 140's validated configuration. Sizes are load-bearing: the
+        K=8 / 40-rows-per-cell variant measurably fails property 2."""
         from energy_memory.betb import build_family
 
-        p = 7
-        fam = build_family("compositional", p=p, n_ops=3, heldout_frac=0.3)
-        g = torch.Generator().manual_seed(1)
-        s = fam.build(K=2, frac=0.7, gen=g)
-        prim, comp = s.tasks[0], s.tasks[1]
+        s = build_family("permutation", m=5, k=3, n_ops=6, heldout_frac=0.27).build(
+            K=2, frac=0.7, gen=torch.Generator().manual_seed(0))
+        prim, comp = s.tasks
 
-        self.assertEqual(s.n_inputs, 3)
-        self.assertEqual(prim.kind, "primitive")
-        self.assertEqual(comp.kind, "composition")
+        self.assertEqual((s.n_inputs, s.n_classes, s.vocab), (5, 125, 12))
+        self.assertEqual((len(prim.train), len(comp.train)), (1044, 1914))
+        self.assertEqual(len(comp.heldout), 1000)
+        self.assertEqual(len(comp.heldout_groups), 8)
+        self.assertEqual({len(g) for g in comp.heldout_groups}, {125})
+        self.assertEqual(len({(r[0][0], r[0][1]) for r in comp.train}), 22)
 
-        # Recover each operator from the primitive task. Block 0's value token for
-        # x is just x (base = 0), so o_i is read straight off the labels.
-        op_of = {}
-        for (inp, y) in prim.train + prim.test:
-            op_of.setdefault(inp[0], {})[inp[2]] = y
-        self.assertTrue(all(len(m) == p for m in op_of.values()),
-                        "primitive task must cover every x for every operator")
+    def test_composition_label_is_the_group_composition(self):
+        """Every composition label must be g_j(g_i(x)) — applied in that order.
 
-        # Every composition label must equal o_j(o_i(x)) — a value that is in
-        # general NEITHER o_i(x) nor o_j(x), which is what makes it recombinant.
-        checked = differs_from_primitives = 0
-        for (inp, y) in comp.train + comp.test + comp.heldout:
-            oi, oj, x = inp
-            self.assertEqual(y, op_of[oj][op_of[oi][x]],
-                             f"composition label is not o_j(o_i(x)) for {inp}")
+        Order matters here in a way it did not for the abelian design: in S_5,
+        g_j∘g_i != g_i∘g_j in general, and that non-commutativity is the entire
+        reason held-out pairs cannot be answered by pooling the two operators.
+        """
+        from energy_memory.betb import build_family
+
+        fam = build_family("permutation", m=5, k=3, n_ops=6, heldout_frac=0.27)
+        gen = torch.Generator().manual_seed(0)
+        s = fam.build(K=2, frac=0.7, gen=gen)
+        prim, comp = s.tasks
+
+        # recover each operator's action from the primitive task
+        act = {}
+        for (toks, y) in prim.train + prim.test:
+            op = max(toks[0], toks[1])
+            state = tuple(t - (fam.n_ops + 1) for t in toks[2:])
+            out, v = [], y
+            for _ in range(fam.k):
+                out.append(v % fam.m)
+                v //= fam.m
+            act.setdefault(op, {})[state] = tuple(reversed(out))
+
+        checked = order_matters = 0
+        for (toks, y) in comp.train + comp.heldout:
+            oi, oj = toks[0], toks[1]
+            state = tuple(t - (fam.n_ops + 1) for t in toks[2:])
+            mid = act[oi][state]
+            self.assertEqual(fam._label(act[oj][mid]), y,
+                             "composition label is not g_j(g_i(x))")
             checked += 1
-            if y != op_of[oi][x] and y != op_of[oj][x]:
-                differs_from_primitives += 1
-        self.assertEqual(checked, p * 9)
-        self.assertGreater(differs_from_primitives, 0.5 * checked,
-                           "composition mostly coincides with a primitive — not recombinant")
-
-        # structural: held-out pairs never appear in train, and both are non-empty
-        train_pairs = {(i[0], i[1]) for (i, _) in comp.train + comp.test}
-        held_pairs = {(i[0], i[1]) for (i, _) in comp.heldout}
-        self.assertTrue(held_pairs)
-        self.assertTrue(train_pairs)
-        self.assertEqual(train_pairs & held_pairs, set())
+            if fam._label(act[oi][act[oj][state]]) != y:
+                order_matters += 1
+        self.assertGreater(checked, 0)
+        self.assertGreater(order_matters, 0.3 * checked,
+                           "composition is nearly commutative — the shortcut would be legal")
 
     def test_heldout_pairs_are_never_trainable(self):
         """The whole regime rests on this. If it leaks, the headline is meaningless."""
         from energy_memory.betb import build_family
 
-        fam = build_family("compositional", p=7, n_ops=4, heldout_frac=0.3)
-        g = torch.Generator().manual_seed(2)
-        s = fam.build(K=6, frac=0.7, gen=g)
+        s = build_family("permutation").build(K=6, frac=0.7,
+                                              gen=torch.Generator().manual_seed(2))
         for t in s.tasks:
             if t.kind != "composition":
                 continue
-            trainable = {(i[0], i[1]) for (i, _) in t.train} | {(i[0], i[1]) for (i, _) in t.test}
-            held = {(i[0], i[1]) for (i, _) in t.heldout}
-            self.assertEqual(trainable & held, set(), "held-out composition pair leaked into training")
+            trainable = {r[0] for r in t.train} | {r[0] for r in t.test}
+            held = {r[0] for r in t.heldout}
+            self.assertEqual(trainable & held, set(), "held-out row leaked into training")
+            tr_pairs = {(r[0][0], r[0][1]) for r in t.train} | {(r[0][0], r[0][1]) for r in t.test}
+            hd_pairs = {(r[0][0], r[0][1]) for r in t.heldout}
+            self.assertEqual(tr_pairs & hd_pairs, set(), "held-out PAIR appeared in training")
 
-    def test_scramble_breaks_composition_structure(self):
-        """The Report-134 scramble was INVALID (relabelled an isomorphic addition).
+    def test_fix1_mirrored_slot_orders_share_one_split(self):
+        """Integrity fix 1, found by adversarial re-run.
 
-        This one must actually destroy the structure: same shape, different labels.
+        `(op, IDENT, x)` and `(IDENT, op, x)` compute the SAME function. Splitting
+        them independently put 69% of primitive-test rows into training under the
+        mirrored slot order, inflating primitive accuracy 0.86-0.92 -> 0.98.
         """
         from energy_memory.betb import build_family
 
-        kw = dict(p=7, n_ops=3, heldout_frac=0.3)
-        a = build_family("compositional", **kw).build(4, 0.7, torch.Generator().manual_seed(3))
-        b = build_family("compositional", scramble=True, **kw).build(4, 0.7, torch.Generator().manual_seed(3))
+        s = build_family("permutation").build(K=2, frac=0.7,
+                                              gen=torch.Generator().manual_seed(0))
+        prim = s.tasks[0]
+        key = lambda toks: (max(toks[0], toks[1]), toks[2:])
+        tr = {key(r[0]) for r in prim.train}
+        te = {key(r[0]) for r in prim.test}
+        self.assertEqual(tr & te, set(),
+                         "a (operator, state) fact is in train under one slot order "
+                         "and in test under the other")
+        from collections import Counter
+        self.assertEqual(set(Counter(key(r[0]) for r in prim.train).values()), {2},
+                         "each trained (operator, state) must appear in BOTH slot orders")
 
-        ca = {i: y for (i, y) in a.tasks[1].train + a.tasks[1].heldout}
-        cb = {i: y for (i, y) in b.tasks[1].train + b.tasks[1].heldout}
-        self.assertEqual(set(ca), set(cb), "scramble must preserve the input set exactly")
-        differing = sum(1 for k in ca if ca[k] != cb[k])
-        self.assertGreater(differing, 0.5 * len(ca), "scramble barely changed the labels")
+    def test_fix2_no_composite_collides_with_a_primitive(self):
+        """Integrity fix 2: rejection sampling.
+
+        Without it ~5% of held-out cells have g_j∘g_i equal to some primitive g_l
+        or the identity, so the answer is recallable without composing at all
+        (measured 0.428 accuracy on those cells vs 0.224 on genuine ones).
+        """
+        from energy_memory.betb import build_family
+
+        fam = build_family("permutation", m=5, k=3, n_ops=6)
+        ident = fam._identity()
+        for seed in range(12):
+            ops = fam._sample_operators(torch.Generator().manual_seed(seed))
+            self.assertEqual(len(set(ops)), 6)
+            self.assertNotIn(ident, ops)
+            for i in range(6):
+                for j in range(6):
+                    if i == j:
+                        continue
+                    c = fam._compose(ops[j], ops[i])
+                    self.assertNotEqual(c, ident, f"seed {seed}: composite is the identity")
+                    self.assertNotIn(c, ops, f"seed {seed}: composite equals a primitive")
+
+    def test_abelian_control_makes_the_shortcut_legal(self):
+        """The matched control must be structurally different in exactly one way.
+
+        In `(Z_5)^3` composition IS pooling (order-independent), so a model that
+        pools the two operator embeddings gets held-out pairs right. That is why
+        the control's gap collapses to +0.060 while the S_5 gap is +0.642.
+        """
+        from energy_memory.betb import build_family
+
+        ab = build_family("permutation", group="cyclic", m=5, k=3, n_ops=6)
+        ops = ab._sample_operators(torch.Generator().manual_seed(0))
+        for i in range(6):
+            for j in range(6):
+                self.assertEqual(ab._compose(ops[j], ops[i]), ab._compose(ops[i], ops[j]),
+                                 "cyclic control must be commutative")
+
+        sym = build_family("permutation", group="symmetric", m=5, k=3, n_ops=6)
+        sops = sym._sample_operators(torch.Generator().manual_seed(0))
+        noncomm = sum(1 for i in range(6) for j in range(6)
+                      if sym._compose(sops[j], sops[i]) != sym._compose(sops[i], sops[j]))
+        self.assertGreater(noncomm, 0, "symmetric group sample was accidentally abelian")
+
+        s = ab.build(K=2, frac=0.7, gen=torch.Generator().manual_seed(0))
+        self.assertEqual(s.n_classes, 125)
+        self.assertEqual(len(s.tasks[1].heldout_groups), 8)
+
+    def test_blocks_use_disjoint_token_ranges(self):
+        from energy_memory.betb import build_family
+
+        s = build_family("permutation").build(K=4, frac=0.7,
+                                              gen=torch.Generator().manual_seed(0))
+        b0 = {t for task in s.tasks[:2] for (inp, _) in task.train for t in inp}
+        b1 = {t for task in s.tasks[2:] for (inp, _) in task.train for t in inp}
+        self.assertEqual(b0 & b1, set())
 
 
 @unittest.skipIf(torch is None, "torch required")
@@ -305,7 +383,7 @@ class TestHarnessRuns(unittest.TestCase):
     def _stream(self, K=4):
         from energy_memory.betb import build_family
 
-        fam = build_family("compositional", p=5, n_ops=3, heldout_frac=0.3)
+        fam = build_family("permutation", m=4, k=2, n_ops=4, heldout_frac=0.3)
         return fam.build(K, 0.7, torch.Generator().manual_seed(0))
 
     def test_all_arms_run_and_report_steps(self):

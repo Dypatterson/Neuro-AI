@@ -128,6 +128,40 @@ because three `legacy/` modules claim compliance in prose while violating it in 
 when `coverage_lambda > 0`, which defaults to `0.0`, while `experiments/18:444` calls it
 unconditionally).
 
+## ADDENDUM (same session) — the v1 compositional design is NOT LEARNABLE, and was replaced
+
+Before running the regime at scale, a learnability probe was run. **The v1
+`CompositionalAffineFamily` fails.** The model memorizes the training set and never generalizes,
+so the regime would have measured nothing.
+
+The decisive control was running the *known-grokking* modular task through the **same harness,
+same optimizer, same split** — isolating "is the task broken?" from "is the harness broken?":
+
+| Task (202 train / 87 test, wd=1.0, AdamW 1e-3) | TRAIN acc | Test acc @20k steps |
+|---|---|---|
+| `(a+b) mod 17` — control | 1.000 | **1.000** (groks: 0.18 @3k → 0.94 @6k → 1.00 @10k) |
+| v1 compositional primitives, n_ops=17 | 1.000 | **0.000** (never groks) |
+
+**Diagnosis.** The modular task is *one* global rule with 289 examples. The v1 design is
+**17 independent random affine maps** `o_i(x) = m_i x + c_i` with `(m_i, c_i)` drawn
+independently per operator — effectively 17 separate grokking problems at 1/17 the data each,
+and, decisively, **nothing ties operator token `i` to its parameters**. Generalizing to an unseen
+`(op_i, x)` pair is therefore impossible in principle, not merely hard. Train accuracy of 1.000
+with test accuracy of 0.000 is the signature of pure memorization against an unlearnable rule.
+
+**This is the same trap the regime was built to escape, inverted.** The retrospective's
+requirement is a regime where the simple method *fails but the structure is learnable*. A regime
+where **nothing** learns is exactly as uninformative as one that saturates: in both cases the
+mechanism comparison is decided by construction rather than by the mechanism. Had this been run
+at n=8 without the probe, it would have produced a confident, meaningless "the simple method does
+not saturate."
+
+**Cost of catching it here:** ~3 minutes of calibration versus several hours of 8-seed compute
+and a banked non-result. The competent-control rule (`CLAUDE.md` measurement rule 2) is what
+caught it — the control was a *task* rather than a mechanism, but it did the same job.
+
+The replacement design and its empirical validation are recorded below.
+
 ## What is NOT established
 
 - **Nothing about the compositional regime.** The only run is `--tiny` (p=5, n_ops=3, K=4, n=2,

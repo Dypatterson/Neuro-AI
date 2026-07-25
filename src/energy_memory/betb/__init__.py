@@ -40,7 +40,7 @@ from .runner import (
     write_result,
 )
 from .tasks import (
-    CompositionalAffineFamily,
+    PermutationCompositionFamily,
     ModularArithmeticFamily,
     Stream,
     Task,
@@ -48,7 +48,7 @@ from .tasks import (
 )
 
 __all__ = [
-    "ARMS_2X2", "ArmResult", "BennaFusi", "CompositionalAffineFamily",
+    "ARMS_2X2", "ArmResult", "BennaFusi", "PermutationCompositionFamily",
     "Consolidator", "ContinualNet", "EWCAnchor", "MANDATORY_CONTROLS",
     "MissingControlError", "ModularArithmeticFamily", "Provenance", "Stream",
     "SubspaceRestructure", "Task", "apply_tiny", "base_parser", "boot_ci",

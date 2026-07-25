@@ -220,6 +220,13 @@ class ArmResult:
     steps: List[Optional[int]]
     ret_after: Optional[List[List[float]]] = None
     heldout_after: Optional[List[List[float]]] = None
+    #: end-of-stream accuracy per held-out CELL, per task: [task][cell].
+    #: The headline bootstraps over these, not over rows — see Task.heldout_groups.
+    heldout_cells_final: Optional[List[List[float]]] = None
+    #: end-of-stream accuracy on the trained-pair test split, per task.
+    #: The headline gap is (this - held-out), so it must come from the same model
+    #: state; measuring it mid-stream would compare different models.
+    test_final: Optional[List[float]] = None
 
 
 #: the 2x2 factorial of CONTEXT-B §8, plus the from-scratch denominator
@@ -300,7 +307,16 @@ def run_arm(
             evaluate(m, j, stream.tasks[j].heldout, device) if stream.tasks[j].heldout else float("nan")
             for j in range(k + 1)
         ]
-    return ArmResult(steps=steps, ret_after=ret_after, heldout_after=held_after)
+
+    # End-of-stream, per held-out cell. Both halves of the headline gap are read
+    # off the SAME final model so the comparison is within-model.
+    cells_final = [
+        [evaluate(m, j, cell, device) for cell in stream.tasks[j].heldout_groups]
+        for j in range(K)
+    ]
+    test_final = [evaluate(m, j, stream.tasks[j].test, device) for j in range(K)]
+    return ArmResult(steps=steps, ret_after=ret_after, heldout_after=held_after,
+                     heldout_cells_final=cells_final, test_final=test_final)
 
 
 # --------------------------------------------------------------------------
