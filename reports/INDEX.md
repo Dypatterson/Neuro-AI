@@ -6,7 +6,7 @@ Read this **before** re-running any mechanism by name (`CLAUDE.md`
 §measurement rule 5). Keyed on full path: report numbers collide and nine
 directories share a basename, so basename lookups are unreliable.
 
-151 entries.
+152 entries.
 
 **Colliding numbers** (same number, unrelated work): 005, 049, 050, 051, 052, 053, 054, 055, 056, 057, 058.
 
@@ -163,3 +163,4 @@ directories share a basename, so basename lookups are unreliable.
 | 138 | [`138_betb_baseline_decomposition/report.md`](138_betb_baseline_decomposition/report.md) | B | NO GRADUATION | FTSR, consolidation, replay, transfer, two-timescale | Report 138 — Bet B: what is the baseline's compounding transfer MADE OF? (decomposition drill-down) |
 | 139 | [`139_betb_replay_x_consolidation_bennafusi/report.md`](139_betb_replay_x_consolidation_bennafusi/report.md) | B | PASS | FTSR, SVD, benna-fusi, compositional, consolidation, ewc, replay, super-additivity | Report 139 — Bet B: replay × CONSOLIDATION interaction, recipe 1 = Benna-Fusi (graduation attempt) |
 | 140 | [`140_harness_extraction_and_compositional_regime/report.md`](140_harness_extraction_and_compositional_regime/report.md) | B | NO GRADUATION | FTSR, SVD, benna-fusi, cap-coverage, compositional, consolidation, ewc, replay | Report 140 — Harness extraction + the discriminating compositional regime |
+| 141 | [`141_betb_compositional_regime/report.md`](141_betb_compositional_regime/report.md) | B | PASS | capacity, compositional, consolidation, ewc, replay, transfer | Report 141 — Bet B: the compositional regime IS discriminating (regime validation) |

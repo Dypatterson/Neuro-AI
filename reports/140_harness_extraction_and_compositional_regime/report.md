@@ -160,7 +160,56 @@ not saturate."
 and a banked non-result. The competent-control rule (`CLAUDE.md` measurement rule 2) is what
 caught it — the control was a *task* rather than a mechanism, but it did the same job.
 
-The replacement design and its empirical validation are recorded below.
+### The replacement — five designs built, trained, and measured
+
+Five candidate task families were designed **and empirically trained** (not
+argued), each scored against three properties, with the one claiming viability
+independently re-run at 3× the steps. Property 2 is what separates them — three
+candidates produce a "gap" only because nothing learns at all, which is the v1
+failure wearing a different hat.
+
+| Design | P1 primitives generalize | P2 trained pairs | P3 held-out | Gap | Verdict |
+|---|---|---|---|---|---|
+| **S5 coordinatewise** | **0.977** | **0.961** | 0.319 | **+0.642** | **VIABLE** |
+| signed_add | 0.837 | 0.572 | 0.416 | +0.156 | PARTIAL — P2 far from saturation |
+| SharedCircuit φ=t³ | 0.951 | **0.146** | 0.125 | +0.021 | P2 FAILS → P3 vacuous |
+| binop-tokens | 0.074 | 0.071 | 0.087 | −0.021 | never left chance |
+| FV-MAC | 0.006 | 0.007 | 0.041 | −0.034 | never left chance |
+
+**S5 survived adversarial re-run.** Bit-exact reproduction, then extended to
+60k steps: the gap **widens** to +0.669 [0.492, 0.834]. Held-out is flat
+(0.319 → 0.320) while trained-pair climbs 0.961 → 0.989. No seed trends toward
+closure; the riskiest seed *declined*. So this is a stable plateau, not slow
+convergence — the failure mode that would have invalidated it.
+
+**The abelian matched control is what makes the gap mean something.** Swapping
+`S_5` for `(Z_5)^3` makes composition *pooling*, so the shortcut is correct:
+held-out saturates at 0.908 and the gap collapses to **+0.060 with a CI including
+zero**. Same architecture, same sizes, same step budget. Without this, a large gap
+would only show the task is hard. Contrast `signed_add`, whose own control passes
+all three properties *more cleanly than the design it controls* — which is why
+properties 1+2+3 alone do not certify discrimination.
+
+**Two integrity bugs, both found by the adversarial re-run, both fixed:**
+
+1. **Primitive splits were keyed on the cell, not the operator.** `(op, IDENT, x)`
+   and `(IDENT, op, x)` compute the same function; independent splits put **69% of
+   primitive-test rows** into training under the mirrored slot order. True primitive
+   ceiling is ~0.86–0.92, not 0.98.
+2. **Operator sets were not rejection-sampled.** ~5% of held-out cells had a
+   composite equal to a memorized primitive, answerable without composing at all
+   (0.428 accuracy on those cells vs 0.224 on genuine ones). Acceptance rate ~0.36,
+   so the fix is free.
+
+Both are now asserted by tests, not just fixed. Note both bugs *inflated* the
+original numbers, so correcting them lowers primitive accuracy and **widens** the
+gap.
+
+**A measurement constraint that changes the statistics.** Per-cell accuracy within
+a single run ranges 0.000 to 0.856, so the effective n is the **8 held-out cells**,
+not the 1000 held-out rows. Bootstrapping over rows would understate the CI by
+roughly 11×. `Task.heldout_groups` and `ArmResult.heldout_cells_final` carry that
+structure, and both halves of the gap are read off the same end-of-stream model.
 
 ## What is NOT established
 
