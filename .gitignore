@@ -24,9 +24,17 @@ reports/**/*.csv
 reports/**/*.log
 reports/**/*.err
 reports/**/*.out
-# Sharded-merge intermediates from the Colab/parallel runners (the merged
-# result is itself *.json above; the narrative lives in report.md).
+# Sharded-merge intermediates from the Colab/parallel runners (the narrative
+# lives in report.md).
 reports/**/shards/
+
+# ...BUT the merged headline result IS the evidence and must be committable.
+# Before 2026-07-25 the blanket *.json rule above meant `find reports -type f
+# ! -name '*.md'` returned 14 files (all PNG/stderr) across 196 reports: not one
+# number behind any published claim was on disk, so no result could be
+# re-checked. Merged headline artifacts are now tracked; shards stay ignored.
+!reports/**/headline*.json
+!reports/**/*_headline.json
 
 # Workflow raw scratch dumps — the curated brief is the committed artefact.
 brainstorm-workspace/**/_*_raw.json

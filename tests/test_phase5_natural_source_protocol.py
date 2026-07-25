@@ -11,6 +11,24 @@ try:
 except ModuleNotFoundError:
     torch = None
 
+# Phase-5' generated artifacts. `.gitignore` excludes `reports/**/*.json` and
+# these fixtures were never tracked (`git log --all --diff-filter=A -- 'reports/*.json'`
+# is empty), so they are absent from every clean checkout and the tests that read
+# them errored permanently. They are NOT synthesizable: the assertions below check
+# `passes_all_criteria` and derived control-opportunity counts, so a hand-built
+# fixture would be manufacturing the answer rather than testing it. Skip honestly
+# when absent; regenerate with
+# `scripts/phase5_prime_nonsynthetic_native_preflight.py` (paused Bet-A arc).
+_SOURCE_ARTIFACT = Path("reports/phase5_prime_nonsynthetic_native_context_source.json")
+_CLEANUP_ARTIFACT = Path(
+    "reports/phase5_prime_natural_source_control_cleanup_preflight.json"
+)
+_ARTIFACTS_PRESENT = _SOURCE_ARTIFACT.exists() and _CLEANUP_ARTIFACT.exists()
+_ARTIFACT_SKIP_REASON = (
+    f"requires generated Phase-5' artifacts ({_SOURCE_ARTIFACT}, {_CLEANUP_ARTIFACT}); "
+    "gitignored and never tracked — regenerate via scripts/phase5_prime_nonsynthetic_native_preflight.py"
+)
+
 
 class TestNaturalSourceProtocol(unittest.TestCase):
 
@@ -127,6 +145,7 @@ class TestNaturalSourceProtocol(unittest.TestCase):
         )
 
     @unittest.skipIf(torch is None, "torch required")
+    @unittest.skipUnless(_ARTIFACTS_PRESENT, _ARTIFACT_SKIP_REASON)
     def test_report_092_protocol_plan_parity(self):
         from energy_memory.phase5.natural_source_protocol import (
             protocol_for_frequency_cap,

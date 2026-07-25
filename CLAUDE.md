@@ -1,346 +1,137 @@
 # Claude Working Agreement — Neuro-AI
 
-Project context and rules for working on this codebase. Read this before any
-non-trivial work.
+Rules for working on this codebase. Short on purpose.
 
-## Project shape
+*Rewritten 2026-07-25. The previous version imposed ~30 separately-checkable
+obligations and ~122 KB of mandatory session reading. An audit of the nine false
+positives this project actually caught (the retrospective's false-positive
+catalogue) found that **every one** was caught by a **measurement** rule —
+multi-seed, a competent matched control, adversarial verification, log-scale for
+heavy tails. **None** was caught by a read order, a `file:line` citation, a byte
+budget, or a triage label. This file now holds the measurement rules and little
+else. What was cut is in `archive/`, not deleted.*
 
-This is a research project building a neuroscience-inspired cognitive
-substrate (FHRR + Modern Hopfield Networks + emergent codebook + replay/
-consolidation). The architectural target is a contextual-completion system,
-**not a sequence-prediction system**. The user reads primary literature and
-keeps detailed design notes.
+## Session start — two reads
 
-The phase plan lives in [docs/PROJECT_PLAN.md](docs/PROJECT_PLAN.md). The
-emergent-codebook subsystem has its own multi-phase plan under
-[notes/emergent-codebook/](notes/emergent-codebook/). Recent design decisions
-and synthesis from cross-paper reviews live in dated notes under
-[notes/notes/](notes/notes/).
+1. **[STATUS.md](STATUS.md)** — the bookmark: active front, headline metric, last
+   verified result, blockers.
+2. **[CONTEXT-B.md](CONTEXT-B.md)** — the binding charter for the live line
+   (Bet B). Read
+   [notes/RETROSPECTIVE-two-bets-2026-06-06.md](notes/RETROSPECTIVE-two-bets-2026-06-06.md)
+   once for orientation if you haven't.
 
-## Two bets (read before the session-start protocol)
+**Bet A is paused.** Its charter (`CONTEXT.md`) and phase notes are history, not
+law. Do not import its mechanism bans (no-backprop, local-only, no-global) into
+Bet-B work — that re-import happened three times in one session and is why
+`CONTEXT-B.md` exists. Bet A's 121–132 local-vs-global bound stands, unfalsified.
 
-As of 2026-06-05 this repo holds **two parallel bets** with **different
-mechanism rules but the same discipline**:
+If STATUS.md contradicts a report, that contradiction is itself a finding.
+Surface it; don't paper over it.
 
-- **Bet A** — charter [CONTEXT.md](CONTEXT.md). *Biology is the answer:*
-  no backprop, no global-computation-as-mechanism, local-only. Produced the
-  durable 121–132 local-vs-global bound.
-- **Bet B** — charter [CONTEXT-B.md](CONTEXT-B.md). *Biology is the spotlight,
-  not the box:* backprop / global-as-mechanism / multi-layer are **allowed**
-  (the one still-fenced shortcut is a one-shot closed-form SVD/eig). Forked
-  because Bet A's mechanism bans kept being re-imported as binding after they
-  were explicitly lifted.
+## The measurement rules (binding — these are the ones that caught real errors)
 
-**Before doing Bet-related work, know which bet you're in.** For Bet-B work,
-**CONTEXT-B.md is the binding charter** and Bet A's mechanism bans do NOT apply.
-The **discipline in this file** (experiment preamble, headline-vs-drill-down,
-multi-seed + controls, grep-before-rerun, anti-homunculus-as-no-supervisor,
-"do it right / no shortcuts") is binding for **both** bets, unchanged.
+1. **Multi-seed ≥8, with CIs.** Single-seed and n=2 smokes have produced false
+   PASSes here (137). Use bootstrap CIs, and the **log** scale for ratio metrics
+   (speedups are heavy-tailed — 138).
+2. **A competent, matched control on the same test set.** The single
+   highest-yield rule in this repo: it deflated k-WTA→global k-means (127) and
+   Benna-Fusi→plain-L2-anchor (139). A control weaker than the mechanism proves
+   nothing.
+3. **Adversarially verify before banking a positive.** Try to refute your own
+   result first. Every "first real win" here that skipped this was later deflated.
+4. **One named headline gate.** Everything else is explicitly labelled a
+   drill-down. Multi-metric panels with no headline let any outcome rationalize
+   as success.
+5. **Grep before re-running a mechanism by name.** Read
+   [reports/INDEX.md](reports/INDEX.md) first, then grep **whole-repo** if absent.
+   Scoped greps have returned false "never built" answers — that is how
+   Benna-Fusi got rebuilt from scratch when a tested implementation existed.
+6. **Anti-homunculus — enforced as a test, not a docstring.** No supervisor that
+   reads a metric and branches (`if metric > threshold: do Y`). Apparent
+   decisions must be local geometry, energy, or settling dynamics. Three modules
+   in `legacy/` claim compliance in a docstring while violating it in code —
+   which is why a prose claim is not enough. Assert it.
 
-## Session-start protocol (read first, every session)
+## Experiment preamble
 
-Before doing anything else in a session — before reading reports, before
-planning, before answering a question that involves project state — read:
+Before an experiment that produces a numbered report or informs a gate, state:
 
-1. **[CONTEXT.md](CONTEXT.md)** at the repo root — the stable charter: the
-   bet, the thesis (**memorization is the Codebook-write *floor*, not the
-   project ceiling**; not a vector DB), the **§4 capability map + gates**, the
-   invariants, and the current crux. Read FIRST so STATUS is interpreted
-   *against* the gates, not in place of them. *(This read exists because the
-   original gates went unread while STATUS drifted — CONTEXT.md §"Why this
-   file exists.")*
-2. [STATUS.md](STATUS.md) at the repo root. This is the bookmark. It names
-   the active capability/front, the current headline metric, the last verified
-   result, and the active blockers.
-3. The active capability's gate/checklist (e.g.
-   [notes/emergent-codebook/phase-4-checklist.md](notes/emergent-codebook/phase-4-checklist.md);
-   the `phase-<N>-*` files are the per-capability records — see CONTEXT.md §4)
-   if one exists. Every line item with a non-✅ status
-   is potentially relevant to the current session.
-4. **The §"Headline metric" + §"Required controls" sections of the active
-   capability's design document** (e.g.
-   [notes/emergent-codebook/phase-5-unified-design.md](notes/emergent-codebook/phase-5-unified-design.md)).
-   Cite the exact line numbers — STATUS.md banners can drift away from
-   the design spec over multiple sessions, and the design spec is the
-   load-bearing source of truth for what "graduation" means.
-
-   *Why this rule exists.* Phase 5 spent two sessions chasing a
-   diagnostic instrumentation chain (K-branch state_divergence) that
-   STATUS.md had drifted into describing as the headline. The actual
-   design-spec headline (ΔE between role-prior and content-prior in
-   [phase-5-unified-design.md:256-281](notes/emergent-codebook/phase-5-unified-design.md))
-   was sitting unread the whole time. Re-skim the active design doc at
-   session start; STATUS.md alone is not enough.
-
-`STATUS.md` and the active checklist are *binding*, not advisory. If you
-catch a contradiction between them and another document mid-session
-— **including the active capability's design spec** — that is itself a
-finding to surface, not paper over.
-
-**Don't trust a "never built / never run" flag without grepping
-`reports/` for the mechanism by name.** STATUS.md's
-"Pre-phase commitments still open" list has drifted before — items
-that were resolved by a numbered report were left flagged as open for
-a week. Before treating any open commitment as actionable:
-
-```bash
-grep -rln '<mechanism_name_or_knob>' reports/ notes/emergent-codebook/
-```
-
-If a numbered report exists, read it before doing anything else.
-
-*Why this rule exists.* The 2026-05-24 unconsidered-paths brainstorm
-session built three downstream documents and a recommended action list
-on top of a stale STATUS.md claim ("freq-weighted α never built") that
-[Report 040](reports/040_freq_weighted_alpha_sweep.md) had resolved on
-2026-05-17. A follow-up audit found four more knobs in the same
-position — all of them already exercised in numbered reports. See
-[brainstorm-workspace/2026-05-24-unconsidered-paths/wired-but-unrun-audit.md](brainstorm-workspace/2026-05-24-unconsidered-paths/wired-but-unrun-audit.md)
-for the full per-knob breakdown.
-
-If a session causes any status change (a blocker becomes done, a new
-blocker surfaces, an audit fails), update `STATUS.md` and the checklist
-**before** ending the session. The walk-back is the first edit, not the
-last.
-
-**STATUS.md banner discipline.** `STATUS.md` is a *bookmark*, not a log.
-Each session adds one "Recent updates" entry of ~5 lines max: one-line
-summary + link to the per-session report + link to the monthly archive
-section. Long-form narrative, walk-back chains, and nested audits live
-in the per-session report or in the monthly archive at
-[notes/status-log/](notes/status-log/) (e.g.
-[notes/status-log/2026-05.md](notes/status-log/2026-05.md)). Do not
-inline multi-paragraph banners into `STATUS.md` itself — it grew to
-87 KB / one-line-per-banner before the 2026-05-24 restructure and
-became unreadable for both humans and the Read tool.
-
-## Experiment preamble requirement
-
-Before running any experiment that produces a numbered report or that
-informs a capability-gate decision, the agent must state, in plain text:
-
-> **Active capability:** [name — from the CONTEXT.md §4 map; note if it's a
->   *combination* of two capabilities, e.g. Codebook-growth × Replay]
-> **Headline metric per [spec file:line]:** [exact metric, e.g. "Δ Recall@K
-> + Δ cap-coverage with active drift"]
-> **Required controls per [spec file:line]:** [list]
+> **Active capability:** …
+> **Headline metric** per `<file> §<section-header>`: …
+> **Required controls** per `<file> §<section-header>`: …
 > **Last verified result:** [report]
-> **Why this experiment now:** [one sentence tying it to a STATUS.md
-> blocker or checklist line item]
+> **Why now:** one sentence tying it to a STATUS.md blocker
 
-The `[spec file:line]` citation is **mandatory**, not optional. It must
-point at the active capability's design document (typically under
-[notes/emergent-codebook/](notes/emergent-codebook/)) — NOT at STATUS.md
-and NOT at the most recent report's "what we're measuring" framing.
-If the experiment is measuring something that does NOT appear as the
-headline in the design spec, the experiment is by definition a
-**drill-down**, not a graduation experiment, and the report must
-explicitly label it as such.
+**Cite by section header, not line number.** Line ranges rot — three root-charter
+citations now point at the wrong text, including one inside the rule that existed
+to prevent that drift.
 
-*Why this rule exists.* Diagnostic measurements designed to investigate
-a failure mode can drift into being treated as the phase's headline
-over multiple sessions of debugging. The line-number citation is the
-forcing function that catches the drift. If you can't find the metric
-in the design spec, that's itself a finding — either the spec needs
-updating (with explicit user agreement) or the experiment isn't a
-graduation experiment.
+If the metric isn't the design spec's headline, the experiment is a
+**drill-down** and the report must say so. If you can't fill a field, ask.
 
-If you cannot fill in any field — for example you do not know what the
-headline metric should be, or you cannot identify a STATUS.md blocker
-the experiment addresses — **stop** and ask the user. Do not improvise.
+## Runs must be auditable
 
-This preamble is a forcing function against the failure mode of "report
-top1 first because exp 18 prints it first." It is cheap. The cost of
-skipping it is hours of work against the wrong metric.
+Every experiment writes a provenance envelope (git SHA, argv, seeds, config,
+declared controls) into its output JSON — see
+[src/energy_memory/betb/runner.py](src/energy_memory/betb/runner.py). A run that
+omits a declared control fails loudly. This replaces attestation with
+enforcement.
 
-## Before designing or building anything non-trivial
+Merged headline JSON is committed (`reports/**/headline*.json` is un-ignored);
+shard intermediates stay ignored.
 
-**Mandatory check order** — do this *before* writing a spec, before writing
-code, and before recommending an approach:
+## What "done" means for an experiment
 
-1. Read [STATUS.md](STATUS.md) and the active capability's gate/checklist (see
-   session-start protocol above).
-2. Read [docs/PROJECT_PLAN.md](docs/PROJECT_PLAN.md) + the [CONTEXT.md](CONTEXT.md) §4
-   capability map for the active capability/front and non-negotiable design rules.
-3. Search [notes/](notes/) for any document that names or specifies what
-   you're about to build. The Replay capability has the `phase-4-*` notes; Codebook-growth
-   has the `phase-3-*` growth notes; etc. **A design document existing for a feature
-   is the strongest signal that someone already thought hard about it.**
-   `grep -rln "<keyword>" notes/` is your friend.
-4. Skim relevant dated notes under [notes/notes/](notes/notes/) — these
-   capture cross-paper syntheses and architectural decisions that don't
-   always make it into the phase docs.
-5. Check the current research briefs and synthesis notes before treating a
-   paper-backed mechanism as new. In this checkout, load-bearing research
-   context lives in dated notes under [notes/notes/](notes/notes/) and in
-   task-local research briefs under [brainstorm-workspace/](brainstorm-workspace/).
-   There is no canonical root `research/`, `tmp_pdf_text/`, or `tmp/pdf_text/`
-   directory here; older references to those paths are historical
-   extraction-path breadcrumbs.
+1. Headline reported with CIs. 2. A competent control on the same test set.
+3. Drill-downs explain anomalies. 4. Written up under `reports/`.
+5. `STATUS.md` updated — including the walk-back, if the session walked one back.
 
-Do not assume a design from first principles when a design document exists.
-If you find a relevant note partway through implementation, stop, read it,
-and re-plan.
+## Non-negotiable design rules
 
-## The anti-homunculus filter
+- No module that decides which subsystem wins.
+- No ad hoc if/then supervisory routing to fix instability.
+- Don't collapse the memory into a vector DB plus summaries.
+- Don't make an LLM the source of persistence or identity.
+- Keep the pure-Python reference backend.
+- Don't trust a new mechanism until it survives a control condition.
 
-From [notes/notes/2026-05-09-papers-diagnostics-and-actuator-dynamics.md](notes/notes/2026-05-09-papers-diagnostics-and-actuator-dynamics.md):
+## Don't reinvent these
 
-> Every proposed addition to the architecture must either be a local
-> geometric dynamic or be expressible as a measurement of one — never an
-> arbitration over them.
-
-Concretely:
-- No supervisor module decides which subsystem wins.
-- No `if X then do Y` rule that reads a metric and triggers a response.
-- "Apparent decisions" are local geometry, energy, settling, tension, or
-  consolidation dynamics.
-
-When you propose a mechanism, explicitly write out the anti-homunculus check:
-who decides X, who decides Y, where the "decision" actually lives in the
-dynamics. If you can't make this check pass cleanly, the mechanism is the
-wrong shape.
-
-## Headline-vs-drill-down metric structure
-
-From the same 2026-05-09 note:
-
-> Each phase has one headline metric that defines whether the phase crossed
-> its viability threshold, plus a panel of drill-down metrics that explain
-> why the headline moved in unexpected ways.
-
-When designing an experiment:
-- Name the headline metric explicitly.
-- The other metrics are drill-downs that explain the headline, not
-  competing definitions of success.
-- Multi-metric panels with no headline let any outcome rationalize as
-  success. Don't do this.
-
-## Substrate and metrics that already exist
-
-Don't reinvent these:
-
-- [src/energy_memory/substrate/torch_fhrr.py](src/energy_memory/substrate/torch_fhrr.py) — FHRR operations
-- [src/energy_memory/memory/torch_hopfield.py](src/energy_memory/memory/torch_hopfield.py) — Modern Hopfield retrieval
-- [src/energy_memory/phase2/metrics.py](src/energy_memory/phase2/metrics.py) — cap-coverage, meta-stable rate, entropy, Wilson CIs
-- [src/energy_memory/phase2/encoding.py](src/energy_memory/phase2/encoding.py) — window encoding, position vectors, decode
-
-If the metric you want already exists, use it. If it doesn't, check whether
-the project's notes have already specified its operationalization (e.g., the
-[notes/emergent-codebook/consolidation-geometry-diagnostic.md](notes/emergent-codebook/consolidation-geometry-diagnostic.md)
-file specifies how cap-coverage is calculated for this project).
-
-## Non-negotiable design rules (from PROJECT_PLAN.md)
-
-- Do not add a module that decides which subsystem should win.
-- Do not solve instability with ad hoc if/then supervisory routing.
-- Do not collapse the memory into a vector database plus summaries.
-- Do not make the LLM the source of persistence or identity.
-- Do not remove the pure-Python reference backend.
-- Do not trust a new mechanism until it survives a control condition.
+- [src/energy_memory/betb/continual.py](src/energy_memory/betb/continual.py) —
+  the continual-learning harness. **The task family is an injected parameter**;
+  add a task family, don't fork the harness.
+- [src/energy_memory/betb/tasks.py](src/energy_memory/betb/tasks.py) — task
+  families, including the compositional regime.
+- [src/energy_memory/substrate/torch_fhrr.py](src/energy_memory/substrate/torch_fhrr.py) — FHRR ops
+- [src/energy_memory/memory/torch_hopfield.py](src/energy_memory/memory/torch_hopfield.py) — Hopfield retrieval
+- [src/energy_memory/phase2/metrics.py](src/energy_memory/phase2/metrics.py) — cap-coverage, Wilson CIs
+- `src/energy_memory/legacy/` — the Bet-A arc (phase3/34/4/5), frozen 2026-06-06.
+  `legacy/phase4/consolidation.py` holds a tested multi-timescale consolidator.
 
 ## Environment
 
-- Single repo + working tree at `~/Desktop/Neuro-AI` (on `main`). (The old `Neuro-AI-main` linked worktree was consolidated away 2026-06-13.)
-- Python: `.venv/bin/python` (has torch, MPS available). `.venv` is a real dir inside the repo.
-- Set `PYTHONPATH="$(pwd)/src"` for imports.
-- Run tests: `PYTHONPATH=src .venv/bin/python -m unittest tests.<module> -v`
-- Heavy artifacts (`*.pt` files >50MB) are gitignored — don't try to commit them
+- Python: `.venv/bin/python`. Set `PYTHONPATH=src`.
+- Tests: `PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -t tests`
+- Fast smoke: every `betb` experiment accepts `--tiny`.
+- `*.pt` >50MB are gitignored.
 
-## GPU performance rule of thumb (MPS / CUDA)
+## GPU rule
 
-> **Every `.cpu()`, `float(tensor)`, `int(tensor)`, `tensor.item()`, or
-> `tensor.tolist()` is a stop sign for the GPU pipeline.** Put them at
-> the end of hot loops, not inside them.
+No `.item()`, `.cpu()`, `float(tensor)`, or tensor-interpolating `print` inside
+hot loops — each forces a CPU↔GPU sync. Accumulate as tensors; sync once at the
+end. (True on MPS and CUDA alike.)
 
-PyTorch GPU work is *asynchronous*: the CPU queues commands and the GPU
-runs them in the background. Any operation that converts a tensor to a
-Python value forces a CPU↔GPU synchronization, which on MPS costs ~7ms
-of pure waiting per sync. If you sync once per iteration of a 12-iter
-settling loop, you pay ~84ms of waiting on top of ~50ms of actual work
-— the waiting becomes bigger than the work.
+## Failure modes that have actually bitten
 
-When writing or reviewing tensor code in hot loops:
-- Accumulate intermediate values as **tensors**, not Python floats.
-- If a Python-level branch needs a value (e.g. early-exit convergence
-  check), prefer to run all iterations on-device and replay the branch
-  after a single batched `.cpu()` sync at the end. Capture intermediate
-  states if the branch decision selects one of them.
-- Provide a `_foo_tensor()` variant of any helper that currently returns
-  a Python float, so the hot path can call the tensor version.
-- `print(tensor)` and any logging that interpolates a tensor also syncs.
-
-Reference: the 2026-05-15 `torch_hopfield.retrieve()` refactor cut
-plain-retrieve time 17% and traced-retrieve 30% by deferring all
-mid-loop syncs to one batched sync. Bit-identical user-facing metrics
-preserved by capturing per-iteration states and selecting the converged
-one retrospectively.
-
-## What "done" looks like for an experiment
-
-A phase result is not "done" until:
-1. The headline metric is reported with confidence intervals.
-2. A control condition (random codebook, shuffled tokens, no-replay, etc.)
-   has been run on the same test set.
-3. Drill-down metrics explain anomalies in the headline.
-4. The result is written up as a markdown report under `reports/`.
-5. The relevant memory or status note is updated.
-
-## Common failure modes to watch for
-
-- **Building from first principles when a design exists.** Always check
-  notes first. (This rule exists because it has been violated.)
-- **Optimizing the wrong metric.** Check whether the project has specified
-  *the* metric for this phase before picking one yourself.
-- **Building a capability on an unverified dependency.** Check the CONTEXT.md §4
-  DAG: a capability's dependencies' gates must be cleared first. (This is the only
-  ordering rule — capabilities are NOT a linear sequence; see next.)
-- **Testing in isolation what is really an interaction (the false-negative trap).**
-  The §4 reframe exists because the linear-phase framing forced single-mechanism,
-  single-capability tests — which can NULL on a mechanism that would work *in
-  combination* (e.g. Codebook-growth × Replay). Combination experiments are
-  first-class; when a mechanism nulls in isolation, ask whether its faithful form is
-  a coupled dynamic before banking the null.
-- **Shared random state between conditions.** Save and restore RNG state
-  when comparing across conditions, or use independent substrates per
-  condition.
-- **Reporting confidence based on a single seed.** Multi-seed is the bar,
-  with bootstrap or Wilson CIs.
-- **Equating `default = 0.0` in code with "never run."** This project's
-  `ConsolidationConfig` knobs (`alpha_freq_lambda`, `coverage_lambda`,
-  `retrieval_weight_epsilon`/`_tau`, `metastability_obs_rate`,
-  `inhibition_gain`) default to `0.0` to preserve prior-substrate
-  reproducibility, **not** because the mechanism has never been
-  exercised. Every such knob has at least one numbered report that
-  turned it on, measured the headline, and recorded a verdict
-  (falsified, inert, integrated, or empirically null). The canonical
-  query is always *"which numbered report exercises this knob?"*, never
-  *"what's the default in the dataclass?"* This is the grep-by-default
-  failure mode that caused the 2026-05-24 walk-back chain.
-
-## Agent skills
-
-The Matt Pocock engineering skills (`triage`, `to-issues`, `to-prd`, `diagnose`,
-`tdd`, `improve-codebase-architecture`, `grill-with-docs`, etc.) read three
-per-repo config files to align with this project's actual conventions.
-
-### Issue tracker
-
-Units of work are numbered markdown reports under `reports/<NNN>_*.md`, with
-blockers and active phase state tracked in `STATUS.md` and per-phase
-checklists under `notes/emergent-codebook/`. See
-[docs/agents/issue-tracker.md](docs/agents/issue-tracker.md).
-
-### Triage labels
-
-Triage state is recorded as a `Status:` line in the report file, mapped to
-this repo's existing `STATUS.md` blocker vocabulary. See
-[docs/agents/triage-labels.md](docs/agents/triage-labels.md).
-
-### Domain docs
-
-Single-context layout. The stable charter is the root `CONTEXT.md` (added
-2026-05-31 — the bet, the original per-phase gates, the invariants, the current
-crux; read first). The detailed domain-doc surface is `docs/PROJECT_PLAN.md` +
-`notes/emergent-codebook/<phase>-*.md` + `notes/notes/<dated>.md` (not
-`docs/adr/`). See [docs/agents/domain.md](docs/agents/domain.md).
+- **Building from first principles when a design exists.** Check `reports/INDEX.md`.
+- **`default = 0.0` ≠ "never run."** Knobs default to 0.0 to preserve
+  reproducibility. Ask "which report exercises this knob?", never "what's the
+  default?"
+- **Testing in isolation what is really an interaction.** A mechanism can null
+  alone and work coupled. Combination experiments are first-class.
+- **Shared RNG state between conditions.** Independent substrates per condition.
+- **The task-selection confound (standing).** If the task is already solvable by
+  the simple method, the fancy mechanism *cannot* show a necessary advantage —
+  the null is expected by construction and says nothing about the mechanism. Ask
+  of every experiment: **does the simple baseline fail here?** If not, you are
+  not testing what you think you are testing.
